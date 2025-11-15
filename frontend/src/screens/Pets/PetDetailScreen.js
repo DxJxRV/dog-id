@@ -213,15 +213,59 @@ const PetDetailScreen = ({ route, navigation }) => {
           </Text>
         )}
 
-        {isOwner && (
-          <TouchableOpacity
-            style={styles.linkCodeButton}
-            onPress={handleShowLinkCode}
-          >
-            <Ionicons name="qr-code-outline" size={20} color="#007AFF" />
-            <Text style={styles.linkCodeButtonText}>Código de vinculación</Text>
-          </TouchableOpacity>
-        )}
+        {/* Grid de botones */}
+        <View style={styles.actionsGrid}>
+          {isOwner ? (
+            <>
+              {/* Botón QR - 2x2 */}
+              <TouchableOpacity
+                style={styles.qrButton}
+                onPress={handleShowLinkCode}
+              >
+                <Ionicons name="qr-code-outline" size={32} color="#007AFF" />
+                <Text style={styles.qrButtonText}>QR</Text>
+              </TouchableOpacity>
+
+              {/* Columna derecha con los dos botones */}
+              <View style={styles.rightButtonsColumn}>
+                <TouchableOpacity
+                  style={styles.actionButtonTop}
+                  onPress={() => navigation.navigate('AddVaccine', { petId })}
+                >
+                  <Ionicons name="medical-outline" size={20} color="#9B59B6" />
+                  <Text style={styles.actionButtonText}>Agregar Vacuna</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.actionButtonBottom}
+                  onPress={() => navigation.navigate('AddProcedure', { petId })}
+                >
+                  <Ionicons name="fitness-outline" size={20} color="#FF9500" />
+                  <Text style={styles.actionButtonText}>Agregar Procedimiento</Text>
+                </TouchableOpacity>
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Para veterinarios - dos botones de 2x3 */}
+              <TouchableOpacity
+                style={styles.vetActionButton}
+                onPress={() => navigation.navigate('AddVaccine', { petId })}
+              >
+                <Ionicons name="medical-outline" size={24} color="#9B59B6" />
+                <Text style={styles.vetActionButtonText}>Agregar Vacuna</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.vetActionButton}
+                onPress={() => navigation.navigate('AddProcedure', { petId })}
+              >
+                <Ionicons name="fitness-outline" size={24} color="#FF9500" />
+                <Text style={styles.vetActionButtonText}>Agregar Procedimiento</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
       </View>
 
       {/* Banner de mascota archivada */}
@@ -267,21 +311,6 @@ const PetDetailScreen = ({ route, navigation }) => {
           procedures={pet.procedures || []}
           filters={filters}
         />
-
-        <View style={styles.actionButtons}>
-          <Button
-            title="Agregar Vacuna"
-            onPress={() => navigation.navigate('AddVaccine', { petId })}
-            variant="outline"
-            style={styles.actionButton}
-          />
-          <Button
-            title="Agregar Procedimiento"
-            onPress={() => navigation.navigate('AddProcedure', { petId })}
-            variant="outline"
-            style={styles.actionButton}
-          />
-        </View>
       </View>
 
       {/* Modal de código de vinculación */}
@@ -533,22 +562,78 @@ const styles = StyleSheet.create({
   petBirthdate: {
     fontSize: 14,
     color: '#999',
+    marginBottom: 16,
   },
-  linkCodeButton: {
+  actionsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+    width: '100%',
+  },
+  qrButton: {
+    width: '32%',
+    aspectRatio: 1,
+    backgroundColor: '#F0F8FF',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#007AFF',
+  },
+  qrButtonText: {
+    color: '#007AFF',
+    fontSize: 13,
+    fontWeight: '700',
+    marginTop: 6,
+  },
+  rightButtonsColumn: {
+    flex: 1,
+    gap: 12,
+  },
+  actionButtonTop: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F0F8FF',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 10,
-    marginTop: 16,
     gap: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
   },
-  linkCodeButtonText: {
-    color: '#007AFF',
-    fontSize: 15,
-    fontWeight: '600',
+  actionButtonBottom: {
+    flex: 1,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+  },
+  actionButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#333',
+  },
+  vetActionButton: {
+    flex: 1,
+    aspectRatio: 1.5,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    borderWidth: 1.5,
+    borderColor: '#E5E5EA',
+  },
+  vetActionButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
   },
   archivedBanner: {
     backgroundColor: '#FFF3E0',
@@ -590,14 +675,6 @@ const styles = StyleSheet.create({
   },
   filterButton: {
     padding: 8,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  actionButton: {
-    flex: 1,
   },
   modalOverlay: {
     flex: 1,
