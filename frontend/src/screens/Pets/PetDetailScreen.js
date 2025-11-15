@@ -15,6 +15,7 @@ import { petsAPI } from '../../services/api';
 import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline } from '../../components';
 import { API_URL } from '../../utils/config';
 import { format } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
@@ -31,6 +32,14 @@ const PetDetailScreen = ({ route, navigation }) => {
   const [archiving, setArchiving] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const [filters, setFilters] = useState({
+    type: null, // 'vaccine' | 'procedure' | null
+    vaccineType: null,
+    procedureType: null,
+    addedBy: null, // 'owner' | 'vet' | null
+  });
+  const [tempFilters, setTempFilters] = useState(filters);
 
   const isVet = userType === 'vet';
 
@@ -200,7 +209,7 @@ const PetDetailScreen = ({ route, navigation }) => {
         </Text>
         {pet.fechaNacimiento && (
           <Text style={styles.petBirthdate}>
-            Born: {format(new Date(pet.fechaNacimiento), 'MMM dd, yyyy')}
+            Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
           </Text>
         )}
 
@@ -242,11 +251,21 @@ const PetDetailScreen = ({ route, navigation }) => {
           <Text style={styles.sectionTitle}>
             Historial Médico ({(pet.vaccines?.length || 0) + (pet.procedures?.length || 0)})
           </Text>
+          <TouchableOpacity
+            style={styles.filterButton}
+            onPress={() => {
+              setTempFilters(filters);
+              setShowFiltersModal(true);
+            }}
+          >
+            <Ionicons name="filter-outline" size={22} color="#007AFF" />
+          </TouchableOpacity>
         </View>
 
         <Timeline
           vaccines={pet.vaccines || []}
           procedures={pet.procedures || []}
+          filters={filters}
         />
 
         <View style={styles.actionButtons}>
@@ -272,6 +291,117 @@ const PetDetailScreen = ({ route, navigation }) => {
         linkCode={linkCode}
         petName={pet.nombre}
       />
+
+      {/* Modal de filtros */}
+      <Modal
+        visible={showFiltersModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowFiltersModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowFiltersModal(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.filtersMenu}>
+              <Text style={styles.filtersTitle}>Filtrar historial</Text>
+
+              {/* Tipo de registro */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Tipo</Text>
+                <View style={styles.filterOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterChip,
+                      tempFilters.type === 'vaccine' && styles.filterChipActive
+                    ]}
+                    onPress={() => setTempFilters({ ...tempFilters, type: tempFilters.type === 'vaccine' ? null : 'vaccine' })}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      tempFilters.type === 'vaccine' && styles.filterChipTextActive
+                    ]}>Vacunas</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterChip,
+                      tempFilters.type === 'procedure' && styles.filterChipActive
+                    ]}
+                    onPress={() => setTempFilters({ ...tempFilters, type: tempFilters.type === 'procedure' ? null : 'procedure' })}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      tempFilters.type === 'procedure' && styles.filterChipTextActive
+                    ]}>Procedimientos</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Registrado por */}
+              <View style={styles.filterSection}>
+                <Text style={styles.filterLabel}>Registrado por</Text>
+                <View style={styles.filterOptions}>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterChip,
+                      tempFilters.addedBy === 'owner' && styles.filterChipActive
+                    ]}
+                    onPress={() => setTempFilters({ ...tempFilters, addedBy: tempFilters.addedBy === 'owner' ? null : 'owner' })}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      tempFilters.addedBy === 'owner' && styles.filterChipTextActive
+                    ]}>Dueño</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.filterChip,
+                      tempFilters.addedBy === 'vet' && styles.filterChipActive
+                    ]}
+                    onPress={() => setTempFilters({ ...tempFilters, addedBy: tempFilters.addedBy === 'vet' ? null : 'vet' })}
+                  >
+                    <Text style={[
+                      styles.filterChipText,
+                      tempFilters.addedBy === 'vet' && styles.filterChipTextActive
+                    ]}>Veterinario</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Botones de acción */}
+              <View style={styles.filterActions}>
+                <TouchableOpacity
+                  style={styles.clearButton}
+                  onPress={() => {
+                    const clearedFilters = {
+                      type: null,
+                      vaccineType: null,
+                      procedureType: null,
+                      addedBy: null,
+                    };
+                    setTempFilters(clearedFilters);
+                    setFilters(clearedFilters);
+                    setShowFiltersModal(false);
+                  }}
+                >
+                  <Text style={styles.clearButtonText}>Limpiar filtros</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.applyButton}
+                  onPress={() => {
+                    setFilters(tempFilters);
+                    setShowFiltersModal(false);
+                  }}
+                >
+                  <Text style={styles.applyButtonText}>Aplicar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
 
       {/* Modal de opciones */}
       <Modal
@@ -448,12 +578,18 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   historyHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '600',
     color: '#000',
+  },
+  filterButton: {
+    padding: 8,
   },
   actionButtons: {
     flexDirection: 'row',
@@ -500,6 +636,84 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E5EA',
     marginVertical: 8,
+  },
+  filtersMenu: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  filtersTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  filterSection: {
+    marginBottom: 20,
+  },
+  filterLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 10,
+  },
+  filterOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  filterChip: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#F2F2F7',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  filterChipActive: {
+    backgroundColor: '#007AFF',
+    borderColor: '#007AFF',
+  },
+  filterChipText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+  },
+  filterChipTextActive: {
+    color: '#fff',
+  },
+  filterActions: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 10,
+  },
+  clearButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#F2F2F7',
+    alignItems: 'center',
+  },
+  clearButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+  },
+  applyButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: '#007AFF',
+    alignItems: 'center',
+  },
+  applyButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#fff',
   },
 });
 

@@ -12,7 +12,7 @@ import { es } from 'date-fns/locale';
 const TimelineItem = ({ item, type }) => {
   const isVaccine = type === 'vaccine';
   const icon = isVaccine ? 'medical' : 'fitness';
-  const color = isVaccine ? '#007AFF' : '#34C759';
+  const color = isVaccine ? '#9B59B6' : '#FF9500'; // Morado para vacunas, naranja para procedimientos
 
   return (
     <View style={styles.timelineItem}>
@@ -91,9 +91,9 @@ const YearGroup = ({ year, dates }) => {
   );
 };
 
-const Timeline = ({ vaccines = [], procedures = [] }) => {
+const Timeline = ({ vaccines = [], procedures = [], filters = {} }) => {
   // Combinar y formatear todos los eventos
-  const events = [
+  let events = [
     ...vaccines.map(v => ({
       ...v,
       type: 'vaccine',
@@ -105,6 +105,17 @@ const Timeline = ({ vaccines = [], procedures = [] }) => {
       date: p.fecha,
     })),
   ];
+
+  // Aplicar filtros
+  if (filters.type) {
+    events = events.filter(e => e.type === filters.type);
+  }
+
+  if (filters.addedBy === 'owner') {
+    events = events.filter(e => !e.vet);
+  } else if (filters.addedBy === 'vet') {
+    events = events.filter(e => e.vet);
+  }
 
   // Agrupar por año > fecha completa
   const groupedEvents = events.reduce((acc, event) => {
