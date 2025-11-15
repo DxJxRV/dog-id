@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const RegisterScreen = ({ navigation }) => {
   const { registerUser, registerVet } = useAuth();
@@ -47,10 +48,24 @@ const RegisterScreen = ({ navigation }) => {
           : await registerVet(nombre, email, password, cedulaProfesional, telefono);
 
       if (!result.success) {
-        Alert.alert('Error', result.error);
+        if (result.error && isNetworkError({ response: null, message: result.error })) {
+          Alert.alert(
+            'Error de Conexión',
+            'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+          );
+        } else {
+          Alert.alert('Error', result.error);
+        }
       }
-    } catch (error) {
-      Alert.alert('Error', 'An unexpected error occurred');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
+      } else {
+        Alert.alert('Error', 'An unexpected error occurred');
+      }
     } finally {
       setLoading(false);
     }

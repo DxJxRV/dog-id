@@ -5,3 +5,4 @@ export { default as Loading } from './Loading';
 export { default as PetLinkCodeModal } from './PetLinkCodeModal';
 export { default as SearchableSelect } from './SearchableSelect';
 export { default as DatePickerInput } from './DatePickerInput';
+export { default as ErrorNetwork } from './ErrorNetwork';

@@ -10,10 +10,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { petsAPI } from '../../services/api';
-import { Loading, Card, Button, PetLinkCodeModal } from '../../components';
+import { Loading, Card, Button, PetLinkCodeModal, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { format } from 'date-fns';
 import { useAuth } from '../../contexts/AuthContext';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const PetDetailScreen = ({ route, navigation }) => {
   const { petId } = route.params;
@@ -23,16 +24,23 @@ const PetDetailScreen = ({ route, navigation }) => {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkCode, setLinkCode] = useState(null);
   const [isLinked, setIsLinked] = useState(false);
+  const [error, setError] = useState(null);
 
   const isVet = userType === 'vet';
 
   const fetchPetDetail = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await petsAPI.getById(petId);
       setPet(response.data.pet);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load pet details');
-      navigation.goBack();
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setError(err);
+      } else {
+        Alert.alert('Error', 'Failed to load pet details');
+        navigation.goBack();
+      }
     } finally {
       setLoading(false);
     }
@@ -54,8 +62,15 @@ const PetDetailScreen = ({ route, navigation }) => {
       const response = await petsAPI.getLinkCode(petId);
       setLinkCode(response.data.linkCode);
       setShowLinkModal(true);
-    } catch (error) {
-      Alert.alert('Error', 'No se pudo obtener el código de vinculación');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
+      } else {
+        Alert.alert('Error', 'No se pudo obtener el código de vinculación');
+      }
     }
   };
 
@@ -73,8 +88,15 @@ const PetDetailScreen = ({ route, navigation }) => {
               await petsAPI.unlinkPet(petId);
               Alert.alert('Éxito', 'Mascota desvinculada correctamente');
               navigation.goBack();
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo desvincular la mascota');
+            } catch (err) {
+              if (isNetworkError(err)) {
+                Alert.alert(
+                  'Error de Conexión',
+                  'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+                );
+              } else {
+                Alert.alert('Error', 'No se pudo desvincular la mascota');
+              }
             }
           },
         },
@@ -95,8 +117,15 @@ const PetDetailScreen = ({ route, navigation }) => {
               await petsAPI.archive(petId, true);
               Alert.alert('Éxito', 'Mascota archivada correctamente');
               navigation.goBack();
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo archivar la mascota');
+            } catch (err) {
+              if (isNetworkError(err)) {
+                Alert.alert(
+                  'Error de Conexión',
+                  'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+                );
+              } else {
+                Alert.alert('Error', 'No se pudo archivar la mascota');
+              }
             }
           },
         },
@@ -106,6 +135,10 @@ const PetDetailScreen = ({ route, navigation }) => {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorNetwork onRetry={fetchPetDetail} />;
   }
 
   const isOwner = pet.user && user && pet.user.id === user.id;

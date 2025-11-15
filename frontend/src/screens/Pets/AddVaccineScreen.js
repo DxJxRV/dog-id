@@ -15,6 +15,7 @@ import { Input, Button, SearchableSelect, DatePickerInput } from '../../componen
 import { vaccinesAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { COMMON_VACCINES, filterVaccines } from '../../utils/commonVaccines';
+import { isNetworkError, getErrorMessage } from '../../utils/networkUtils';
 
 const AddVaccineScreen = ({ route, navigation }) => {
   const { petId } = route.params;
@@ -116,10 +117,17 @@ const AddVaccineScreen = ({ route, navigation }) => {
           onPress: () => navigation.goBack(),
         },
       ]);
-    } catch (error) {
-      console.error('Error creating vaccine:', error);
-      const errorMessage = error.response?.data?.error || 'No se pudo registrar la vacuna';
-      Alert.alert('Error', errorMessage);
+    } catch (err) {
+      console.error('Error creating vaccine:', err);
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
+      } else {
+        const errorMessage = err.response?.data?.error || 'No se pudo registrar la vacuna';
+        Alert.alert('Error', errorMessage);
+      }
     } finally {
       setLoading(false);
     }

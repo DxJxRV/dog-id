@@ -14,6 +14,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Input, Button, DatePickerInput } from '../../components';
 import { proceduresAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
+import { isNetworkError, getErrorMessage } from '../../utils/networkUtils';
 
 const PROCEDURE_TYPES = [
   { value: 'desparasitacion', label: 'Desparasitación', icon: 'medical-outline' },
@@ -115,9 +116,16 @@ const AddProcedureScreen = ({ route, navigation }) => {
           onPress: () => navigation.goBack(),
         },
       ]);
-    } catch (error) {
-      console.error('Error creating procedure:', error);
-      Alert.alert('Error', error.response?.data?.error || 'No se pudo registrar el procedimiento');
+    } catch (err) {
+      console.error('Error creating procedure:', err);
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
+      } else {
+        Alert.alert('Error', err.response?.data?.error || 'No se pudo registrar el procedimiento');
+      }
     } finally {
       setLoading(false);
     }
@@ -162,7 +170,6 @@ const AddProcedureScreen = ({ route, navigation }) => {
           onChangeText={setDescripcion}
           multiline
           numberOfLines={4}
-          style={styles.textArea}
         />
 
         <DatePickerInput
@@ -261,11 +268,6 @@ const styles = StyleSheet.create({
   typeLabelSelected: {
     color: '#007AFF',
     fontWeight: '600',
-  },
-  textArea: {
-    height: 100,
-    textAlignVertical: 'top',
-    paddingTop: 12,
   },
   imageButtons: {
     flexDirection: 'row',

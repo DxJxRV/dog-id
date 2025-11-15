@@ -14,6 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { petsAPI } from '../../services/api';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const LinkPetScreen = ({ navigation }) => {
   const [linkCode, setLinkCode] = useState('');
@@ -102,15 +103,22 @@ const LinkPetScreen = ({ navigation }) => {
           },
         ]
       );
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'No se pudo vincular la mascota';
-
-      if (error.response?.status === 404) {
-        Alert.alert('Código inválido', 'El código de vinculación no existe');
-      } else if (error.response?.status === 400) {
-        Alert.alert('Ya vinculada', 'Esta mascota ya está vinculada a tu cuenta');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
       } else {
-        Alert.alert('Error', errorMessage);
+        const errorMessage = err.response?.data?.error || 'No se pudo vincular la mascota';
+
+        if (err.response?.status === 404) {
+          Alert.alert('Código inválido', 'El código de vinculación no existe');
+        } else if (err.response?.status === 400) {
+          Alert.alert('Ya vinculada', 'Esta mascota ya está vinculada a tu cuenta');
+        } else {
+          Alert.alert('Error', errorMessage);
+        }
       }
     } finally {
       setLoading(false);

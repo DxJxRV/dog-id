@@ -11,9 +11,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { petsAPI } from '../../services/api';
-import { Loading, Card } from '../../components';
+import { Loading, Card, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const PetsListScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -21,11 +22,14 @@ const PetsListScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [hasArchivedPets, setHasArchivedPets] = useState(false);
+  const [error, setError] = useState(null);
 
   const isVet = userType === 'vet';
 
   const fetchPets = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await petsAPI.getAll();
       setPets(response.data.pets);
 
@@ -33,8 +37,12 @@ const PetsListScreen = ({ navigation }) => {
       if (response.data.hasArchivedPets !== undefined) {
         setHasArchivedPets(response.data.hasArchivedPets);
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load pets');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setError(err);
+      } else {
+        Alert.alert('Error', 'Failed to load pets');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -112,6 +120,10 @@ const PetsListScreen = ({ navigation }) => {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorNetwork onRetry={fetchPets} />;
   }
 
   return (

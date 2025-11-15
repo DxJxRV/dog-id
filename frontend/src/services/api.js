@@ -5,7 +5,7 @@ import { API_URL, STORAGE_KEYS } from '../utils/config';
 // Create axios instance
 const api = axios.create({
   baseURL: API_URL,
-  timeout: 30000,
+  timeout: 7000,
   headers: {
     'Content-Type': 'application/json',
   },

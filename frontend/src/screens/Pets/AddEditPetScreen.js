@@ -16,6 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { petsAPI } from '../../services/api';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const AddEditPetScreen = ({ navigation, route }) => {
   const petToEdit = route?.params?.pet;
@@ -163,12 +164,19 @@ const AddEditPetScreen = ({ navigation, route }) => {
       }
 
       navigation.goBack();
-    } catch (error) {
-      console.error('Error saving pet:', error);
-      Alert.alert(
-        'Error',
-        error.response?.data?.error || 'No se pudo guardar la mascota'
-      );
+    } catch (err) {
+      console.error('Error saving pet:', err);
+      if (isNetworkError(err)) {
+        Alert.alert(
+          'Error de Conexión',
+          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+        );
+      } else {
+        Alert.alert(
+          'Error',
+          err.response?.data?.error || 'No se pudo guardar la mascota'
+        );
+      }
     } finally {
       setLoading(false);
     }

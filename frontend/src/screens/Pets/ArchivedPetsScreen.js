@@ -11,24 +11,32 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { petsAPI } from '../../services/api';
-import { Loading, Card } from '../../components';
+import { Loading, Card, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
+import { isNetworkError } from '../../utils/networkUtils';
 
 const ArchivedPetsScreen = ({ navigation }) => {
   const { userType } = useAuth();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState(null);
 
   const isVet = userType === 'vet';
 
   const fetchArchivedPets = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const response = await petsAPI.getArchived();
       setPets(response.data.pets);
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load archived pets');
+    } catch (err) {
+      if (isNetworkError(err)) {
+        setError(err);
+      } else {
+        Alert.alert('Error', 'Failed to load archived pets');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -64,8 +72,15 @@ const ArchivedPetsScreen = ({ navigation }) => {
               await petsAPI.archive(petId, false);
               Alert.alert('Éxito', 'Mascota desarchivada correctamente');
               fetchArchivedPets();
-            } catch (error) {
-              Alert.alert('Error', 'No se pudo desarchivar la mascota');
+            } catch (err) {
+              if (isNetworkError(err)) {
+                Alert.alert(
+                  'Error de Conexión',
+                  'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
+                );
+              } else {
+                Alert.alert('Error', 'No se pudo desarchivar la mascota');
+              }
             }
           },
         },
@@ -131,6 +146,10 @@ const ArchivedPetsScreen = ({ navigation }) => {
 
   if (loading) {
     return <Loading />;
+  }
+
+  if (error) {
+    return <ErrorNetwork onRetry={fetchArchivedPets} />;
   }
 
   return (
