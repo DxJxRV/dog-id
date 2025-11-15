@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components';
 import { isNetworkError } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const RegisterScreen = ({ navigation }) => {
   const { registerUser, registerVet } = useAuth();
@@ -26,17 +27,17 @@ const RegisterScreen = ({ navigation }) => {
 
   const handleRegister = async () => {
     if (!nombre || !email || !password) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      showToast.error('Por favor completa todos los campos requeridos', 'Campos requeridos');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      showToast.error('Las contraseñas no coinciden', 'Error de validación');
       return;
     }
 
     if (userType === 'vet' && !cedulaProfesional) {
-      Alert.alert('Error', 'Professional license number is required for veterinarians');
+      showToast.error('La cédula profesional es requerida para veterinarios', 'Campo requerido');
       return;
     }
 
@@ -49,22 +50,16 @@ const RegisterScreen = ({ navigation }) => {
 
       if (!result.success) {
         if (result.error && isNetworkError({ response: null, message: result.error })) {
-          Alert.alert(
-            'Error de Conexión',
-            'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-          );
+          showToast.networkError();
         } else {
-          Alert.alert('Error', result.error);
+          showToast.error(result.error || 'Error al registrar usuario');
         }
       }
     } catch (err) {
       if (isNetworkError(err)) {
-        Alert.alert(
-          'Error de Conexión',
-          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-        );
+        showToast.networkError();
       } else {
-        Alert.alert('Error', 'An unexpected error occurred');
+        showToast.error('Ocurrió un error inesperado');
       }
     } finally {
       setLoading(false);

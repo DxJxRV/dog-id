@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { petsAPI } from '../../services/api';
 import { isNetworkError } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const LinkPetScreen = ({ navigation }) => {
   const [linkCode, setLinkCode] = useState('');
@@ -50,7 +51,7 @@ const LinkPetScreen = ({ navigation }) => {
     if (!permission.granted) {
       const { granted } = await requestPermission();
       if (!granted) {
-        Alert.alert('Permiso denegado', 'Necesitamos acceso a la cámara para escanear códigos QR');
+        showToast.warning('Necesitamos acceso a la cámara para escanear códigos QR', 'Permiso denegado');
         return;
       }
     }
@@ -79,7 +80,7 @@ const LinkPetScreen = ({ navigation }) => {
     const codeToUse = code || linkCode;
 
     if (!codeToUse.trim()) {
-      Alert.alert('Error', 'Por favor ingresa un código de vinculación');
+      showToast.error('Por favor ingresa un código de vinculación', 'Campo requerido');
       return;
     }
 
@@ -89,35 +90,19 @@ const LinkPetScreen = ({ navigation }) => {
       const response = await petsAPI.linkPet(codeToUse.toUpperCase().trim());
       const pet = response.data.pet;
 
-      Alert.alert(
-        'Éxito',
-        `La mascota "${pet.nombre}" ha sido vinculada correctamente`,
-        [
-          {
-            text: 'Ver mascota',
-            onPress: () => navigation.replace('PetDetail', { petId: pet.id }),
-          },
-          {
-            text: 'Vincular otra',
-            onPress: () => setLinkCode(''),
-          },
-        ]
-      );
+      showToast.success(`La mascota "${pet.nombre}" ha sido vinculada correctamente`);
+      setTimeout(() => navigation.replace('PetDetail', { petId: pet.id }), 500);
     } catch (err) {
       if (isNetworkError(err)) {
-        Alert.alert(
-          'Error de Conexión',
-          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-        );
+        showToast.networkError();
       } else {
-        const errorMessage = err.response?.data?.error || 'No se pudo vincular la mascota';
-
         if (err.response?.status === 404) {
-          Alert.alert('Código inválido', 'El código de vinculación no existe');
+          showToast.error('El código de vinculación no existe', 'Código inválido');
         } else if (err.response?.status === 400) {
-          Alert.alert('Ya vinculada', 'Esta mascota ya está vinculada a tu cuenta');
+          showToast.warning('Esta mascota ya está vinculada a tu cuenta', 'Ya vinculada');
         } else {
-          Alert.alert('Error', errorMessage);
+          const errorMessage = err.response?.data?.error || 'No se pudo vincular la mascota';
+          showToast.error(errorMessage);
         }
       }
     } finally {

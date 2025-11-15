@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,6 +15,7 @@ import { vaccinesAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { COMMON_VACCINES, filterVaccines } from '../../utils/commonVaccines';
 import { isNetworkError, getErrorMessage } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const AddVaccineScreen = ({ route, navigation }) => {
   const { petId } = route.params;
@@ -33,7 +33,7 @@ const AddVaccineScreen = ({ route, navigation }) => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Se necesita acceso a la galería de fotos.');
+        showToast.warning('Se necesita acceso a la galería de fotos', 'Permiso denegado');
         return;
       }
     }
@@ -53,7 +53,7 @@ const AddVaccineScreen = ({ route, navigation }) => {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
+      showToast.warning('Se necesita acceso a la cámara', 'Permiso denegado');
       return;
     }
 
@@ -71,22 +71,22 @@ const AddVaccineScreen = ({ route, navigation }) => {
   const handleSubmit = async () => {
     // Validar campos obligatorios
     if (!nombreVacuna.trim()) {
-      Alert.alert('Error', 'El nombre de la vacuna es obligatorio');
+      showToast.error('El nombre de la vacuna es obligatorio', 'Campo requerido');
       return;
     }
 
     if (!lote.trim()) {
-      Alert.alert('Error', 'El número de lote es obligatorio');
+      showToast.error('El número de lote es obligatorio', 'Campo requerido');
       return;
     }
 
     if (!fechaAplicacion) {
-      Alert.alert('Error', 'La fecha de aplicación es obligatoria');
+      showToast.error('La fecha de aplicación es obligatoria', 'Campo requerido');
       return;
     }
 
     if (!evidencia) {
-      Alert.alert('Error', 'La foto de evidencia es obligatoria');
+      showToast.error('La foto de evidencia es obligatoria', 'Campo requerido');
       return;
     }
 
@@ -111,22 +111,15 @@ const AddVaccineScreen = ({ route, navigation }) => {
 
       await vaccinesAPI.create(petId, formData);
 
-      Alert.alert('Éxito', 'Vacuna registrada correctamente', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      showToast.success('Vacuna registrada correctamente');
+      setTimeout(() => navigation.goBack(), 500);
     } catch (err) {
       console.error('Error creating vaccine:', err);
       if (isNetworkError(err)) {
-        Alert.alert(
-          'Error de Conexión',
-          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-        );
+        showToast.networkError();
       } else {
         const errorMessage = err.response?.data?.error || 'No se pudo registrar la vacuna';
-        Alert.alert('Error', errorMessage);
+        showToast.error(errorMessage);
       }
     } finally {
       setLoading(false);

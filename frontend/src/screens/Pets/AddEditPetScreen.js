@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useLayoutEffect } from 'react';
 import {
   View,
   Text,
@@ -10,17 +10,24 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
-  Keyboard,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
+import { DatePickerInput } from '../../components';
 import { petsAPI } from '../../services/api';
+import { API_URL } from '../../utils/config';
 import { isNetworkError } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AddEditPetScreen = ({ navigation, route }) => {
   const petToEdit = route?.params?.pet;
   const isEditing = !!petToEdit;
+  const { user, userType } = useAuth();
+  const isVet = userType === 'vet';
+  const isOwner = petToEdit?.user && user && petToEdit.user.id === user.id;
 
   const [formData, setFormData] = useState({
     nombre: petToEdit?.nombre || '',
@@ -31,21 +38,98 @@ const AddEditPetScreen = ({ navigation, route }) => {
   const [fechaNacimiento, setFechaNacimiento] = useState(
     petToEdit?.fechaNacimiento ? new Date(petToEdit.fechaNacimiento) : null
   );
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [unlinking, setUnlinking] = useState(false);
 
   const especies = ['Perro', 'Gato', 'Ave', 'Conejo', 'Otro'];
+
+  // Configurar el botón de menú en el header
+  useLayoutEffect(() => {
+    if (isEditing) {
+      navigation.setOptions({
+        headerRight: () => (
+          <TouchableOpacity
+            onPress={() => setShowOptionsMenu(true)}
+            style={{ marginRight: 15 }}
+          >
+            <Ionicons name="ellipsis-vertical" size={24} color="#007AFF" />
+          </TouchableOpacity>
+        ),
+      });
+    }
+  }, [navigation, isEditing]);
+
+  const handleArchivePet = () => {
+    setShowOptionsMenu(false);
+    Alert.alert(
+      'Archivar mascota',
+      '¿Deseas archivar esta mascota? Podrás verla en la sección de archivados.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Archivar',
+          onPress: async () => {
+            try {
+              setArchiving(true);
+              await petsAPI.archive(petToEdit.id, true);
+              showToast.success('Mascota archivada correctamente');
+              setTimeout(() => navigation.goBack(), 500);
+            } catch (err) {
+              if (isNetworkError(err)) {
+                showToast.networkError();
+              } else {
+                showToast.error('No se pudo archivar la mascota');
+              }
+            } finally {
+              setArchiving(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUnlinkPet = () => {
+    setShowOptionsMenu(false);
+    Alert.alert(
+      'Desvincular mascota',
+      '¿Estás seguro de que deseas desvincular esta mascota?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Desvincular',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setUnlinking(true);
+              await petsAPI.unlinkPet(petToEdit.id);
+              showToast.success('Mascota desvinculada correctamente');
+              setTimeout(() => navigation.goBack(), 500);
+            } catch (err) {
+              if (isNetworkError(err)) {
+                showToast.networkError();
+              } else {
+                showToast.error('No se pudo desvincular la mascota');
+              }
+            } finally {
+              setUnlinking(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleSelectImage = async () => {
     try {
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (permissionResult.granted === false) {
-        Alert.alert(
-          'Permiso requerido',
-          'Necesitamos permiso para acceder a tus fotos'
-        );
+        showToast.warning('Necesitamos permiso para acceder a tus fotos', 'Permiso requerido');
         return;
       }
 
@@ -58,9 +142,10 @@ const AddEditPetScreen = ({ navigation, route }) => {
 
       if (!result.canceled && result.assets[0]) {
         setSelectedImage(result.assets[0]);
+        setRemovePhoto(false); // Si selecciona una nueva imagen, ya no quiere quitar la foto
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudo seleccionar la imagen');
+      showToast.error('No se pudo seleccionar la imagen');
     }
   };
 
@@ -69,10 +154,7 @@ const AddEditPetScreen = ({ navigation, route }) => {
       const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
 
       if (permissionResult.granted === false) {
-        Alert.alert(
-          'Permiso requerido',
-          'Necesitamos permiso para acceder a la cámara'
-        );
+        showToast.warning('Necesitamos permiso para acceder a la cámara', 'Permiso requerido');
         return;
       }
 
@@ -84,29 +166,38 @@ const AddEditPetScreen = ({ navigation, route }) => {
 
       if (!result.canceled && result.assets[0]) {
         setSelectedImage(result.assets[0]);
+        setRemovePhoto(false); // Si toma una nueva foto, ya no quiere quitar la foto
       }
     } catch (error) {
-      Alert.alert('Error', 'No se pudo tomar la foto');
+      showToast.error('No se pudo tomar la foto');
     }
   };
 
   const showImageOptions = () => {
+    const options = [
+      { text: 'Tomar foto', onPress: handleTakePhoto },
+      { text: 'Elegir de galería', onPress: handleSelectImage },
+    ];
+
+    // Si está editando y tiene foto (ya sea la original o una nueva), mostrar opción de quitar
+    if (isEditing && (petToEdit?.fotoUrl || selectedImage) && !removePhoto) {
+      options.push({
+        text: 'Quitar foto',
+        style: 'destructive',
+        onPress: () => {
+          setSelectedImage(null);
+          setRemovePhoto(true);
+        },
+      });
+    }
+
+    options.push({ text: 'Cancelar', style: 'cancel' });
+
     Alert.alert(
       'Seleccionar foto',
       'Elige una opción',
-      [
-        { text: 'Tomar foto', onPress: handleTakePhoto },
-        { text: 'Elegir de galería', onPress: handleSelectImage },
-        { text: 'Cancelar', style: 'cancel' },
-      ]
+      options
     );
-  };
-
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setFechaNacimiento(selectedDate);
-    }
   };
 
   const formatDate = (date) => {
@@ -119,12 +210,12 @@ const AddEditPetScreen = ({ navigation, route }) => {
 
   const handleSubmit = async () => {
     if (!formData.nombre.trim()) {
-      Alert.alert('Error', 'El nombre es requerido');
+      showToast.error('El nombre es requerido', 'Campo requerido');
       return;
     }
 
     if (!formData.especie) {
-      Alert.alert('Error', 'La especie es requerida');
+      showToast.error('La especie es requerida', 'Campo requerido');
       return;
     }
 
@@ -153,29 +244,27 @@ const AddEditPetScreen = ({ navigation, route }) => {
           name: filename,
           type,
         });
+      } else if (isEditing && removePhoto) {
+        // Si está editando y se marcó para quitar la foto
+        form.append('removeFoto', 'true');
       }
 
       if (isEditing) {
         await petsAPI.update(petToEdit.id, form);
-        Alert.alert('Éxito', 'Mascota actualizada correctamente');
+        showToast.success('Mascota actualizada correctamente');
       } else {
         await petsAPI.create(form);
-        Alert.alert('Éxito', 'Mascota agregada correctamente');
+        showToast.success('Mascota agregada correctamente');
       }
 
-      navigation.goBack();
+      setTimeout(() => navigation.goBack(), 500);
     } catch (err) {
       console.error('Error saving pet:', err);
       if (isNetworkError(err)) {
-        Alert.alert(
-          'Error de Conexión',
-          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-        );
+        showToast.networkError();
       } else {
-        Alert.alert(
-          'Error',
-          err.response?.data?.error || 'No se pudo guardar la mascota'
-        );
+        const errorMessage = err.response?.data?.error || 'No se pudo guardar la mascota';
+        showToast.error(errorMessage);
       }
     } finally {
       setLoading(false);
@@ -196,7 +285,24 @@ const AddEditPetScreen = ({ navigation, route }) => {
         {/* Image Picker */}
         <TouchableOpacity style={styles.imagePicker} onPress={showImageOptions}>
           {selectedImage ? (
-            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
+            <View style={styles.imageContainer}>
+              <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
+              <View style={styles.imageOverlay}>
+                <Ionicons name="camera-outline" size={30} color="#fff" />
+                <Text style={styles.overlayText}>Cambiar foto</Text>
+              </View>
+            </View>
+          ) : petToEdit?.fotoUrl && !removePhoto ? (
+            <View style={styles.imageContainer}>
+              <Image
+                source={{ uri: `${API_URL}${petToEdit.fotoUrl}` }}
+                style={styles.imagePreview}
+              />
+              <View style={styles.imageOverlay}>
+                <Ionicons name="camera-outline" size={30} color="#fff" />
+                <Text style={styles.overlayText}>Cambiar foto</Text>
+              </View>
+            </View>
           ) : (
             <View style={styles.imagePlaceholder}>
               <Ionicons name="camera-outline" size={40} color="#999" />
@@ -260,39 +366,12 @@ const AddEditPetScreen = ({ navigation, route }) => {
         </View>
 
         {/* Fecha de Nacimiento */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Fecha de nacimiento (opcional)</Text>
-          <TouchableOpacity
-            style={styles.datePickerButton}
-            onPress={() => {
-              Keyboard.dismiss();
-              setTimeout(() => setShowDatePicker(true), 100);
-            }}
-          >
-            <Ionicons name="calendar-outline" size={20} color="#666" />
-            <Text style={[styles.datePickerText, !fechaNacimiento && styles.datePickerPlaceholder]}>
-              {fechaNacimiento ? formatDate(fechaNacimiento) : 'Seleccionar fecha'}
-            </Text>
-          </TouchableOpacity>
-          {fechaNacimiento && (
-            <TouchableOpacity
-              style={styles.clearDateButton}
-              onPress={() => setFechaNacimiento(null)}
-            >
-              <Text style={styles.clearDateText}>Limpiar fecha</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {showDatePicker && (
-          <DateTimePicker
-            value={fechaNacimiento || new Date()}
-            mode="date"
-            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-            onChange={handleDateChange}
-            maximumDate={new Date()}
-          />
-        )}
+        <DatePickerInput
+          label="Fecha de nacimiento (opcional)"
+          value={fechaNacimiento}
+          onChange={setFechaNacimiento}
+          maximumDate={new Date()}
+        />
 
         {/* Submit Button */}
         <TouchableOpacity
@@ -306,6 +385,66 @@ const AddEditPetScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Modal de opciones */}
+      <Modal
+        visible={showOptionsMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowOptionsMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowOptionsMenu(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.optionsMenu}>
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={handleArchivePet}
+              disabled={archiving || unlinking}
+            >
+              {archiving ? (
+                <ActivityIndicator size="small" color="#666" />
+              ) : (
+                <Ionicons name="archive-outline" size={22} color="#666" />
+              )}
+              <Text style={styles.optionText}>
+                {archiving ? 'Archivando...' : 'Archivar mascota'}
+              </Text>
+            </TouchableOpacity>
+
+            {isVet && !isOwner && (
+              <TouchableOpacity
+                style={[styles.optionItem, styles.optionItemDanger]}
+                onPress={handleUnlinkPet}
+                disabled={archiving || unlinking}
+              >
+                {unlinking ? (
+                  <ActivityIndicator size="small" color="#FF3B30" />
+                ) : (
+                  <Ionicons name="link-outline" size={22} color="#FF3B30" />
+                )}
+                <Text style={styles.optionTextDanger}>
+                  {unlinking ? 'Desvinculando...' : 'Desvincular mascota'}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={styles.optionSeparator} />
+
+            <TouchableOpacity
+              style={styles.optionItem}
+              onPress={() => setShowOptionsMenu(false)}
+            >
+              <Ionicons name="close-outline" size={22} color="#666" />
+              <Text style={styles.optionText}>Cancelar</Text>
+            </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </KeyboardAvoidingView>
   );
 };
@@ -326,10 +465,34 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginBottom: 30,
   },
+  imageContainer: {
+    position: 'relative',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+  },
   imagePreview: {
     width: 120,
     height: 120,
     borderRadius: 60,
+  },
+  imageOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 60,
+  },
+  overlayText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
   imagePlaceholder: {
     width: 120,
@@ -410,30 +573,43 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  datePickerButton: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  optionsMenu: {
     backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    padding: 15,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
+    paddingVertical: 16,
     gap: 12,
   },
-  datePickerText: {
+  optionItemDanger: {
+    borderTopWidth: 1,
+    borderTopColor: '#f0f0f0',
+  },
+  optionText: {
     fontSize: 16,
     color: '#333',
+    fontWeight: '500',
   },
-  datePickerPlaceholder: {
-    color: '#999',
-  },
-  clearDateButton: {
-    marginTop: 8,
-    alignSelf: 'flex-start',
-  },
-  clearDateText: {
-    fontSize: 14,
+  optionTextDanger: {
+    fontSize: 16,
     color: '#FF3B30',
+    fontWeight: '500',
+  },
+  optionSeparator: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    marginVertical: 8,
   },
 });
 

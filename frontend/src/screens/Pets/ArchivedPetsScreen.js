@@ -8,6 +8,7 @@ import {
   Image,
   Alert,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { petsAPI } from '../../services/api';
@@ -15,6 +16,7 @@ import { Loading, Card, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const ArchivedPetsScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -22,6 +24,7 @@ const ArchivedPetsScreen = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [unarchivingId, setUnarchivingId] = useState(null);
 
   const isVet = userType === 'vet';
 
@@ -35,7 +38,7 @@ const ArchivedPetsScreen = ({ navigation }) => {
       if (isNetworkError(err)) {
         setError(err);
       } else {
-        Alert.alert('Error', 'Failed to load archived pets');
+        showToast.error('No se pudieron cargar las mascotas archivadas');
       }
     } finally {
       setLoading(false);
@@ -69,18 +72,18 @@ const ArchivedPetsScreen = ({ navigation }) => {
           text: 'Desarchivar',
           onPress: async () => {
             try {
+              setUnarchivingId(petId);
               await petsAPI.archive(petId, false);
-              Alert.alert('Éxito', 'Mascota desarchivada correctamente');
+              showToast.success('Mascota desarchivada correctamente');
               fetchArchivedPets();
             } catch (err) {
               if (isNetworkError(err)) {
-                Alert.alert(
-                  'Error de Conexión',
-                  'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-                );
+                showToast.networkError();
               } else {
-                Alert.alert('Error', 'No se pudo desarchivar la mascota');
+                showToast.error('No se pudo desarchivar la mascota');
               }
+            } finally {
+              setUnarchivingId(null);
             }
           },
         },
@@ -135,8 +138,13 @@ const ArchivedPetsScreen = ({ navigation }) => {
             <TouchableOpacity
               onPress={() => handleUnarchive(item.id, item.nombre)}
               style={styles.unarchiveButton}
+              disabled={unarchivingId === item.id}
             >
-              <Ionicons name="arrow-undo-outline" size={24} color="#007AFF" />
+              {unarchivingId === item.id ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : (
+                <Ionicons name="arrow-undo-outline" size={24} color="#007AFF" />
+              )}
             </TouchableOpacity>
           </View>
         </Card>

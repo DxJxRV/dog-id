@@ -15,6 +15,7 @@ import { Loading, Card, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const PetsListScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -41,7 +42,7 @@ const PetsListScreen = ({ navigation }) => {
       if (isNetworkError(err)) {
         setError(err);
       } else {
-        Alert.alert('Error', 'Failed to load pets');
+        showToast.error('No se pudieron cargar las mascotas');
       }
     } finally {
       setLoading(false);

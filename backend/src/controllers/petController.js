@@ -145,49 +145,88 @@ const getPetById = async (req, res) => {
       ? { id: petId }  // Veterinarios pueden ver cualquier mascota
       : { id: petId, userId };  // Usuarios solo ven sus mascotas
 
-    const pet = await prisma.pet.findFirst({
-      where: whereClause,
-      include: {
-        user: {
-          select: {
-            id: true,
-            nombre: true,
-            email: true
+    const includeClause = {
+      user: {
+        select: {
+          id: true,
+          nombre: true,
+          email: true
+        }
+      },
+      vaccines: {
+        include: {
+          vet: {
+            select: {
+              id: true,
+              nombre: true,
+              cedulaProfesional: true
+            }
           }
         },
-        vaccines: {
-          include: {
-            vet: {
-              select: {
-                id: true,
-                nombre: true,
-                cedulaProfesional: true
-              }
+        orderBy: { createdAt: 'desc' }
+      },
+      procedures: {
+        include: {
+          vet: {
+            select: {
+              id: true,
+              nombre: true,
+              cedulaProfesional: true
             }
-          },
-          orderBy: { createdAt: 'desc' }
+          }
         },
-        procedures: {
-          include: {
-            vet: {
-              select: {
-                id: true,
-                nombre: true,
-                cedulaProfesional: true
-              }
-            }
-          },
-          orderBy: { fecha: 'desc' }
-        }
+        orderBy: { fecha: 'desc' }
       }
+    };
+
+    // Si es veterinario, incluir la relación VetPetLink para obtener el estado archived
+    if (userType === 'vet') {
+      includeClause.linkedVets = {
+        where: {
+          vetId: userId
+        },
+        select: {
+          id: true,
+          archived: true
+        }
+      };
+    }
+
+    const pet = await prisma.pet.findFirst({
+      where: whereClause,
+      include: includeClause
     });
 
     if (!pet) {
       return res.status(404).json({ error: 'Pet not found' });
     }
 
+    // Preparar la respuesta según el tipo de usuario
+    let petResponse = { ...pet };
+
+    if (userType === 'vet') {
+      // Para veterinarios, agregar el campo isArchived basado en VetPetLink
+      const isArchived = pet.linkedVets && pet.linkedVets.length > 0
+        ? pet.linkedVets[0].archived
+        : false;
+
+      petResponse = {
+        ...pet,
+        isArchived,
+        archived: isArchived,
+        linkedVets: undefined // Remover el array linkedVets de la respuesta
+      };
+    } else {
+      // Para usuarios normales, usar el campo archivedByOwner
+      petResponse = {
+        ...pet,
+        isArchived: pet.archivedByOwner,
+        archived: pet.archivedByOwner
+      };
+    }
+
     res.json({
-      pet
+      pet: petResponse
     });
   } catch (error) {
     console.error('Get pet by ID error:', error);
@@ -200,7 +239,7 @@ const updatePet = async (req, res) => {
   try {
     const userId = req.user.id;
     const petId = parseInt(req.params.id);
-    const { nombre, especie, raza, fechaNacimiento } = req.body;
+    const { nombre, especie, raza, fechaNacimiento, removeFoto } = req.body;
 
     // Verificar que la mascota pertenece al usuario
     const pet = await prisma.pet.findFirst({
@@ -214,10 +253,14 @@ const updatePet = async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
 
-    // Procesar foto si existe
+    // Procesar foto
     let fotoUrl = pet.fotoUrl;
     if (req.file) {
+      // Si hay una nueva foto
       fotoUrl = `/uploads/pets/${req.file.filename}`;
+    } else if (removeFoto === 'true') {
+      // Si se solicita eliminar la foto
+      fotoUrl = null;
     }
 
     // Actualizar mascota

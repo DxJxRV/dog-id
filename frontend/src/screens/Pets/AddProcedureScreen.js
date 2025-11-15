@@ -6,7 +6,6 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  Alert,
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +14,7 @@ import { Input, Button, DatePickerInput } from '../../components';
 import { proceduresAPI } from '../../services/api';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError, getErrorMessage } from '../../utils/networkUtils';
+import { showToast } from '../../utils/toast';
 
 const PROCEDURE_TYPES = [
   { value: 'desparasitacion', label: 'Desparasitación', icon: 'medical-outline' },
@@ -39,7 +39,7 @@ const AddProcedureScreen = ({ route, navigation }) => {
     if (Platform.OS !== 'web') {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permiso denegado', 'Se necesita acceso a la galería de fotos.');
+        showToast.warning('Se necesita acceso a la galería de fotos', 'Permiso denegado');
         return;
       }
     }
@@ -59,7 +59,7 @@ const AddProcedureScreen = ({ route, navigation }) => {
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permiso denegado', 'Se necesita acceso a la cámara.');
+      showToast.warning('Se necesita acceso a la cámara', 'Permiso denegado');
       return;
     }
 
@@ -76,12 +76,12 @@ const AddProcedureScreen = ({ route, navigation }) => {
 
   const handleSubmit = async () => {
     if (!tipo) {
-      Alert.alert('Error', 'Selecciona un tipo de procedimiento');
+      showToast.error('Selecciona un tipo de procedimiento', 'Campo requerido');
       return;
     }
 
     if (!descripcion.trim()) {
-      Alert.alert('Error', 'La descripción es requerida');
+      showToast.error('La descripción es requerida', 'Campo requerido');
       return;
     }
 
@@ -110,21 +110,15 @@ const AddProcedureScreen = ({ route, navigation }) => {
 
       await proceduresAPI.create(petId, formData);
 
-      Alert.alert('Éxito', 'Procedimiento registrado correctamente', [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]);
+      showToast.success('Procedimiento registrado correctamente');
+      setTimeout(() => navigation.goBack(), 500);
     } catch (err) {
       console.error('Error creating procedure:', err);
       if (isNetworkError(err)) {
-        Alert.alert(
-          'Error de Conexión',
-          'No se pudo conectar al servidor. Verifica tu conexión a internet e intenta de nuevo.'
-        );
+        showToast.networkError();
       } else {
-        Alert.alert('Error', err.response?.data?.error || 'No se pudo registrar el procedimiento');
+        const errorMessage = err.response?.data?.error || 'No se pudo registrar el procedimiento';
+        showToast.error(errorMessage);
       }
     } finally {
       setLoading(false);
