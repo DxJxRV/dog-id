@@ -1,0 +1,108 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           Int      @id @default(autoincrement())
+  nombre       String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  pets         Pet[]
+
+  @@map("users")
+}
+
+model Vet {
+  id                  Int      @id @default(autoincrement())
+  nombre              String
+  email               String   @unique
+  passwordHash        String   @map("password_hash")
+  cedulaProfesional   String   @map("cedula_profesional")
+  telefono            String?
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  vaccines            Vaccine[]
+  procedures          Procedure[]
+  linkedPets          VetPetLink[]
+
+  @@map("vets")
+}
+
+model Pet {
+  id               Int       @id @default(autoincrement())
+  userId           Int       @map("user_id")
+  nombre           String
+  especie          String
+  raza             String?
+  fechaNacimiento  DateTime? @map("fecha_nacimiento")
+  fotoUrl          String?   @map("foto_url")
+  linkCode         String?   @unique @map("link_code")
+  archivedByOwner  Boolean   @default(false) @map("archived_by_owner")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vaccines         Vaccine[]
+  procedures       Procedure[]
+  linkedVets       VetPetLink[]
+
+  @@map("pets")
+}
+
+model Vaccine {
+  id             Int       @id @default(autoincrement())
+  petId          Int       @map("pet_id")
+  vetId          Int?      @map("vet_id")
+  nombreVacuna   String    @map("nombre_vacuna")
+  lote           String?
+  caducidad      DateTime?
+  fechaAplicacion DateTime? @map("fecha_aplicacion")
+  evidenciaUrl   String?   @map("evidencia_url")
+  ocrRawText     String?   @map("ocr_raw_text") @db.Text
+  ocrStatus      String    @default("pending") @map("ocr_status") // success, fail, manual, pending
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+
+  @@map("vaccines")
+}
+
+model Procedure {
+  id             Int       @id @default(autoincrement())
+  petId          Int       @map("pet_id")
+  vetId          Int?      @map("vet_id")
+  tipo           String    // desparasitacion, limpieza_dental, cirugia, chequeo_general, radiografia, otro
+  descripcion    String    @db.Text
+  fecha          DateTime  @default(now())
+  evidenciaUrl   String?   @map("evidencia_url")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+
+  @@map("procedures")
+}
+
+model VetPetLink {
+  id        Int      @id @default(autoincrement())
+  vetId     Int      @map("vet_id")
+  petId     Int      @map("pet_id")
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  vet       Vet      @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([vetId, petId])
+  @@map("vet_pet_links")
+}
