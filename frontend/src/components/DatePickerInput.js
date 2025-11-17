@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -25,6 +25,7 @@ const DatePickerInput = ({
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [tempMonth, setTempMonth] = useState(new Date().getMonth());
   const [tempYear, setTempYear] = useState(new Date().getFullYear());
+  const yearScrollViewRef = useRef(null);
 
   const handleDateSelect = (day) => {
     const newDate = new Date(day.timestamp);
@@ -105,6 +106,29 @@ const DatePickerInput = ({
 
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 100 }, (_, i) => currentYear - 50 + i);
+
+  // Scroll automático al año seleccionado cuando se abre el modal
+  useEffect(() => {
+    if (showYearPicker && yearScrollViewRef.current) {
+      // Calcular la posición del año en el array
+      const yearIndex = years.indexOf(tempYear);
+      if (yearIndex !== -1) {
+        // Altura de cada item (paddingVertical * 2 + altura del texto + borderBottom)
+        const itemHeight = 50; // 16 * 2 (paddingVertical) + 17 (texto) + 1 (border)
+        // Centrar el elemento: restar 2.5 items (la mitad de ~5 items visibles)
+        const centerOffset = itemHeight * 2.5;
+        const scrollPosition = Math.max(0, (yearIndex * itemHeight) - centerOffset);
+
+        // Hacer scroll con un pequeño delay para asegurar que el modal esté completamente renderizado
+        setTimeout(() => {
+          yearScrollViewRef.current?.scrollTo({
+            y: scrollPosition,
+            animated: true,
+          });
+        }, 100);
+      }
+    }
+  }, [showYearPicker]);
 
   return (
     <View style={styles.container}>
@@ -288,7 +312,11 @@ const DatePickerInput = ({
             <View style={styles.singlePickerContent}>
               <Text style={styles.singlePickerTitle}>Seleccionar Año</Text>
 
-              <ScrollView style={styles.singlePickerScroll} showsVerticalScrollIndicator={false}>
+              <ScrollView
+                ref={yearScrollViewRef}
+                style={styles.singlePickerScroll}
+                showsVerticalScrollIndicator={false}
+              >
                 {years.map((year) => (
                   <TouchableOpacity
                     key={year}

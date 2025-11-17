@@ -21,7 +21,7 @@ import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 
 const { width } = Dimensions.get('window');
-const cardWidth = (width - 48) / 2;
+const cardWidth = (width - 20) / 2; // 8px padding on each side + 4px gap
 
 const ArchivedPetsScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -196,16 +196,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
   },
   listContent: {
-    padding: 16,
+    padding: 8,
   },
   columnWrapper: {
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 4,
   },
   cardContainer: {
     width: cardWidth,
     height: 240,
-    borderRadius: 12,
+    borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: '#fff',
     shadowColor: '#000',
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
     height: '100%',
   },
   cardBackgroundImage: {
-    borderRadius: 12,
+    borderRadius: 8,
   },
   gradient: {
     flex: 1,
@@ -269,7 +269,7 @@ const styles = StyleSheet.create({
   emptyContainer: {
     alignItems: 'center',
     paddingTop: 100,
-    width: width - 32,
+    width: width - 16,
   },
   emptyText: {
     fontSize: 20,

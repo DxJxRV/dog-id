@@ -462,7 +462,7 @@ const PetDetailScreen = ({ route, navigation }) => {
                     navigation.navigate('EditPet', { pet });
                   }}
                 >
-                  <Ionicons name="create-outline" size={22} color="#666" />
+                  <Ionicons name="create-outline" size={22} color="#8E8E93" />
                   <Text style={styles.optionText}>Editar mascota</Text>
                 </TouchableOpacity>
               )}
@@ -473,12 +473,12 @@ const PetDetailScreen = ({ route, navigation }) => {
                 disabled={archiving || unlinking}
               >
                 {archiving ? (
-                  <ActivityIndicator size="small" color="#666" />
+                  <ActivityIndicator size="small" color="#8E8E93" />
                 ) : (
                   <Ionicons
                     name={isArchived ? "arrow-undo-outline" : "archive-outline"}
                     size={22}
-                    color="#666"
+                    color="#8E8E93"
                   />
                 )}
                 <Text style={styles.optionText}>
@@ -512,7 +512,7 @@ const PetDetailScreen = ({ route, navigation }) => {
                 style={styles.optionItem}
                 onPress={() => setShowOptionsMenu(false)}
               >
-                <Ionicons name="close-outline" size={22} color="#666" />
+                <Ionicons name="close-outline" size={22} color="#8E8E93" />
                 <Text style={styles.optionText}>Cancelar</Text>
               </TouchableOpacity>
             </View>
@@ -552,17 +552,17 @@ const styles = StyleSheet.create({
   petImagePlaceholderText: {
     color: '#fff',
     fontSize: 40,
-    fontWeight: 'bold',
+    fontWeight: '600',
   },
   petName: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#000',
     marginBottom: 4,
   },
   petDetails: {
     fontSize: 15,
-    color: '#666',
+    color: '#8E8E93',
     marginBottom: 4,
   },
   petBirthdate: {
@@ -603,8 +603,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
+    borderWidth: 0,
     gap: 12,
   },
   actionButtonBottom: {
@@ -615,8 +614,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 12,
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
+    borderWidth: 0,
     gap: 12,
   },
   iconContainer: {
@@ -642,8 +640,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 12,
-    borderWidth: 1,
-    borderColor: '#D1D1D6',
+    borderWidth: 0,
     paddingHorizontal: 12,
   },
   vetActionButtonText: {
@@ -713,11 +710,11 @@ const styles = StyleSheet.create({
   },
   optionItemDanger: {
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: '#E5E5EA',
   },
   optionText: {
     fontSize: 16,
-    color: '#333',
+    color: '#000',
     fontWeight: '500',
   },
   optionTextDanger: {
@@ -739,8 +736,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   filtersTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 17,
+    fontWeight: '600',
     color: '#000',
     marginBottom: 20,
     textAlign: 'center',
@@ -751,7 +748,7 @@ const styles = StyleSheet.create({
   filterLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: '#000',
     marginBottom: 10,
   },
   filterOptions: {
@@ -764,20 +761,19 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: '#F2F2F7',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderWidth: 0,
   },
   filterChipActive: {
     backgroundColor: '#007AFF',
-    borderColor: '#007AFF',
   },
   filterChipText: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#666',
+    color: '#000',
   },
   filterChipTextActive: {
     color: '#fff',
+    fontWeight: '600',
   },
   filterActions: {
     flexDirection: 'row',
@@ -787,19 +783,19 @@ const styles = StyleSheet.create({
   clearButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: '#F2F2F7',
     alignItems: 'center',
   },
   clearButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: '#000',
   },
   applyButton: {
     flex: 1,
     paddingVertical: 14,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: '#007AFF',
     alignItems: 'center',
   },
