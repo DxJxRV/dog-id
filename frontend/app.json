@@ -1,29 +1,24 @@
 {
   "expo": {
-    "name": "Veterinary Control",
-    "slug": "veterinary-control",
+    "name": "Mi Mascota Plus",
+    "slug": "mi-mascota-plus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./src/assets/PulgoCareSplash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F5F1E8"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.veterinary.control"
+      "bundleIdentifier": "com.mimascotaplus.app"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./src/assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.veterinary.control",
+      "package": "com.mimascotaplus.app",
       "permissions": [
         "android.permission.CAMERA",
         "android.permission.READ_EXTERNAL_STORAGE",
@@ -49,7 +44,8 @@
       ],
       "expo-secure-store",
       "expo-asset",
-      "expo-font"
+      "expo-font",
+      "expo-av"
     ],
     "extra": {
       "eas": {

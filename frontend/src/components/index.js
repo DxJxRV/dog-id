@@ -7,3 +7,4 @@ export { default as SearchableSelect } from './SearchableSelect';
 export { default as DatePickerInput } from './DatePickerInput';
 export { default as ErrorNetwork } from './ErrorNetwork';
 export { default as Timeline } from './Timeline';
+export { default as CustomSplashScreen } from './CustomSplashScreen';

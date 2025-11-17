@@ -73,8 +73,11 @@ const RegisterScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join Veterinary Control</Text>
+          <Text style={styles.title}>
+            <Text style={styles.titleBlack}>Mi Mascota </Text>
+            <Text style={styles.titleBlue}>+</Text>
+          </Text>
+          <Text style={styles.subtitle}>Crea tu cuenta</Text>
         </View>
 
         <View style={styles.toggleContainer}>
@@ -85,7 +88,7 @@ const RegisterScreen = ({ navigation }) => {
             <Text
               style={[styles.toggleText, userType === 'user' && styles.toggleTextActive]}
             >
-              Pet Owner
+              Dueño
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -95,42 +98,42 @@ const RegisterScreen = ({ navigation }) => {
             <Text
               style={[styles.toggleText, userType === 'vet' && styles.toggleTextActive]}
             >
-              Veterinarian
+              Veterinario
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
           <Input
-            label="Full Name"
+            label="Nombre completo"
             value={nombre}
             onChangeText={setNombre}
-            placeholder="Enter your full name"
+            placeholder="Ingresa tu nombre completo"
           />
 
           <Input
-            label="Email"
+            label="Correo electrónico"
             value={email}
             onChangeText={setEmail}
-            placeholder="Enter your email"
+            placeholder="Ingresa tu correo"
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
           <Input
-            label="Password"
+            label="Contraseña"
             value={password}
             onChangeText={setPassword}
-            placeholder="Enter your password"
+            placeholder="Ingresa tu contraseña"
             secureTextEntry
             autoCapitalize="none"
           />
 
           <Input
-            label="Confirm Password"
+            label="Confirmar contraseña"
             value={confirmPassword}
             onChangeText={setConfirmPassword}
-            placeholder="Confirm your password"
+            placeholder="Confirma tu contraseña"
             secureTextEntry
             autoCapitalize="none"
           />
@@ -138,24 +141,24 @@ const RegisterScreen = ({ navigation }) => {
           {userType === 'vet' && (
             <>
               <Input
-                label="Professional License Number"
+                label="Cédula profesional"
                 value={cedulaProfesional}
                 onChangeText={setCedulaProfesional}
-                placeholder="Enter your license number"
+                placeholder="Ingresa tu cédula profesional"
               />
 
               <Input
-                label="Phone (Optional)"
+                label="Teléfono (opcional)"
                 value={telefono}
                 onChangeText={setTelefono}
-                placeholder="Enter your phone number"
+                placeholder="Ingresa tu teléfono"
                 keyboardType="phone-pad"
               />
             </>
           )}
 
           <Button
-            title="Register"
+            title="Registrarse"
             onPress={handleRegister}
             loading={loading}
             style={styles.registerButton}
@@ -166,7 +169,7 @@ const RegisterScreen = ({ navigation }) => {
             style={styles.loginLink}
           >
             <Text style={styles.loginLinkText}>
-              Already have an account? Login
+              ¿Ya tienes cuenta? Inicia sesión
             </Text>
           </TouchableOpacity>
         </View>
@@ -192,8 +195,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#000',
     marginBottom: 8,
+  },
+  titleBlack: {
+    color: '#000',
+  },
+  titleBlue: {
+    color: '#007AFF',
   },
   subtitle: {
     fontSize: 16,

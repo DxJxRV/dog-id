@@ -5,18 +5,23 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
   Alert,
   RefreshControl,
   ActivityIndicator,
+  Dimensions,
+  ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
-import { Loading, Card, ErrorNetwork } from '../../components';
+import { Loading, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+
+const { width } = Dimensions.get('window');
+const cardWidth = (width - 48) / 2;
 
 const ArchivedPetsScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -92,32 +97,30 @@ const ArchivedPetsScreen = ({ navigation }) => {
   };
 
   const renderPetCard = ({ item }) => {
-    const chevronColor = isVet ? '#4CAF50' : '#C7C7CC';
-
     const isArchivedByOwner = item.isArchivedByOwner || false;
 
     return (
       <TouchableOpacity
         onPress={() => navigation.navigate('PetDetail', { petId: item.id })}
+        style={styles.cardContainer}
       >
-        <Card>
-          <View style={styles.petCard}>
-            {item.fotoUrl ? (
-              <Image
-                source={{ uri: `${API_URL}${item.fotoUrl}` }}
-                style={styles.petImage}
-              />
-            ) : (
-              <View style={styles.petImagePlaceholder}>
-                <Text style={styles.petImagePlaceholderText}>
-                  {item.nombre.charAt(0)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.petInfo}>
+        <ImageBackground
+          source={
+            item.fotoUrl
+              ? { uri: `${API_URL}${item.fotoUrl}` }
+              : require('../../assets/adaptive-icon.png')
+          }
+          style={styles.cardBackground}
+          imageStyle={styles.cardBackgroundImage}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.gradient}
+          >
+            <View style={styles.cardContent}>
               <Text style={styles.petName}>{item.nombre}</Text>
               <Text style={styles.petDetails}>
-                {item.especie} • {item.raza || 'Mixed'}
+                {item.especie} {item.raza ? `• ${item.raza}` : ''}
               </Text>
               {item.user && isVet && (
                 <Text style={styles.ownerText}>
@@ -129,25 +132,26 @@ const ArchivedPetsScreen = ({ navigation }) => {
                   Archivado por dueño
                 </Text>
               )}
-              {item.fechaNacimiento && (
-                <Text style={styles.petAge}>
-                  Born: {new Date(item.fechaNacimiento).toLocaleDateString()}
-                </Text>
-              )}
+              <TouchableOpacity
+                style={styles.unarchiveButton}
+                onPress={(e) => {
+                  e.stopPropagation();
+                  handleUnarchive(item.id, item.nombre);
+                }}
+                disabled={unarchivingId === item.id}
+              >
+                {unarchivingId === item.id ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="arrow-undo-outline" size={16} color="#fff" />
+                    <Text style={styles.unarchiveButtonText}>Desarchivar</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
-            <TouchableOpacity
-              onPress={() => handleUnarchive(item.id, item.nombre)}
-              style={styles.unarchiveButton}
-              disabled={unarchivingId === item.id}
-            >
-              {unarchivingId === item.id ? (
-                <ActivityIndicator size="small" color="#007AFF" />
-              ) : (
-                <Ionicons name="arrow-undo-outline" size={24} color="#007AFF" />
-              )}
-            </TouchableOpacity>
-          </View>
-        </Card>
+          </LinearGradient>
+        </ImageBackground>
       </TouchableOpacity>
     );
   };
@@ -167,6 +171,8 @@ const ArchivedPetsScreen = ({ navigation }) => {
         renderItem={renderPetCard}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Ionicons name="archive-outline" size={64} color="#CCC" />
@@ -192,65 +198,78 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  petCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  petImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  cardContainer: {
+    width: cardWidth,
+    height: 240,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  petImagePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  cardBackground: {
+    width: '100%',
+    height: '100%',
   },
-  petImagePlaceholderText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+  cardBackgroundImage: {
+    borderRadius: 12,
   },
-  petInfo: {
+  gradient: {
     flex: 1,
-    marginLeft: 16,
+    justifyContent: 'flex-end',
+  },
+  cardContent: {
+    padding: 16,
   },
   petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 4,
   },
   petDetails: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
-  },
-  petAge: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: '#fff',
+    marginBottom: 4,
   },
   ownerText: {
-    fontSize: 13,
-    color: '#007AFF',
-    marginBottom: 2,
+    fontSize: 12,
+    color: '#fff',
+    marginBottom: 4,
+    opacity: 0.9,
   },
   archivedByOwnerText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FF9500',
-    fontStyle: 'italic',
-    marginBottom: 2,
+    fontWeight: '600',
+    marginBottom: 8,
   },
   unarchiveButton: {
-    marginLeft: 8,
-    padding: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 122, 255, 0.8)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'flex-start',
+    gap: 4,
+  },
+  unarchiveButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
     paddingTop: 100,
+    width: width - 32,
   },
   emptyText: {
     fontSize: 20,

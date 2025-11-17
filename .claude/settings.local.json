@@ -13,7 +13,8 @@
       "Bash(npx expo install:*)",
       "Bash(npx expo start:*)",
       "Bash(kill:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(npm start)"
     ],
     "deny": [],
     "ask": []

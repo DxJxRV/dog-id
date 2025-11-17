@@ -305,7 +305,7 @@ const AddEditPetScreen = ({ navigation, route }) => {
             </View>
           ) : (
             <View style={styles.imagePlaceholder}>
-              <Ionicons name="camera-outline" size={40} color="#999" />
+              <Ionicons name="cloud-upload-outline" size={48} color="#8E8E93" />
               <Text style={styles.imagePlaceholderText}>Agregar foto</Text>
             </View>
           )}
@@ -452,30 +452,30 @@ const AddEditPetScreen = ({ navigation, route }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   scrollView: {
     flex: 1,
   },
   formContainer: {
-    padding: 20,
+    padding: 16,
     paddingBottom: 40,
   },
   imagePicker: {
-    alignSelf: 'center',
-    marginBottom: 30,
+    width: '100%',
+    marginBottom: 24,
   },
   imageContainer: {
     position: 'relative',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
     overflow: 'hidden',
   },
   imagePreview: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
   },
   imageOverlay: {
     position: 'absolute',
@@ -483,50 +483,50 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 60,
+    borderRadius: 16,
   },
   overlayText: {
     color: '#fff',
-    fontSize: 12,
+    fontSize: 14,
     fontWeight: '600',
-    marginTop: 4,
+    marginTop: 8,
   },
   imagePlaceholder: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: '#e0e0e0',
+    width: '100%',
+    height: 200,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
   },
   imagePlaceholderText: {
-    marginTop: 8,
-    fontSize: 12,
-    color: '#999',
+    marginTop: 12,
+    fontSize: 16,
+    color: '#8E8E93',
+    fontWeight: '500',
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
-    color: '#333',
+    color: '#000',
     marginBottom: 8,
   },
   required: {
-    color: '#FF3B30',
+    color: '#007AFF',
   },
   input: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 10,
-    padding: 15,
+    backgroundColor: '#F2F2F7',
+    borderWidth: 0,
+    borderRadius: 12,
+    padding: 16,
     fontSize: 16,
-    color: '#333',
+    color: '#000',
   },
   hint: {
     fontSize: 12,
@@ -536,23 +536,23 @@ const styles = StyleSheet.create({
   especiesContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 12,
   },
   especieChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#ddd',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: '#F2F2F7',
+    borderWidth: 0,
   },
   especieChipActive: {
     backgroundColor: '#007AFF',
     borderColor: '#007AFF',
   },
   especieChipText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: 15,
+    color: '#000',
+    fontWeight: '500',
   },
   especieChipTextActive: {
     color: '#fff',
@@ -560,18 +560,25 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     backgroundColor: '#007AFF',
-    padding: 16,
-    borderRadius: 10,
+    padding: 18,
+    borderRadius: 12,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 32,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitButtonDisabled: {
-    backgroundColor: '#ccc',
+    backgroundColor: '#8E8E93',
+    shadowOpacity: 0,
   },
   submitButtonText: {
     color: '#fff',
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   modalOverlay: {
     flex: 1,

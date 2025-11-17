@@ -185,12 +185,12 @@ const AddVaccineScreen = ({ route, navigation }) => {
 
         <View style={styles.imageButtons}>
           <TouchableOpacity style={styles.imageButton} onPress={takePhoto}>
-            <Ionicons name="camera-outline" size={24} color="#007AFF" />
+            <Ionicons name="camera-outline" size={32} color="#007AFF" />
             <Text style={styles.imageButtonText}>Tomar foto</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.imageButton} onPress={pickImage}>
-            <Ionicons name="images-outline" size={24} color="#007AFF" />
+            <Ionicons name="image-outline" size={32} color="#007AFF" />
             <Text style={styles.imageButtonText}>Galería</Text>
           </TouchableOpacity>
         </View>
@@ -234,24 +234,24 @@ const AddVaccineScreen = ({ route, navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#fff',
   },
   form: {
     padding: 16,
   },
   sectionTitle: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: '#000',
     marginBottom: 16,
-    marginTop: 8,
+    marginTop: 16,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#000',
     marginBottom: 8,
   },
@@ -259,16 +259,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#F2F2F7',
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
+    paddingVertical: 16,
+    borderRadius: 12,
+    borderWidth: 0,
   },
   selectButtonText: {
     fontSize: 16,
-    color: '#999',
+    color: '#8E8E93',
   },
   selectButtonTextFilled: {
     fontSize: 16,
@@ -277,31 +276,33 @@ const styles = StyleSheet.create({
   imageButtons: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 24,
   },
   imageButton: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
     borderRadius: 12,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E5EA',
-    gap: 8,
+    gap: 12,
   },
   imageButtonText: {
     fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
+    color: '#000',
+    fontWeight: '600',
+    textAlign: 'center',
   },
   imagePreview: {
     position: 'relative',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   image: {
     width: '100%',
     height: 200,
-    borderRadius: 12,
+    borderRadius: 16,
   },
   removeButton: {
     position: 'absolute',
@@ -312,31 +313,33 @@ const styles = StyleSheet.create({
   },
   noImageContainer: {
     backgroundColor: '#F2F2F7',
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
+    borderColor: '#D1D1D6',
     borderStyle: 'dashed',
-    padding: 32,
+    padding: 40,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 24,
   },
   noImageText: {
     fontSize: 14,
-    color: '#999',
+    color: '#8E8E93',
     marginTop: 8,
+    fontWeight: '500',
   },
   infoBox: {
     flexDirection: 'row',
-    backgroundColor: '#E3F2FD',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
-    gap: 8,
+    backgroundColor: '#E8F4FD',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 12,
   },
   infoText: {
     flex: 1,
-    fontSize: 13,
-    color: '#1976D2',
+    fontSize: 14,
+    color: '#007AFF',
+    lineHeight: 20,
   },
 });
 

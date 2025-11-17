@@ -5,17 +5,21 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
-  Alert,
   RefreshControl,
+  Dimensions,
+  ImageBackground,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
-import { Loading, Card, ErrorNetwork } from '../../components';
+import { Loading, ErrorNetwork } from '../../components';
 import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+
+const { width } = Dimensions.get('window');
+const cardWidth = (width - 48) / 2; // 16px padding + 8px gap on each side
 
 const PetsListScreen = ({ navigation }) => {
   const { userType } = useAuth();
@@ -67,54 +71,43 @@ const PetsListScreen = ({ navigation }) => {
   }, []);
 
   const renderPetCard = ({ item }) => {
-    // Determinar color del indicador
-    const chevronColor = isVet ? '#4CAF50' : '#C7C7CC';
-
     const isArchivedByOwner = item.isArchivedByOwner || false;
 
     return (
       <TouchableOpacity
         onPress={() => navigation.navigate('PetDetail', { petId: item.id })}
-        style={isArchivedByOwner && styles.archivedCard}
+        style={[styles.cardContainer, isArchivedByOwner && styles.archivedCard]}
       >
-        <Card>
-          <View style={styles.petCard}>
-            {item.fotoUrl ? (
-              <Image
-                source={{ uri: `${API_URL}${item.fotoUrl}` }}
-                style={styles.petImage}
-              />
-            ) : (
-              <View style={styles.petImagePlaceholder}>
-                <Text style={styles.petImagePlaceholderText}>
-                  {item.nombre.charAt(0)}
-                </Text>
-              </View>
-            )}
-            <View style={styles.petInfo}>
+        <ImageBackground
+          source={
+            item.fotoUrl
+              ? { uri: `${API_URL}${item.fotoUrl}` }
+              : require('../../assets/adaptive-icon.png')
+          }
+          style={styles.cardBackground}
+          imageStyle={styles.cardBackgroundImage}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.7)']}
+            style={styles.gradient}
+          >
+            <View style={styles.cardContent}>
               <Text style={styles.petName}>{item.nombre}</Text>
               <Text style={styles.petDetails}>
-                {item.especie} • {item.raza || 'Mixed'}
+                {item.especie} {item.raza ? `• ${item.raza}` : ''}
               </Text>
               {item.user && isVet && (
                 <Text style={styles.ownerText}>
                   Dueño: {item.user.nombre}
                 </Text>
               )}
-              {item.fechaNacimiento && (
-                <Text style={styles.petAge}>
-                  Born: {new Date(item.fechaNacimiento).toLocaleDateString()}
-                </Text>
-              )}
+              <TouchableOpacity style={styles.exploreButton}>
+                <Text style={styles.exploreButtonText}>Ver detalles</Text>
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
+              </TouchableOpacity>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={24}
-              color={chevronColor}
-              style={styles.chevron}
-            />
-          </View>
-        </Card>
+          </LinearGradient>
+        </ImageBackground>
       </TouchableOpacity>
     );
   };
@@ -134,11 +127,13 @@ const PetsListScreen = ({ navigation }) => {
         renderItem={renderPetCard}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
+        numColumns={2}
+        columnWrapperStyle={styles.columnWrapper}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No pets yet</Text>
+            <Text style={styles.emptyText}>No tienes mascotas</Text>
             <Text style={styles.emptySubtext}>
-              Add your first pet to get started
+              Agrega tu primera mascota para comenzar
             </Text>
           </View>
         }
@@ -154,16 +149,6 @@ const PetsListScreen = ({ navigation }) => {
           <Ionicons name="archive-outline" size={24} color="#fff" />
         </TouchableOpacity>
       )}
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={() => navigation.navigate(isVet ? 'LinkPet' : 'AddPet')}
-      >
-        <Ionicons
-          name={isVet ? 'link-outline' : 'add'}
-          size={32}
-          color="#fff"
-        />
-      </TouchableOpacity>
     </View>
   );
 };
@@ -176,58 +161,68 @@ const styles = StyleSheet.create({
   listContent: {
     padding: 16,
   },
-  petCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  columnWrapper: {
+    justifyContent: 'space-between',
+    marginBottom: 12,
   },
-  petImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  cardContainer: {
+    width: cardWidth,
+    height: 240,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 6,
   },
-  petImagePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
+  cardBackground: {
+    width: '100%',
+    height: '100%',
   },
-  petImagePlaceholderText: {
-    color: '#fff',
-    fontSize: 24,
-    fontWeight: 'bold',
+  cardBackgroundImage: {
+    borderRadius: 12,
   },
-  petInfo: {
+  gradient: {
     flex: 1,
-    marginLeft: 16,
+    justifyContent: 'flex-end',
+  },
+  cardContent: {
+    padding: 16,
   },
   petName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#000',
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#fff',
     marginBottom: 4,
   },
   petDetails: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 2,
-  },
-  petAge: {
-    fontSize: 12,
-    color: '#999',
+    fontSize: 13,
+    color: '#fff',
+    marginBottom: 4,
   },
   ownerText: {
-    fontSize: 13,
-    color: '#007AFF',
-    marginBottom: 2,
+    fontSize: 12,
+    color: '#fff',
+    marginBottom: 8,
+    opacity: 0.9,
   },
-  chevron: {
-    marginLeft: 8,
+  exploreButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+  },
+  exploreButtonText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
     paddingTop: 100,
+    width: width - 32,
   },
   emptyText: {
     fontSize: 20,
@@ -242,27 +237,11 @@ const styles = StyleSheet.create({
   archivedButton: {
     position: 'absolute',
     right: 20,
-    bottom: 90,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#666',
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 8,
-  },
-  addButton: {
-    position: 'absolute',
-    right: 20,
     bottom: 20,
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#666',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',

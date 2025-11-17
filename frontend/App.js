@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import * as SplashScreen from 'expo-splash-screen';
@@ -6,24 +6,36 @@ import Toast from 'react-native-toast-message';
 import { AuthProvider } from './src/contexts/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import { toastConfig } from './src/utils/toast';
+import CustomSplashScreen from './src/components/CustomSplashScreen';
 
-// Prevenir que el splash screen se oculte automáticamente
+// Prevenir que el splash screen nativo se oculte automáticamente
 SplashScreen.preventAutoHideAsync();
 
 export default function App() {
+  const [showCustomSplash, setShowCustomSplash] = useState(true);
+  const [appReady, setAppReady] = useState(false);
+
   useEffect(() => {
-    const hideSplash = async () => {
+    const prepare = async () => {
       try {
-        // Esperar 3 segundos antes de ocultar el splash screen
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Ocultar el splash screen nativo de Expo inmediatamente
         await SplashScreen.hideAsync();
+        setAppReady(true);
       } catch (error) {
-        console.warn('Error hiding splash screen:', error);
+        console.warn('Error preparing app:', error);
       }
     };
 
-    hideSplash();
+    prepare();
   }, []);
+
+  const handleSplashFinish = () => {
+    setShowCustomSplash(false);
+  };
+
+  if (!appReady || showCustomSplash) {
+    return <CustomSplashScreen onFinish={handleSplashFinish} />;
+  }
 
   return (
     <SafeAreaProvider>

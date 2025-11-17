@@ -59,8 +59,11 @@ const LoginScreen = ({ navigation }) => {
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={styles.title}>Veterinary Control</Text>
-          <Text style={styles.subtitle}>Manage your pet's health records</Text>
+          <Text style={styles.title}>
+            <Text style={styles.titleBlack}>Mi Mascota </Text>
+            <Text style={styles.titleBlue}>+</Text>
+          </Text>
+          <Text style={styles.subtitle}>Gestiona el historial de salud de tus mascotas</Text>
         </View>
 
         <View style={styles.toggleContainer}>
@@ -71,7 +74,7 @@ const LoginScreen = ({ navigation }) => {
             <Text
               style={[styles.toggleText, userType === 'user' && styles.toggleTextActive]}
             >
-              Pet Owner
+              Dueño
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -81,32 +84,32 @@ const LoginScreen = ({ navigation }) => {
             <Text
               style={[styles.toggleText, userType === 'vet' && styles.toggleTextActive]}
             >
-              Veterinarian
+              Veterinario
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.form}>
           <Input
-            label="Email"
+            label="Correo electrónico"
             value={email}
             onChangeText={setEmail}
-            placeholder="Enter your email"
+            placeholder="Ingresa tu correo"
             keyboardType="email-address"
             autoCapitalize="none"
           />
 
           <Input
-            label="Password"
+            label="Contraseña"
             value={password}
             onChangeText={setPassword}
-            placeholder="Enter your password"
+            placeholder="Ingresa tu contraseña"
             secureTextEntry
             autoCapitalize="none"
           />
 
           <Button
-            title="Login"
+            title="Iniciar sesión"
             onPress={handleLogin}
             loading={loading}
             style={styles.loginButton}
@@ -117,7 +120,7 @@ const LoginScreen = ({ navigation }) => {
             style={styles.registerLink}
           >
             <Text style={styles.registerLinkText}>
-              Don't have an account? Register
+              ¿No tienes cuenta? Regístrate
             </Text>
           </TouchableOpacity>
         </View>
@@ -143,8 +146,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#000',
     marginBottom: 8,
+  },
+  titleBlack: {
+    color: '#000',
+  },
+  titleBlue: {
+    color: '#007AFF',
   },
   subtitle: {
     fontSize: 16,
