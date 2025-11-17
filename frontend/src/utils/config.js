@@ -1,5 +1,6 @@
 // API Configuration
-export const API_URL = 'https://39.177.101.162:3005';
+export const API_URL = 'https://mimascotaplus.com/api';
+
 
 // Endpoints
 export const ENDPOINTS = {
