@@ -21,6 +21,10 @@ import ArchivedPetsScreen from '../screens/Pets/ArchivedPetsScreen';
 import AddVaccineScreen from '../screens/Pets/AddVaccineScreen';
 import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
 
+// Vaccine & Procedure Detail Screens
+import VaccineDetailScreen from '../screens/Vaccines/VaccineDetailScreen';
+import ProcedureDetailScreen from '../screens/Procedures/ProcedureDetailScreen';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -185,6 +189,16 @@ const PetsStack = () => (
       name="AddProcedure"
       component={AddProcedureScreen}
       options={{ title: 'Agregar Procedimiento' }}
+    />
+    <Stack.Screen
+      name="VaccineDetail"
+      component={VaccineDetailScreen}
+      options={{ title: 'Detalle de Vacuna' }}
+    />
+    <Stack.Screen
+      name="ProcedureDetail"
+      component={ProcedureDetailScreen}
+      options={{ title: 'Detalle de Procedimiento' }}
     />
   </Stack.Navigator>
 );

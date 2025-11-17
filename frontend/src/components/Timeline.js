@@ -9,13 +9,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const TimelineItem = ({ item, type }) => {
+const TimelineItem = ({ item, type, onPress }) => {
   const isVaccine = type === 'vaccine';
   const icon = isVaccine ? 'medical' : 'fitness';
   const color = isVaccine ? '#9B59B6' : '#FF9500'; // Morado para vacunas, naranja para procedimientos
 
   return (
-    <View style={styles.timelineItem}>
+    <TouchableOpacity
+      style={styles.timelineItem}
+      onPress={() => onPress(item, type)}
+      activeOpacity={0.6}
+    >
       <View style={[styles.itemIcon, { backgroundColor: color }]}>
         <Ionicons name={icon} size={16} color="#fff" />
       </View>
@@ -27,7 +31,9 @@ const TimelineItem = ({ item, type }) => {
           <Text style={styles.itemDetail}>Lote: {item.lote}</Text>
         )}
         {!isVaccine && item.descripcion && (
-          <Text style={styles.itemDetail}>{item.descripcion}</Text>
+          <Text style={styles.itemDetail} numberOfLines={1}>
+            {item.descripcion}
+          </Text>
         )}
         {item.vet && (
           <View style={styles.vetBadge}>
@@ -42,11 +48,14 @@ const TimelineItem = ({ item, type }) => {
           </View>
         )}
       </View>
-    </View>
+      <View style={styles.itemButton}>
+        <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+      </View>
+    </TouchableOpacity>
   );
 };
 
-const MonthDayGroup = ({ date, items }) => {
+const MonthDayGroup = ({ date, items, onItemPress }) => {
   return (
     <View style={styles.monthDayGroup}>
       <View style={styles.monthDayHeader}>
@@ -56,14 +65,14 @@ const MonthDayGroup = ({ date, items }) => {
       </View>
       <View style={styles.dayItems}>
         {items.map((item, index) => (
-          <TimelineItem key={`${item.type}-${item.id}`} item={item} type={item.type} />
+          <TimelineItem key={`${item.type}-${item.id}`} item={item} type={item.type} onPress={onItemPress} />
         ))}
       </View>
     </View>
   );
 };
 
-const YearGroup = ({ year, dates }) => {
+const YearGroup = ({ year, dates, onItemPress }) => {
   const [collapsed, setCollapsed] = useState(false);
 
   return (
@@ -83,7 +92,7 @@ const YearGroup = ({ year, dates }) => {
       {!collapsed && (
         <View style={styles.yearContent}>
           {dates.map((date) => (
-            <MonthDayGroup key={date.date} date={date.date} items={date.items} />
+            <MonthDayGroup key={date.date} date={date.date} items={date.items} onItemPress={onItemPress} />
           ))}
         </View>
       )}
@@ -91,7 +100,7 @@ const YearGroup = ({ year, dates }) => {
   );
 };
 
-const Timeline = ({ vaccines = [], procedures = [], filters = {} }) => {
+const Timeline = ({ vaccines = [], procedures = [], filters = {}, onItemPress }) => {
   // Combinar y formatear todos los eventos
   let events = [
     ...vaccines.map(v => ({
@@ -155,7 +164,7 @@ const Timeline = ({ vaccines = [], procedures = [], filters = {} }) => {
   return (
     <View style={styles.container}>
       {yearGroups.map(group => (
-        <YearGroup key={group.year} year={group.year} dates={group.dates} />
+        <YearGroup key={group.year} year={group.year} dates={group.dates} onItemPress={onItemPress} />
       ))}
     </View>
   );
@@ -222,6 +231,7 @@ const styles = StyleSheet.create({
   },
   timelineItem: {
     flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: '#fff',
     borderRadius: 10,
     padding: 12,
@@ -241,6 +251,14 @@ const styles = StyleSheet.create({
   },
   itemContent: {
     flex: 1,
+  },
+  itemButton: {
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginLeft: 8,
   },
   itemTitle: {
     fontSize: 15,

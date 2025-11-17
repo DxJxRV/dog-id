@@ -177,6 +177,14 @@ const PetDetailScreen = ({ route, navigation }) => {
     );
   };
 
+  const handleTimelineItemPress = (item, type) => {
+    if (type === 'vaccine') {
+      navigation.navigate('VaccineDetail', { vaccineId: item.id, petId });
+    } else {
+      navigation.navigate('ProcedureDetail', { procedureId: item.id, petId });
+    }
+  };
+
   if (loading) {
     return <Loading />;
   }
@@ -199,13 +207,13 @@ const PetDetailScreen = ({ route, navigation }) => {
         ) : (
           <View style={styles.petImagePlaceholder}>
             <Text style={styles.petImagePlaceholderText}>
-              {pet.nombre.charAt(0)}
+              {pet.nombre.charAt(0).toUpperCase()}
             </Text>
           </View>
         )}
         <Text style={styles.petName}>{pet.nombre}</Text>
         <Text style={styles.petDetails}>
-          {pet.especie} • {pet.raza || 'Mixed'}
+          {pet.especie} • {pet.raza || 'Sin raza'}
         </Text>
         {pet.fechaNacimiento && (
           <Text style={styles.petBirthdate}>
@@ -213,66 +221,33 @@ const PetDetailScreen = ({ route, navigation }) => {
           </Text>
         )}
 
-        {/* Grid de botones */}
-        <View style={styles.actionsGrid}>
-          {isOwner ? (
-            <>
-              {/* Botón QR - 2x2 */}
-              <TouchableOpacity
-                style={styles.qrButton}
-                onPress={handleShowLinkCode}
-              >
-                <Ionicons name="qr-code-outline" size={40} color="#007AFF" />
-                <Text style={styles.qrButtonText}>QR</Text>
-              </TouchableOpacity>
-
-              {/* Columna derecha con los dos botones */}
-              <View style={styles.rightButtonsColumn}>
-                <TouchableOpacity
-                  style={styles.actionButtonTop}
-                  onPress={() => navigation.navigate('AddVaccine', { petId })}
-                >
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="medkit-outline" size={20} color="#9B59B6" />
-                  </View>
-                  <Text style={styles.actionButtonText}>Agregar Vacuna</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.actionButtonBottom}
-                  onPress={() => navigation.navigate('AddProcedure', { petId })}
-                >
-                  <View style={styles.iconContainer}>
-                    <Ionicons name="heart-outline" size={20} color="#FF9500" />
-                  </View>
-                  <Text style={styles.actionButtonText}>Agregar Procedimiento</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <>
-              {/* Para veterinarios - dos botones de 2x3 */}
-              <TouchableOpacity
-                style={styles.vetActionButton}
-                onPress={() => navigation.navigate('AddVaccine', { petId })}
-              >
-                <View style={styles.iconContainer}>
-                  <Ionicons name="medkit-outline" size={24} color="#9B59B6" />
-                </View>
-                <Text style={styles.vetActionButtonText}>Agregar Vacuna</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={styles.vetActionButton}
-                onPress={() => navigation.navigate('AddProcedure', { petId })}
-              >
-                <View style={styles.iconContainer}>
-                  <Ionicons name="heart-outline" size={24} color="#FF9500" />
-                </View>
-                <Text style={styles.vetActionButtonText}>Agregar Procedimiento</Text>
-              </TouchableOpacity>
-            </>
+        {/* Botones horizontales */}
+        <View style={styles.actionsRow}>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.qrButton}
+              onPress={handleShowLinkCode}
+            >
+              <Ionicons name="qr-code-outline" size={32} color="#007AFF" />
+              <Text style={styles.qrButtonText}>QR</Text>
+            </TouchableOpacity>
           )}
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('AddVaccine', { petId })}
+          >
+            <Ionicons name="heart" size={20} color="#007AFF" />
+            <Text style={styles.actionButtonText}>Agregar{'\n'}Vacuna</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={() => navigation.navigate('AddProcedure', { petId })}
+          >
+            <Ionicons name="document-text-outline" size={20} color="#007AFF" />
+            <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -318,6 +293,7 @@ const PetDetailScreen = ({ route, navigation }) => {
           vaccines={pet.vaccines || []}
           procedures={pet.procedures || []}
           filters={filters}
+          onItemPress={handleTimelineItemPress}
         />
       </View>
 
@@ -529,21 +505,22 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
   },
   header: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#fff',
     alignItems: 'center',
-    paddingVertical: 32,
+    paddingTop: 24,
+    paddingBottom: 24,
     paddingHorizontal: 16,
   },
   petImage: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     marginBottom: 16,
   },
   petImagePlaceholder: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    width: 120,
+    height: 120,
+    borderRadius: 60,
     backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
@@ -551,102 +528,65 @@ const styles = StyleSheet.create({
   },
   petImagePlaceholderText: {
     color: '#fff',
-    fontSize: 40,
+    fontSize: 48,
     fontWeight: '600',
   },
   petName: {
     fontSize: 24,
     fontWeight: '600',
     color: '#000',
-    marginBottom: 4,
+    marginBottom: 8,
   },
   petDetails: {
     fontSize: 15,
     color: '#8E8E93',
-    marginBottom: 4,
+    marginBottom: 6,
   },
   petBirthdate: {
     fontSize: 14,
-    color: '#8E8E93',
-    marginBottom: 24,
+    color: '#C7C7CC',
+    marginBottom: 32,
   },
-  actionsGrid: {
+  actionsRow: {
     flexDirection: 'row',
     gap: 12,
     width: '100%',
+    paddingHorizontal: 8,
   },
   qrButton: {
-    width: '32%',
-    aspectRatio: 1,
+    width: 88,
+    height: 88,
     backgroundColor: '#fff',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#007AFF',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
   },
   qrButtonText: {
-    color: '#007AFF',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 8,
+    color: '#000',
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 4,
   },
-  rightButtonsColumn: {
+  actionButton: {
     flex: 1,
-    gap: 12,
-  },
-  actionButtonTop: {
-    flex: 1,
+    height: 88,
     backgroundColor: '#fff',
     borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 0,
-    gap: 12,
-  },
-  actionButtonBottom: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderWidth: 0,
-    gap: 12,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    backgroundColor: '#F2F2F7',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    paddingHorizontal: 8,
   },
   actionButtonText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '500',
     color: '#000',
-  },
-  vetActionButton: {
-    flex: 1,
-    aspectRatio: 1.5,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    borderWidth: 0,
-    paddingHorizontal: 12,
-  },
-  vetActionButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#000',
+    textAlign: 'center',
+    marginTop: 4,
+    lineHeight: 14,
   },
   archivedBanner: {
     backgroundColor: '#FFF3E0',
@@ -674,6 +614,8 @@ const styles = StyleSheet.create({
   },
   section: {
     padding: 16,
+    paddingTop: 24,
+    flex: 1,
   },
   historyHeader: {
     flexDirection: 'row',
