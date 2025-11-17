@@ -5,7 +5,7 @@ const path = require('path');
 // Crear una nueva vacuna
 const createVaccine = async (req, res) => {
   try {
-    const petId = parseInt(req.params.petId);
+    const petId = req.params.petId;
     const { nombreVacuna, lote, caducidad, fechaAplicacion } = req.body;
 
     // Obtener el ID del usuario o veterinario autenticado
@@ -114,7 +114,7 @@ const createVaccine = async (req, res) => {
 // Obtener todas las vacunas de una mascota
 const getPetVaccines = async (req, res) => {
   try {
-    const petId = parseInt(req.params.petId);
+    const petId = req.params.petId;
 
     // Verificar que la mascota existe y pertenece al usuario
     let pet;
@@ -161,7 +161,7 @@ const getPetVaccines = async (req, res) => {
 // Actualizar información de una vacuna (manual override)
 const updateVaccine = async (req, res) => {
   try {
-    const vaccineId = parseInt(req.params.id);
+    const vaccineId = req.params.id;
     const { nombreVacuna, lote, caducidad } = req.body;
 
     // Buscar la vacuna

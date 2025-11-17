@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const vaccineController = require('../controllers/vaccineController');
 const { authenticateUserOrVet } = require('../middlewares/auth');
+const { validateUUIDParam } = require('../utils/validators');
 const multer = require('multer');
 const path = require('path');
 
@@ -32,8 +33,8 @@ const upload = multer({
 });
 
 // Rutas de vacunas (accesibles por usuarios y veterinarios)
-router.post('/:petId/vaccines', authenticateUserOrVet, upload.single('evidencia'), vaccineController.createVaccine);
-router.get('/:petId/vaccines', authenticateUserOrVet, vaccineController.getPetVaccines);
-router.put('/vaccines/:id', authenticateUserOrVet, vaccineController.updateVaccine);
+router.post('/:petId/vaccines', authenticateUserOrVet, validateUUIDParam('petId'), upload.single('evidencia'), vaccineController.createVaccine);
+router.get('/:petId/vaccines', authenticateUserOrVet, validateUUIDParam('petId'), vaccineController.getPetVaccines);
+router.put('/vaccines/:id', authenticateUserOrVet, validateUUIDParam('id'), vaccineController.updateVaccine);
 
 module.exports = router;

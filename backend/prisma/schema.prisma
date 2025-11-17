@@ -11,7 +11,7 @@ datasource db {
 }
 
 model User {
-  id           Int      @id @default(autoincrement())
+  id           String   @id @default(uuid())
   nombre       String
   email        String   @unique
   passwordHash String   @map("password_hash")
@@ -23,7 +23,7 @@ model User {
 }
 
 model Vet {
-  id                  Int      @id @default(autoincrement())
+  id                  String   @id @default(uuid())
   nombre              String
   email               String   @unique
   passwordHash        String   @map("password_hash")
@@ -39,8 +39,8 @@ model Vet {
 }
 
 model Pet {
-  id               Int       @id @default(autoincrement())
-  userId           Int       @map("user_id")
+  id               String    @id @default(uuid())
+  userId           String    @map("user_id")
   nombre           String
   especie          String
   raza             String?
@@ -59,9 +59,9 @@ model Pet {
 }
 
 model Vaccine {
-  id             Int       @id @default(autoincrement())
-  petId          Int       @map("pet_id")
-  vetId          Int?      @map("vet_id")
+  id             String    @id @default(uuid())
+  petId          String    @map("pet_id")
+  vetId          String?   @map("vet_id")
   nombreVacuna   String    @map("nombre_vacuna")
   lote           String?
   caducidad      DateTime?
@@ -78,9 +78,9 @@ model Vaccine {
 }
 
 model Procedure {
-  id             Int       @id @default(autoincrement())
-  petId          Int       @map("pet_id")
-  vetId          Int?      @map("vet_id")
+  id             String    @id @default(uuid())
+  petId          String    @map("pet_id")
+  vetId          String?   @map("vet_id")
   tipo           String    // desparasitacion, limpieza_dental, cirugia, chequeo_general, radiografia, otro
   descripcion    String    @db.Text
   fecha          DateTime  @default(now())
@@ -94,9 +94,9 @@ model Procedure {
 }
 
 model VetPetLink {
-  id        Int      @id @default(autoincrement())
-  vetId     Int      @map("vet_id")
-  petId     Int      @map("pet_id")
+  id        String   @id @default(uuid())
+  vetId     String   @map("vet_id")
+  petId     String   @map("pet_id")
   archived  Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
 

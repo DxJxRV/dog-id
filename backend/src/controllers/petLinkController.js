@@ -4,7 +4,7 @@ const prisma = require('../utils/prisma');
 const getPetLinkCode = async (req, res) => {
   try {
     const userId = req.user.id;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
 
     const pet = await prisma.pet.findFirst({
       where: {
@@ -118,7 +118,7 @@ const linkPetToVet = async (req, res) => {
 const unlinkPetFromVet = async (req, res) => {
   try {
     const vetId = req.user.id;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
 
     const link = await prisma.vetPetLink.findUnique({
       where: {

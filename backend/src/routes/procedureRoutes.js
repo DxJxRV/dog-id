@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const procedureController = require('../controllers/procedureController');
 const { authenticateVet, authenticateUserOrVet } = require('../middlewares/auth');
+const { validateUUIDParam } = require('../utils/validators');
 const multer = require('multer');
 const path = require('path');
 
@@ -32,9 +33,9 @@ const upload = multer({
 });
 
 // Rutas de procedimientos
-router.post('/:petId/procedures', authenticateUserOrVet, upload.single('evidencia'), procedureController.createProcedure);
-router.get('/:petId/procedures', authenticateUserOrVet, procedureController.getPetProcedures);
-router.put('/procedures/:id', authenticateUserOrVet, procedureController.updateProcedure);
-router.delete('/procedures/:id', authenticateUserOrVet, procedureController.deleteProcedure);
+router.post('/:petId/procedures', authenticateUserOrVet, validateUUIDParam('petId'), upload.single('evidencia'), procedureController.createProcedure);
+router.get('/:petId/procedures', authenticateUserOrVet, validateUUIDParam('petId'), procedureController.getPetProcedures);
+router.put('/procedures/:id', authenticateUserOrVet, validateUUIDParam('id'), procedureController.updateProcedure);
+router.delete('/procedures/:id', authenticateUserOrVet, validateUUIDParam('id'), procedureController.deleteProcedure);
 
 module.exports = router;

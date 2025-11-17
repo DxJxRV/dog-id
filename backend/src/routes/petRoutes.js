@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const petController = require('../controllers/petController');
 const { authenticateUser, authenticateUserOrVet } = require('../middlewares/auth');
+const { validateUUIDParam } = require('../utils/validators');
 const multer = require('multer');
 const path = require('path');
 
@@ -34,15 +35,15 @@ const upload = multer({
 // Rutas de mascotas
 // Solo usuarios pueden crear, editar y eliminar sus mascotas
 router.post('/', authenticateUser, upload.single('foto'), petController.createPet);
-router.put('/:id', authenticateUser, upload.single('foto'), petController.updatePet);
-router.delete('/:id', authenticateUser, petController.deletePet);
+router.put('/:id', authenticateUser, validateUUIDParam('id'), upload.single('foto'), petController.updatePet);
+router.delete('/:id', authenticateUser, validateUUIDParam('id'), petController.deletePet);
 
 // Usuarios y veterinarios pueden ver mascotas
 router.get('/', authenticateUserOrVet, petController.getUserPets);
 router.get('/archived/list', authenticateUserOrVet, petController.getArchivedPets);
-router.get('/:id', authenticateUserOrVet, petController.getPetById);
+router.get('/:id', authenticateUserOrVet, validateUUIDParam('id'), petController.getPetById);
 
 // Archivar/desarchivar mascota (ambos usuarios y vets)
-router.patch('/:id/archive', authenticateUserOrVet, petController.toggleArchivePet);
+router.patch('/:id/archive', authenticateUserOrVet, validateUUIDParam('id'), petController.toggleArchivePet);
 
 module.exports = router;

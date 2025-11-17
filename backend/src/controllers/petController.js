@@ -139,7 +139,7 @@ const getUserPets = async (req, res) => {
 const getPetById = async (req, res) => {
   try {
     const { id: userId, type: userType } = req.user;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
 
     const whereClause = userType === 'vet'
       ? { id: petId }  // Veterinarios pueden ver cualquier mascota
@@ -238,7 +238,7 @@ const getPetById = async (req, res) => {
 const updatePet = async (req, res) => {
   try {
     const userId = req.user.id;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
     const { nombre, especie, raza, fechaNacimiento, removeFoto } = req.body;
 
     // Verificar que la mascota pertenece al usuario
@@ -289,7 +289,7 @@ const updatePet = async (req, res) => {
 const deletePet = async (req, res) => {
   try {
     const userId = req.user.id;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
 
     // Verificar que la mascota pertenece al usuario
     const pet = await prisma.pet.findFirst({
@@ -321,7 +321,7 @@ const deletePet = async (req, res) => {
 const toggleArchivePet = async (req, res) => {
   try {
     const { id: userId, type: userType } = req.user;
-    const petId = parseInt(req.params.id);
+    const petId = req.params.id;
     const { archived } = req.body;
 
     if (typeof archived !== 'boolean') {

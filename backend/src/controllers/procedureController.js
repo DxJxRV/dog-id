@@ -13,7 +13,7 @@ const ALLOWED_PROCEDURES = [
 // Crear un nuevo procedimiento
 const createProcedure = async (req, res) => {
   try {
-    const petId = parseInt(req.params.petId);
+    const petId = req.params.petId;
     const { tipo, descripcion, fecha } = req.body;
 
     // Obtener el ID del veterinario si es un vet quien lo crea
@@ -97,7 +97,7 @@ const createProcedure = async (req, res) => {
 // Obtener todos los procedimientos de una mascota
 const getPetProcedures = async (req, res) => {
   try {
-    const petId = parseInt(req.params.petId);
+    const petId = req.params.petId;
 
     // Verificar que la mascota existe
     let pet;
@@ -147,7 +147,7 @@ const getPetProcedures = async (req, res) => {
 // Actualizar un procedimiento (solo quien lo creó)
 const updateProcedure = async (req, res) => {
   try {
-    const procedureId = parseInt(req.params.id);
+    const procedureId = req.params.id;
     const { tipo, descripcion, fecha } = req.body;
 
     // Buscar el procedimiento con información de la mascota
@@ -217,7 +217,7 @@ const updateProcedure = async (req, res) => {
 // Eliminar un procedimiento (solo quien lo creó)
 const deleteProcedure = async (req, res) => {
   try {
-    const procedureId = parseInt(req.params.id);
+    const procedureId = req.params.id;
 
     // Buscar el procedimiento con información de la mascota
     const procedure = await prisma.procedure.findUnique({
