@@ -1,5 +1,5 @@
 // API Configuration
-export const API_URL = 'http://192.168.100.171:3005';
+export const API_URL = 'https://39.177.101.162:3005';
 
 // Endpoints
 export const ENDPOINTS = {
