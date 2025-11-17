@@ -2,7 +2,24 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const requestLogger = require('./middlewares/requestLogger');
+
+// Crear carpetas necesarias para uploads
+const folders = [
+  'uploads',
+  'uploads/pets',
+  'uploads/vaccines',
+  'uploads/procedures'
+];
+
+folders.forEach(folder => {
+  const folderPath = path.join(__dirname, '..', folder);
+  if (!fs.existsSync(folderPath)) {
+    fs.mkdirSync(folderPath, { recursive: true });
+    console.log(`📁 Folder created: ${folderPath}`);
+  }
+});
 
 // Importar rutas
 const authRoutes = require('./routes/authRoutes');
