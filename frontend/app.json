@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mi Mascota Plus",
-    "slug": "veterinary-control",
+    "slug": "mi-mascota-plus",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
