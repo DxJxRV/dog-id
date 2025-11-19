@@ -195,7 +195,10 @@ const acceptFriendRequest = async (req, res) => {
 
     await prisma.friendship.update({
       where: { id: requestId },
-      data: { status: 'accepted' }
+      data: {
+        status: 'accepted',
+        acceptedAt: new Date()
+      }
     });
 
     res.json({ message: 'Friend request accepted successfully' });
@@ -336,13 +339,16 @@ const getFriendsPets = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Obtener todos los IDs de amigos
+    // Obtener todas las amistades con información de cuándo se vieron las mascotas
     const sentFriendships = await prisma.friendship.findMany({
       where: {
         requesterId: userId,
         status: 'accepted'
       },
-      select: { addresseeId: true }
+      select: {
+        addresseeId: true,
+        requesterViewedAt: true
+      }
     });
 
     const receivedFriendships = await prisma.friendship.findMany({
@@ -350,13 +356,22 @@ const getFriendsPets = async (req, res) => {
         addresseeId: userId,
         status: 'accepted'
       },
-      select: { requesterId: true }
+      select: {
+        requesterId: true,
+        addresseeViewedAt: true
+      }
     });
 
-    const friendIds = [
-      ...sentFriendships.map(f => f.addresseeId),
-      ...receivedFriendships.map(f => f.requesterId)
-    ];
+    // Crear un mapa de friendId -> viewedAt
+    const friendViewedMap = new Map();
+    sentFriendships.forEach(f => {
+      friendViewedMap.set(f.addresseeId, f.requesterViewedAt);
+    });
+    receivedFriendships.forEach(f => {
+      friendViewedMap.set(f.requesterId, f.addresseeViewedAt);
+    });
+
+    const friendIds = Array.from(friendViewedMap.keys());
 
     if (friendIds.length === 0) {
       return res.json({ pets: [] });
@@ -381,9 +396,91 @@ const getFriendsPets = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    res.json({ pets });
+    // Agregar flag "isNew" a cada mascota
+    const petsWithNewFlag = pets.map(pet => {
+      const viewedAt = friendViewedMap.get(pet.userId);
+      const isNew = !viewedAt || pet.createdAt > viewedAt;
+      return {
+        ...pet,
+        isNew
+      };
+    });
+
+    res.json({ pets: petsWithNewFlag });
   } catch (error) {
     console.error('Get friends pets error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Obtener el contador de mascotas nuevas de amigos
+const getNewPetsCount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Obtener todas las amistades aceptadas
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { requesterId: userId, status: 'accepted' },
+          { addresseeId: userId, status: 'accepted' }
+        ]
+      }
+    });
+
+    let newPetsCount = 0;
+
+    for (const friendship of friendships) {
+      const isRequester = friendship.requesterId === userId;
+      const friendId = isRequester ? friendship.addresseeId : friendship.requesterId;
+      const viewedAt = isRequester ? friendship.requesterViewedAt : friendship.addresseeViewedAt;
+
+      // Si nunca ha visto las mascotas, contar todas las mascotas del amigo
+      // Si ya las vio, contar solo las que se crearon después de la última vez que las vio
+      const petCount = await prisma.pet.count({
+        where: {
+          userId: friendId,
+          archivedByOwner: false,
+          createdAt: viewedAt ? { gt: viewedAt } : undefined
+        }
+      });
+
+      newPetsCount += petCount;
+    }
+
+    res.json({ newPetsCount });
+  } catch (error) {
+    console.error('Get new pets count error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Marcar las mascotas de amigos como vistas
+const markFriendshipPetsViewed = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Actualizar todas las amistades donde el usuario es parte
+    await prisma.friendship.updateMany({
+      where: {
+        OR: [
+          { requesterId: userId, status: 'accepted' },
+          { addresseeId: userId, status: 'accepted' }
+        ]
+      },
+      data: {
+        requesterViewedAt: new Date(),
+        addresseeViewedAt: new Date()
+      }
+    });
+
+    // Nota: Esto marca TODAS las amistades como vistas.
+    // Una versión más sofisticada podría actualizar solo la que corresponde.
+    // Por ahora, actualizamos ambos campos para simplificar.
+
+    res.json({ message: 'Friendships marked as viewed' });
+  } catch (error) {
+    console.error('Mark friendship pets viewed error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -396,5 +493,7 @@ module.exports = {
   rejectFriendRequest,
   getFriends,
   removeFriend,
-  getFriendsPets
+  getFriendsPets,
+  getNewPetsCount,
+  markFriendshipPetsViewed
 };

@@ -130,12 +130,15 @@ model CoOwnerPetLink {
 }
 
 model Friendship {
-  id          String   @id @default(uuid())
-  requesterId String   @map("requester_id")
-  addresseeId String   @map("addressee_id")
-  status      String   @default("pending") // pending, accepted, rejected
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                  String    @id @default(uuid())
+  requesterId         String    @map("requester_id")
+  addresseeId         String    @map("addressee_id")
+  status              String    @default("pending") // pending, accepted, rejected
+  acceptedAt          DateTime? @map("accepted_at")
+  requesterViewedAt   DateTime? @map("requester_viewed_at")
+  addresseeViewedAt   DateTime? @map("addressee_viewed_at")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
   requester   User     @relation("SentFriendships", fields: [requesterId], references: [id], onDelete: Cascade)
   addressee   User     @relation("ReceivedFriendships", fields: [addresseeId], references: [id], onDelete: Cascade)

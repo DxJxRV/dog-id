@@ -21,7 +21,7 @@ import { showToast } from '../../utils/toast';
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 20) / 2;
 
-const FriendsPetsScreen = ({ navigation, embedded = false }) => {
+const FriendsPetsScreen = ({ navigation, embedded = false, onPetsViewed }) => {
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -34,6 +34,17 @@ const FriendsPetsScreen = ({ navigation, embedded = false }) => {
       setError(null);
       const response = await friendshipsAPI.getFriendsPets();
       setPets(response.data.pets);
+
+      // Marcar las mascotas como vistas
+      try {
+        await friendshipsAPI.markPetsViewed();
+        // Notificar al componente padre para actualizar el badge
+        if (onPetsViewed) {
+          onPetsViewed();
+        }
+      } catch (markErr) {
+        // Silently fail - this is not critical
+      }
     } catch (err) {
       if (isNetworkError(err)) {
         setError(err);
@@ -89,6 +100,13 @@ const FriendsPetsScreen = ({ navigation, embedded = false }) => {
           style={styles.cardBackground}
           imageStyle={styles.cardBackgroundImage}
         >
+          {/* Badge "Nuevo" */}
+          {item.isNew && (
+            <View style={styles.newBadge}>
+              <Text style={styles.newBadgeText}>Nuevo</Text>
+            </View>
+          )}
+
           <LinearGradient
             colors={['transparent', 'rgba(0,0,0,0.7)']}
             style={styles.gradient}
@@ -344,6 +362,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  newBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: '#FF3B30',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  newBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });
 

@@ -28,4 +28,10 @@ router.delete('/friends/:friendshipId', authenticateUser, validateUUIDParam('fri
 // Obtener mascotas de amigos
 router.get('/friends/pets', authenticateUser, friendshipController.getFriendsPets);
 
+// Obtener contador de mascotas nuevas
+router.get('/friends/new-pets-count', authenticateUser, friendshipController.getNewPetsCount);
+
+// Marcar mascotas de amigos como vistas
+router.post('/friends/mark-viewed', authenticateUser, friendshipController.markFriendshipPetsViewed);
+
 module.exports = router;

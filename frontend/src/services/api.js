@@ -105,6 +105,8 @@ export const friendshipsAPI = {
   getFriends: () => api.get('/friendships/friends'),
   remove: (friendshipId) => api.delete(`/friendships/friends/${friendshipId}`),
   getFriendsPets: () => api.get('/friendships/friends/pets'),
+  getNewPetsCount: () => api.get('/friendships/friends/new-pets-count'),
+  markPetsViewed: () => api.post('/friendships/friends/mark-viewed'),
 };
 
 export default api;

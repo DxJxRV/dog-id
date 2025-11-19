@@ -80,17 +80,21 @@ const AddFriendScreen = ({ navigation }) => {
     setShowScanner(false);
     setFriendCode(data);
     showToast.success('Código QR escaneado');
+    // Enviar solicitud automáticamente con el código escaneado
+    handleSendRequest(data);
   };
 
-  const handleSendRequest = async () => {
-    if (!friendCode.trim()) {
+  const handleSendRequest = async (scannedCode) => {
+    const codeToSend = scannedCode || friendCode;
+
+    if (!codeToSend.trim()) {
       showToast.error('Por favor ingresa un código de amistad');
       return;
     }
 
     try {
       setSending(true);
-      await friendshipsAPI.sendRequest(friendCode.trim());
+      await friendshipsAPI.sendRequest(codeToSend.trim());
       showToast.success('Solicitud de amistad enviada');
       setFriendCode('');
       navigation.goBack();

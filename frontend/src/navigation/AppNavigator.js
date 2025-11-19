@@ -360,8 +360,13 @@ const MainTabs = ({ navigationRef }) => {
 
   const fetchPendingCount = async () => {
     try {
-      const response = await friendshipsAPI.getPending();
-      setPendingRequestsCount(response.data.requests?.length || 0);
+      const [pendingResponse, newPetsResponse] = await Promise.all([
+        friendshipsAPI.getPending(),
+        friendshipsAPI.getNewPetsCount()
+      ]);
+      const pendingCount = pendingResponse.data.requests?.length || 0;
+      const newPetsCount = newPetsResponse.data.newPetsCount || 0;
+      setPendingRequestsCount(pendingCount + newPetsCount);
     } catch (err) {
       // Silently fail - this is just for badge display
     }

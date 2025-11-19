@@ -88,7 +88,11 @@ const FriendsMainScreen = ({ navigation }) => {
       {/* Content */}
       <View style={styles.content}>
         {activeTab === 'pets' ? (
-          <FriendsPetsScreen navigation={navigation} embedded />
+          <FriendsPetsScreen
+            navigation={navigation}
+            embedded
+            onPetsViewed={fetchPendingCount}
+          />
         ) : (
           <FriendsListScreen
             navigation={navigation}
