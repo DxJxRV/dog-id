@@ -35,7 +35,10 @@ const upload = multer({
 // Rutas de mascotas
 // Solo usuarios pueden crear, editar y eliminar sus mascotas
 router.post('/', authenticateUser, upload.single('foto'), petController.createPet);
-router.put('/:id', authenticateUser, validateUUIDParam('id'), upload.single('foto'), petController.updatePet);
+router.put('/:id', authenticateUser, validateUUIDParam('id'), upload.fields([
+  { name: 'foto', maxCount: 1 },
+  { name: 'coverPhoto', maxCount: 1 }
+]), petController.updatePet);
 router.delete('/:id', authenticateUser, validateUUIDParam('id'), petController.deletePet);
 
 // Usuarios y veterinarios pueden ver mascotas

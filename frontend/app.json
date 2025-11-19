@@ -47,7 +47,8 @@
       "expo-secure-store",
       "expo-asset",
       "expo-font",
-      "expo-av"
+      "expo-av",
+      "expo-barcode-scanner"
     ],
     "extra": {
       "eas": {

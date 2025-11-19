@@ -325,7 +325,7 @@ const updatePet = async (req, res) => {
   try {
     const userId = req.user.id;
     const petId = req.params.id;
-    const { nombre, especie, raza, fechaNacimiento, removeFoto } = req.body;
+    const { nombre, especie, raza, fechaNacimiento, removeFoto, removeCoverPhoto } = req.body;
 
     // Verificar que la mascota pertenece al usuario
     const pet = await prisma.pet.findFirst({
@@ -339,14 +339,27 @@ const updatePet = async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
 
-    // Procesar foto
+    // Procesar foto de perfil
     let fotoUrl = pet.fotoUrl;
-    if (req.file) {
-      // Si hay una nueva foto
+    if (req.files && req.files.foto) {
+      // Si hay una nueva foto de perfil
+      fotoUrl = `/uploads/pets/${req.files.foto[0].filename}`;
+    } else if (req.file && !req.files) {
+      // Backward compatibility: si solo se sube un archivo con el nombre 'file'
       fotoUrl = `/uploads/pets/${req.file.filename}`;
     } else if (removeFoto === 'true') {
       // Si se solicita eliminar la foto
       fotoUrl = null;
+    }
+
+    // Procesar cover photo
+    let coverPhotoUrl = pet.coverPhotoUrl;
+    if (req.files && req.files.coverPhoto) {
+      // Si hay una nueva cover photo
+      coverPhotoUrl = `/uploads/pets/${req.files.coverPhoto[0].filename}`;
+    } else if (removeCoverPhoto === 'true') {
+      // Si se solicita eliminar la cover photo
+      coverPhotoUrl = null;
     }
 
     // Actualizar mascota
@@ -357,7 +370,8 @@ const updatePet = async (req, res) => {
         especie: especie || pet.especie,
         raza: raza !== undefined ? raza : pet.raza,
         fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : pet.fechaNacimiento,
-        fotoUrl
+        fotoUrl,
+        coverPhotoUrl
       }
     });
 

@@ -27,6 +27,7 @@ const petRoutes = require('./routes/petRoutes');
 const petLinkRoutes = require('./routes/petLinkRoutes');
 const vaccineRoutes = require('./routes/vaccineRoutes');
 const procedureRoutes = require('./routes/procedureRoutes');
+const friendshipRoutes = require('./routes/friendshipRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -53,6 +54,7 @@ app.use('/pets', petRoutes);
 app.use('/pets', petLinkRoutes);
 app.use('/pets', vaccineRoutes);
 app.use('/pets', procedureRoutes);
+app.use('/friendships', friendshipRoutes);
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {

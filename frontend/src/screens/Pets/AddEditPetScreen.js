@@ -40,6 +40,8 @@ const AddEditPetScreen = ({ navigation, route }) => {
   );
   const [selectedImage, setSelectedImage] = useState(null);
   const [removePhoto, setRemovePhoto] = useState(false);
+  const [selectedCoverImage, setSelectedCoverImage] = useState(null);
+  const [removeCoverPhoto, setRemoveCoverPhoto] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [archiving, setArchiving] = useState(false);
@@ -173,6 +175,55 @@ const AddEditPetScreen = ({ navigation, route }) => {
     }
   };
 
+  const handleSelectCoverImage = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        showToast.warning('Necesitamos permiso para acceder a tus fotos', 'Permiso requerido');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedCoverImage(result.assets[0]);
+        setRemoveCoverPhoto(false);
+      }
+    } catch (error) {
+      showToast.error('No se pudo seleccionar la imagen');
+    }
+  };
+
+  const handleTakeCoverPhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (permissionResult.granted === false) {
+        showToast.warning('Necesitamos permiso para acceder a la cámara', 'Permiso requerido');
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        aspect: [16, 9],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets[0]) {
+        setSelectedCoverImage(result.assets[0]);
+        setRemoveCoverPhoto(false);
+      }
+    } catch (error) {
+      showToast.error('No se pudo tomar la foto');
+    }
+  };
+
   const showImageOptions = () => {
     const options = [
       { text: 'Tomar foto', onPress: handleTakePhoto },
@@ -195,6 +246,33 @@ const AddEditPetScreen = ({ navigation, route }) => {
 
     Alert.alert(
       'Seleccionar foto',
+      'Elige una opción',
+      options
+    );
+  };
+
+  const showCoverImageOptions = () => {
+    const options = [
+      { text: 'Tomar foto', onPress: handleTakeCoverPhoto },
+      { text: 'Elegir de galería', onPress: handleSelectCoverImage },
+    ];
+
+    // Si está editando y tiene cover photo, mostrar opción de quitar
+    if (isEditing && (petToEdit?.coverPhotoUrl || selectedCoverImage) && !removeCoverPhoto) {
+      options.push({
+        text: 'Quitar foto de portada',
+        style: 'destructive',
+        onPress: () => {
+          setSelectedCoverImage(null);
+          setRemoveCoverPhoto(true);
+        },
+      });
+    }
+
+    options.push({ text: 'Cancelar', style: 'cancel' });
+
+    Alert.alert(
+      'Seleccionar foto de portada',
       'Elige una opción',
       options
     );
@@ -247,6 +325,22 @@ const AddEditPetScreen = ({ navigation, route }) => {
       } else if (isEditing && removePhoto) {
         // Si está editando y se marcó para quitar la foto
         form.append('removeFoto', 'true');
+      }
+
+      // Agregar cover photo si existe
+      if (selectedCoverImage) {
+        const filename = selectedCoverImage.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+        form.append('coverPhoto', {
+          uri: Platform.OS === 'ios' ? selectedCoverImage.uri.replace('file://', '') : selectedCoverImage.uri,
+          name: filename,
+          type,
+        });
+      } else if (isEditing && removeCoverPhoto) {
+        // Si está editando y se marcó para quitar la cover photo
+        form.append('removeCoverPhoto', 'true');
       }
 
       if (isEditing) {
@@ -310,6 +404,38 @@ const AddEditPetScreen = ({ navigation, route }) => {
             </View>
           )}
         </TouchableOpacity>
+
+        {/* Cover Image Picker */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Foto de portada (opcional)</Text>
+          <TouchableOpacity style={styles.coverImagePicker} onPress={showCoverImageOptions}>
+            {selectedCoverImage ? (
+              <View style={styles.coverImageContainer}>
+                <Image source={{ uri: selectedCoverImage.uri }} style={styles.coverImagePreview} />
+                <View style={styles.imageOverlay}>
+                  <Ionicons name="image-outline" size={30} color="#fff" />
+                  <Text style={styles.overlayText}>Cambiar portada</Text>
+                </View>
+              </View>
+            ) : petToEdit?.coverPhotoUrl && !removeCoverPhoto ? (
+              <View style={styles.coverImageContainer}>
+                <Image
+                  source={{ uri: `${API_URL}${petToEdit.coverPhotoUrl}` }}
+                  style={styles.coverImagePreview}
+                />
+                <View style={styles.imageOverlay}>
+                  <Ionicons name="image-outline" size={30} color="#fff" />
+                  <Text style={styles.overlayText}>Cambiar portada</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.coverImagePlaceholder}>
+                <Ionicons name="images-outline" size={32} color="#8E8E93" />
+                <Text style={styles.coverImagePlaceholderText}>Agregar foto de portada</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
 
         {/* Nombre */}
         <View style={styles.inputGroup}>
@@ -505,6 +631,38 @@ const styles = StyleSheet.create({
   imagePlaceholderText: {
     marginTop: 12,
     fontSize: 16,
+    color: '#8E8E93',
+    fontWeight: '500',
+  },
+  coverImagePicker: {
+    width: '100%',
+  },
+  coverImageContainer: {
+    position: 'relative',
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  coverImagePreview: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+  },
+  coverImagePlaceholder: {
+    width: '100%',
+    height: 120,
+    borderRadius: 12,
+    backgroundColor: '#F2F2F7',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
+    borderStyle: 'dashed',
+  },
+  coverImagePlaceholderText: {
+    marginTop: 8,
+    fontSize: 14,
     color: '#8E8E93',
     fontWeight: '500',
   },

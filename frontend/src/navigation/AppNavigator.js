@@ -25,6 +25,13 @@ import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
 import VaccineDetailScreen from '../screens/Vaccines/VaccineDetailScreen';
 import ProcedureDetailScreen from '../screens/Procedures/ProcedureDetailScreen';
 
+// Friends Screens
+import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
+import FriendsPetsScreen from '../screens/Friends/FriendsPetsScreen';
+import FriendsListScreen from '../screens/Friends/FriendsListScreen';
+import AddFriendScreen from '../screens/Friends/AddFriendScreen';
+import PetProfileScreen from '../screens/Friends/PetProfileScreen';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
@@ -122,7 +129,7 @@ const AddButton = ({ onPress }) => (
     activeOpacity={0.8}
   >
     <View style={styles.addButton}>
-      <Ionicons name="add" size={32} color="#fff" />
+      <Ionicons name="add-circle" size={28} color="#007AFF" />
     </View>
   </TouchableOpacity>
 );
@@ -199,6 +206,55 @@ const PetsStack = () => (
       name="ProcedureDetail"
       component={ProcedureDetailScreen}
       options={{ title: 'Detalle de Procedimiento' }}
+    />
+  </Stack.Navigator>
+);
+
+const FriendsStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: {
+        backgroundColor: '#fff',
+      },
+      headerTitleStyle: {
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#000',
+      },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="FriendsMain"
+      component={FriendsMainScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="FriendsPets"
+      component={FriendsPetsScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="FriendsList"
+      component={FriendsListScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="AddFriend"
+      component={AddFriendScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PetProfile"
+      component={PetProfileScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PetDetail"
+      component={PetDetailScreen}
+      options={{ title: 'Detalle de Mascota' }}
     />
   </Stack.Navigator>
 );
@@ -316,7 +372,8 @@ const MainTabs = ({ navigationRef }) => {
           state: (e) => {
             const state = e.data.state;
             const currentRoute = state.routes[state.index];
-            setShowAddButton(currentRoute.name === 'Pets');
+            // Mostrar el botón + siempre
+            setShowAddButton(true);
           },
         }}
       >
@@ -324,10 +381,24 @@ const MainTabs = ({ navigationRef }) => {
           name="Pets"
           component={PetsStack}
           options={{
-            tabBarLabel: 'Mascotas',
+            tabBarLabel: () => null,
             tabBarIcon: ({ focused, color, size }) => (
               <Ionicons
                 name={focused ? 'paw' : 'paw-outline'}
+                size={size}
+                color={color}
+              />
+            ),
+          }}
+        />
+        <Tab.Screen
+          name="Friends"
+          component={FriendsStack}
+          options={{
+            tabBarLabel: () => null,
+            tabBarIcon: ({ focused, color, size }) => (
+              <Ionicons
+                name={focused ? 'people' : 'people-outline'}
                 size={size}
                 color={color}
               />
@@ -344,19 +415,16 @@ const MainTabs = ({ navigationRef }) => {
             },
           })}
           options={{
-            tabBarLabel: () => null,
+            tabBarLabel: '',
             tabBarIcon: () => null,
-            tabBarButton: (props) =>
-              showAddButton ? (
-                <AddButton
-                  {...props}
-                  onPress={() => {
-                    setShowAddPetModal(true);
-                  }}
-                />
-              ) : (
-                <View style={{ flex: 1 }} />
-              ),
+            tabBarButton: (props) => (
+              <AddButton
+                {...props}
+                onPress={() => {
+                  setShowAddPetModal(true);
+                }}
+              />
+            ),
           }}
         />
         <Tab.Screen
@@ -440,26 +508,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   addButtonContainer: {
-    top: -20,
     justifyContent: 'center',
     alignItems: 'center',
     flex: 1,
   },
   addButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#007AFF',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 8,
   },
   modalOverlay: {
     flex: 1,

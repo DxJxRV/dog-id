@@ -17,10 +17,13 @@ model User {
   passwordHash String   @map("password_hash")
   googleId     String?  @unique @map("google_id")
   fotoUrl      String?  @map("foto_url")
+  friendCode   String?  @unique @map("friend_code")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  pets         Pet[]
-  coOwnedPets  CoOwnerPetLink[]
+  pets              Pet[]
+  coOwnedPets       CoOwnerPetLink[]
+  sentFriendships   Friendship[] @relation("SentFriendships")
+  receivedFriendships Friendship[] @relation("ReceivedFriendships")
 
   @@map("users")
 }
@@ -49,6 +52,7 @@ model Pet {
   raza             String?
   fechaNacimiento  DateTime? @map("fecha_nacimiento")
   fotoUrl          String?   @map("foto_url")
+  coverPhotoUrl    String?   @map("cover_photo_url")
   linkCode         String?   @unique @map("link_code")
   archivedByOwner  Boolean   @default(false) @map("archived_by_owner")
   createdAt        DateTime  @default(now()) @map("created_at")
@@ -123,4 +127,19 @@ model CoOwnerPetLink {
 
   @@unique([userId, petId])
   @@map("co_owner_pet_links")
+}
+
+model Friendship {
+  id          String   @id @default(uuid())
+  requesterId String   @map("requester_id")
+  addresseeId String   @map("addressee_id")
+  status      String   @default("pending") // pending, accepted, rejected
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  requester   User     @relation("SentFriendships", fields: [requesterId], references: [id], onDelete: Cascade)
+  addressee   User     @relation("ReceivedFriendships", fields: [addresseeId], references: [id], onDelete: Cascade)
+
+  @@unique([requesterId, addresseeId])
+  @@map("friendships")
 }

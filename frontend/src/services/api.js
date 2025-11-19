@@ -95,4 +95,16 @@ export const proceduresAPI = {
   delete: (id) => api.delete(`/pets/procedures/${id}`),
 };
 
+// Friendships API
+export const friendshipsAPI = {
+  getFriendCode: () => api.get('/friendships/friend-code'),
+  sendRequest: (friendCode) => api.post('/friendships/send-request', { friendCode }),
+  getPending: () => api.get('/friendships/pending'),
+  accept: (requestId) => api.post(`/friendships/accept/${requestId}`),
+  reject: (requestId) => api.post(`/friendships/reject/${requestId}`),
+  getFriends: () => api.get('/friendships/friends'),
+  remove: (friendshipId) => api.delete(`/friendships/friends/${friendshipId}`),
+  getFriendsPets: () => api.get('/friendships/friends/pets'),
+};
+
 export default api;

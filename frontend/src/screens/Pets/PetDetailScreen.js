@@ -5,12 +5,14 @@ import {
   StyleSheet,
   ScrollView,
   Image,
+  ImageBackground,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   Modal,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
 import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline } from '../../components';
 import { API_URL } from '../../utils/config';
@@ -33,6 +35,7 @@ const PetDetailScreen = ({ route, navigation }) => {
   const [unlinking, setUnlinking] = useState(false);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [showFiltersModal, setShowFiltersModal] = useState(false);
+  const [showProcedureMenu, setShowProcedureMenu] = useState(false);
   const [filters, setFilters] = useState({
     type: null, // 'vaccine' | 'procedure' | null
     vaccineType: null,
@@ -212,7 +215,28 @@ const PetDetailScreen = ({ route, navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      <View style={styles.header}>
+      {/* Cover Photo */}
+      {pet.coverPhotoUrl ? (
+        <ImageBackground
+          source={{ uri: `${API_URL}${pet.coverPhotoUrl}` }}
+          style={styles.coverPhoto}
+          imageStyle={styles.coverPhotoImage}
+        >
+          <LinearGradient
+            colors={['transparent', 'rgba(255,255,255,0.9)']}
+            style={styles.coverGradient}
+          />
+        </ImageBackground>
+      ) : (
+        <View style={styles.coverPhotoPlaceholder}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            style={styles.coverGradient}
+          />
+        </View>
+      )}
+
+      <View style={[styles.header, { marginTop: -40 }]}>
         {pet.fotoUrl ? (
           <Image
             source={{ uri: `${API_URL}${pet.fotoUrl}` }}
@@ -249,17 +273,9 @@ const PetDetailScreen = ({ route, navigation }) => {
 
           <TouchableOpacity
             style={styles.actionButton}
-            onPress={() => navigation.navigate('AddVaccine', { petId })}
+            onPress={() => setShowProcedureMenu(true)}
           >
-            <Ionicons name="heart" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>Agregar{'\n'}Vacuna</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => navigation.navigate('AddProcedure', { petId })}
-          >
-            <Ionicons name="document-text-outline" size={20} color="#007AFF" />
+            <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
             <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
           </TouchableOpacity>
         </View>
@@ -509,6 +525,56 @@ const PetDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      {/* Modal de selección de procedimiento */}
+      <Modal
+        visible={showProcedureMenu}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProcedureMenu(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowProcedureMenu(false)}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.optionsMenu}>
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => {
+                  setShowProcedureMenu(false);
+                  navigation.navigate('AddVaccine', { petId });
+                }}
+              >
+                <Ionicons name="heart" size={22} color="#8E8E93" />
+                <Text style={styles.optionText}>Agregar Vacuna</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => {
+                  setShowProcedureMenu(false);
+                  navigation.navigate('AddProcedure', { petId });
+                }}
+              >
+                <Ionicons name="document-text-outline" size={22} color="#8E8E93" />
+                <Text style={styles.optionText}>Agregar Procedimiento</Text>
+              </TouchableOpacity>
+
+              <View style={styles.optionSeparator} />
+
+              <TouchableOpacity
+                style={styles.optionItem}
+                onPress={() => setShowProcedureMenu(false)}
+              >
+                <Ionicons name="close-outline" size={22} color="#8E8E93" />
+                <Text style={styles.optionText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </ScrollView>
   );
 };
@@ -517,6 +583,22 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
+  },
+  coverPhoto: {
+    width: '100%',
+    height: 150,
+  },
+  coverPhotoImage: {
+    width: '100%',
+    height: '100%',
+  },
+  coverPhotoPlaceholder: {
+    width: '100%',
+    height: 150,
+    backgroundColor: '#667eea',
+  },
+  coverGradient: {
+    flex: 1,
   },
   header: {
     backgroundColor: '#fff',
@@ -530,6 +612,8 @@ const styles = StyleSheet.create({
     height: 120,
     borderRadius: 60,
     marginBottom: 16,
+    borderWidth: 4,
+    borderColor: '#fff',
   },
   petImagePlaceholder: {
     width: 120,
@@ -539,6 +623,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
+    borderWidth: 4,
+    borderColor: '#fff',
   },
   petImagePlaceholderText: {
     color: '#fff',
