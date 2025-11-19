@@ -102,9 +102,15 @@ const PetDetailScreen = ({ route, navigation }) => {
 
   const handleUnlinkPet = () => {
     setShowOptionsMenu(false);
+
+    const isCoOwner = pet?.isCoOwner;
+    const unlinkMessage = isCoOwner
+      ? '¿Estás seguro de que deseas dejar de ser co-dueño de esta mascota?'
+      : '¿Estás seguro de que deseas desvincular esta mascota?';
+
     Alert.alert(
       'Desvincular mascota',
-      '¿Estás seguro de que deseas desvincular esta mascota?',
+      unlinkMessage,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
@@ -113,7 +119,14 @@ const PetDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               setUnlinking(true);
-              await petsAPI.unlinkPet(petId);
+
+              // Usar el endpoint correcto según el tipo de vinculación
+              if (isCoOwner) {
+                await petsAPI.unlinkPetAsCoOwner(petId);
+              } else if (isVet) {
+                await petsAPI.unlinkPetAsVet(petId);
+              }
+
               showToast.success('Mascota desvinculada correctamente');
               setTimeout(() => navigation.goBack(), 500);
             } catch (err) {
@@ -194,6 +207,7 @@ const PetDetailScreen = ({ route, navigation }) => {
   }
 
   const isOwner = pet.user && user && pet.user.id === user.id;
+  const isCoOwner = pet?.isCoOwner;
   const isArchived = pet?.isArchived || pet?.archived;
 
   return (
@@ -228,8 +242,8 @@ const PetDetailScreen = ({ route, navigation }) => {
               style={styles.qrButton}
               onPress={handleShowLinkCode}
             >
-              <Ionicons name="qr-code-outline" size={32} color="#007AFF" />
-              <Text style={styles.qrButtonText}>QR</Text>
+              <Ionicons name="share-social-outline" size={32} color="#007AFF" />
+              <Text style={styles.qrButtonText}>Compartir</Text>
             </TouchableOpacity>
           )}
 
@@ -465,7 +479,7 @@ const PetDetailScreen = ({ route, navigation }) => {
                 </Text>
               </TouchableOpacity>
 
-              {isVet && !isOwner && (
+              {((isVet && !isOwner) || isCoOwner) && (
                 <TouchableOpacity
                   style={[styles.optionItem, styles.optionItemDanger]}
                   onPress={handleUnlinkPet}

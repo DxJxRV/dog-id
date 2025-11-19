@@ -203,11 +203,91 @@ const PetsStack = () => (
   </Stack.Navigator>
 );
 
-const MainTabs = () => {
+const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet, isVet }) => {
+  if (isVet) {
+    // Para veterinarios, ir directo a LinkPet
+    if (visible && onNavigateToLinkPet) {
+      onNavigateToLinkPet();
+      onClose();
+    }
+    return null;
+  }
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <TouchableOpacity
+        style={styles.modalOverlay}
+        activeOpacity={1}
+        onPress={onClose}
+      >
+        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+          <View style={styles.addModal}>
+            <Text style={styles.addModalTitle}>Agregar Mascota</Text>
+
+            <TouchableOpacity
+              style={styles.addModalOption}
+              onPress={() => {
+                onClose();
+                onNavigateToAddPet();
+              }}
+            >
+              <View style={styles.addModalIconContainer}>
+                <Ionicons name="add-circle" size={32} color="#007AFF" />
+              </View>
+              <View style={styles.addModalTextContainer}>
+                <Text style={styles.addModalOptionTitle}>Registrar Mascota</Text>
+                <Text style={styles.addModalOptionSubtitle}>
+                  Agrega una nueva mascota a tu perfil
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
+            </TouchableOpacity>
+
+            <View style={styles.addModalDivider} />
+
+            <TouchableOpacity
+              style={styles.addModalOption}
+              onPress={() => {
+                onClose();
+                onNavigateToLinkPet();
+              }}
+            >
+              <View style={styles.addModalIconContainer}>
+                <Ionicons name="link" size={32} color="#007AFF" />
+              </View>
+              <View style={styles.addModalTextContainer}>
+                <Text style={styles.addModalOptionTitle}>Ser Co-dueño</Text>
+                <Text style={styles.addModalOptionSubtitle}>
+                  Escanea un código QR o ingresa un código
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.addModalCancelButton}
+              onPress={onClose}
+            >
+              <Text style={styles.addModalCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
+const MainTabs = ({ navigationRef }) => {
   const { userType } = useAuth();
   const isVet = userType === 'vet';
   const [showAddButton, setShowAddButton] = React.useState(true);
   const [showProfileModal, setShowProfileModal] = React.useState(false);
+  const [showAddPetModal, setShowAddPetModal] = React.useState(false);
 
   return (
     <>
@@ -260,9 +340,7 @@ const MainTabs = () => {
           listeners={({ navigation }) => ({
             tabPress: (e) => {
               e.preventDefault();
-              navigation.navigate('Pets', {
-                screen: isVet ? 'LinkPet' : 'AddPet',
-              });
+              setShowAddPetModal(true);
             },
           })}
           options={{
@@ -273,7 +351,7 @@ const MainTabs = () => {
                 <AddButton
                   {...props}
                   onPress={() => {
-                    props.onPress();
+                    setShowAddPetModal(true);
                   }}
                 />
               ) : (
@@ -306,20 +384,36 @@ const MainTabs = () => {
         visible={showProfileModal}
         onClose={() => setShowProfileModal(false)}
       />
+      <AddPetModal
+        visible={showAddPetModal}
+        onClose={() => setShowAddPetModal(false)}
+        onNavigateToAddPet={() => {
+          if (navigationRef?.current) {
+            navigationRef.current.navigate('Pets', { screen: 'AddPet' });
+          }
+        }}
+        onNavigateToLinkPet={() => {
+          if (navigationRef?.current) {
+            navigationRef.current.navigate('Pets', { screen: 'LinkPet' });
+          }
+        }}
+        isVet={isVet}
+      />
     </>
   );
 };
 
 const AppNavigator = () => {
   const { isAuthenticated, loading } = useAuth();
+  const navigationRef = React.useRef(null);
 
   if (loading) {
     return <Loading />;
   }
 
   return (
-    <NavigationContainer>
-      {isAuthenticated ? <MainTabs /> : <AuthStack />}
+    <NavigationContainer ref={navigationRef}>
+      {isAuthenticated ? <MainTabs navigationRef={navigationRef} /> : <AuthStack />}
     </NavigationContainer>
   );
 };
@@ -423,6 +517,65 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FF3B30',
     fontWeight: '500',
+  },
+  addModal: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 20,
+    paddingBottom: 30,
+    paddingHorizontal: 20,
+  },
+  addModalTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  addModalOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 12,
+  },
+  addModalIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E8F4FD',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  addModalTextContainer: {
+    flex: 1,
+  },
+  addModalOptionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 2,
+  },
+  addModalOptionSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  addModalDivider: {
+    height: 1,
+    backgroundColor: '#E5E5EA',
+    marginVertical: 12,
+  },
+  addModalCancelButton: {
+    marginTop: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+  },
+  addModalCancelText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
   },
 });
 

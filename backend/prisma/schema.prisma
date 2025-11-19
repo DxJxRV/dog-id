@@ -20,6 +20,7 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
 
   pets         Pet[]
+  coOwnedPets  CoOwnerPetLink[]
 
   @@map("users")
 }
@@ -56,6 +57,7 @@ model Pet {
   vaccines         Vaccine[]
   procedures       Procedure[]
   linkedVets       VetPetLink[]
+  coOwners         CoOwnerPetLink[]
 
   @@map("pets")
 }
@@ -107,4 +109,18 @@ model VetPetLink {
 
   @@unique([vetId, petId])
   @@map("vet_pet_links")
+}
+
+model CoOwnerPetLink {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  petId     String   @map("pet_id")
+  archived  Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pet       Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, petId])
+  @@map("co_owner_pet_links")
 }

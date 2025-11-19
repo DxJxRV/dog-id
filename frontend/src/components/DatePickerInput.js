@@ -210,8 +210,9 @@ const DatePickerInput = ({
                   markedDates={markedDates}
                   minDate={minimumDate ? formatDateForCalendar(minimumDate) : undefined}
                   maxDate={maximumDate ? formatDateForCalendar(maximumDate) : undefined}
-                  hideArrows={true}
-                  disableMonthChange={true}
+                  onMonthChange={(month) => {
+                    setCurrentMonth(new Date(month.year, month.month - 1, 1));
+                  }}
                   renderHeader={() => {
                     return (
                       <View style={styles.calendarHeader}>

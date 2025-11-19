@@ -67,7 +67,8 @@ export const petsAPI = {
   delete: (id) => api.delete(`/pets/${id}`),
   getLinkCode: (id) => api.get(`/pets/${id}/link-code`),
   linkPet: (linkCode) => api.post('/pets/link', { linkCode }),
-  unlinkPet: (id) => api.delete(`/pets/${id}/unlink`),
+  unlinkPetAsVet: (id) => api.delete(`/pets/${id}/unlink-vet`),
+  unlinkPetAsCoOwner: (id) => api.delete(`/pets/${id}/unlink-coowner`),
   archive: (id, archived) => api.patch(`/pets/${id}/archive`, { archived }),
 };
 

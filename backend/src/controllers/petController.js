@@ -106,23 +106,68 @@ const getUserPets = async (req, res) => {
           linkedVets: undefined // Remover el array completo, solo necesitamos isLinked
         }));
     } else {
-      // Verificar si el usuario tiene mascotas archivadas
-      const archivedCount = await prisma.pet.count({
+      // Verificar si el usuario tiene mascotas archivadas (propias o co-owned)
+      const ownedArchivedCount = await prisma.pet.count({
         where: {
           userId,
           archivedByOwner: true
         }
       });
-      hasArchivedPets = archivedCount > 0;
 
-      // Los usuarios ven solo sus mascotas no archivadas
-      pets = await prisma.pet.findMany({
+      const coOwnedArchivedCount = await prisma.coOwnerPetLink.count({
+        where: {
+          userId,
+          archived: true
+        }
+      });
+
+      hasArchivedPets = (ownedArchivedCount + coOwnedArchivedCount) > 0;
+
+      // Los usuarios ven sus mascotas no archivadas Y las que son co-dueños
+      const ownedPets = await prisma.pet.findMany({
         where: {
           userId,
           archivedByOwner: false
         },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
+          }
+        },
         orderBy: { createdAt: 'desc' }
       });
+
+      // Obtener mascotas donde es co-dueño
+      const coOwnedPets = await prisma.pet.findMany({
+        where: {
+          coOwners: {
+            some: {
+              userId,
+              archived: false
+            }
+          }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Combinar ambas listas, marcando las co-owned
+      const ownedWithFlag = ownedPets.map(pet => ({ ...pet, isCoOwner: false }));
+      const coOwnedWithFlag = coOwnedPets.map(pet => ({ ...pet, isCoOwner: true }));
+
+      pets = [...ownedWithFlag, ...coOwnedWithFlag];
     }
 
     res.json({
@@ -141,9 +186,23 @@ const getPetById = async (req, res) => {
     const { id: userId, type: userType } = req.user;
     const petId = req.params.id;
 
-    const whereClause = userType === 'vet'
-      ? { id: petId }  // Veterinarios pueden ver cualquier mascota
-      : { id: petId, userId };  // Usuarios solo ven sus mascotas
+    let whereClause;
+    if (userType === 'vet') {
+      whereClause = { id: petId };  // Veterinarios pueden ver cualquier mascota
+    } else {
+      // Usuarios ven sus mascotas o las que son co-dueños
+      whereClause = {
+        id: petId,
+        OR: [
+          { userId },  // Es el dueño
+          {
+            coOwners: {
+              some: { userId }  // Es co-dueño
+            }
+          }
+        ]
+      };
+    }
 
     const includeClause = {
       user: {
@@ -190,6 +249,17 @@ const getPetById = async (req, res) => {
           archived: true
         }
       };
+    } else {
+      // Si es usuario, incluir la relación CoOwnerPetLink para saber si es co-dueño
+      includeClause.coOwners = {
+        where: {
+          userId
+        },
+        select: {
+          id: true,
+          archived: true
+        }
+      };
     }
 
     const pet = await prisma.pet.findFirst({
@@ -217,11 +287,27 @@ const getPetById = async (req, res) => {
         linkedVets: undefined // Remover el array linkedVets de la respuesta
       };
     } else {
-      // Para usuarios normales, usar el campo archivedByOwner
+      // Para usuarios normales, verificar si es dueño o co-dueño
+      const isOwner = pet.userId === userId;
+      const isCoOwner = pet.coOwners && pet.coOwners.length > 0;
+
+      // Determinar estado de archivado
+      let isArchived;
+      if (isOwner) {
+        isArchived = pet.archivedByOwner;
+      } else if (isCoOwner) {
+        isArchived = pet.coOwners[0].archived;
+      } else {
+        isArchived = false;
+      }
+
       petResponse = {
         ...pet,
-        isArchived: pet.archivedByOwner,
-        archived: pet.archivedByOwner
+        isOwner,
+        isCoOwner,
+        isArchived,
+        archived: isArchived,
+        coOwners: undefined // Remover el array coOwners de la respuesta
       };
     }
 
@@ -346,7 +432,7 @@ const toggleArchivePet = async (req, res) => {
         data: { archived }
       });
     } else {
-      // Para usuarios, archivar en la tabla Pet
+      // Para usuarios, verificar si es dueño o co-dueño
       const pet = await prisma.pet.findFirst({
         where: {
           id: petId,
@@ -354,14 +440,31 @@ const toggleArchivePet = async (req, res) => {
         }
       });
 
-      if (!pet) {
-        return res.status(404).json({ error: 'Pet not found' });
-      }
+      if (pet) {
+        // Es el dueño, archivar en la tabla Pet
+        await prisma.pet.update({
+          where: { id: petId },
+          data: { archivedByOwner: archived }
+        });
+      } else {
+        // Verificar si es co-dueño
+        const coOwnerLink = await prisma.coOwnerPetLink.findFirst({
+          where: {
+            userId,
+            petId
+          }
+        });
 
-      await prisma.pet.update({
-        where: { id: petId },
-        data: { archivedByOwner: archived }
-      });
+        if (!coOwnerLink) {
+          return res.status(404).json({ error: 'Pet not found' });
+        }
+
+        // Es co-dueño, archivar en la relación CoOwnerPetLink
+        await prisma.coOwnerPetLink.update({
+          where: { id: coOwnerLink.id },
+          data: { archived }
+        });
+      }
     }
 
     res.json({
@@ -416,14 +519,51 @@ const getArchivedPets = async (req, res) => {
           linkedVets: undefined
         }));
     } else {
-      // Los usuarios ven sus mascotas archivadas
-      pets = await prisma.pet.findMany({
+      // Los usuarios ven sus mascotas archivadas (propias y co-owned)
+      const ownedArchivedPets = await prisma.pet.findMany({
         where: {
           userId,
           archivedByOwner: true
         },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
+          }
+        },
         orderBy: { createdAt: 'desc' }
       });
+
+      // Obtener mascotas archivadas donde es co-dueño
+      const coOwnedArchivedPets = await prisma.pet.findMany({
+        where: {
+          coOwners: {
+            some: {
+              userId,
+              archived: true
+            }
+          }
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              nombre: true,
+              email: true
+            }
+          }
+        },
+        orderBy: { createdAt: 'desc' }
+      });
+
+      // Combinar ambas listas, marcando las co-owned
+      const ownedWithFlag = ownedArchivedPets.map(pet => ({ ...pet, isCoOwner: false }));
+      const coOwnedWithFlag = coOwnedArchivedPets.map(pet => ({ ...pet, isCoOwner: true }));
+
+      pets = [...ownedWithFlag, ...coOwnedWithFlag];
     }
 
     res.json({

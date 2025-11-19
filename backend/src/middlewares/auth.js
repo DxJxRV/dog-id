@@ -49,5 +49,6 @@ module.exports = {
   authenticateToken,
   authenticateUser,
   authenticateVet,
-  authenticateUserOrVet
+  authenticateUserOrVet,
+  authenticateAny: authenticateUserOrVet
 };
