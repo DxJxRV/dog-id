@@ -9,16 +9,29 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import FriendsPetsScreen from './FriendsPetsScreen';
 import FriendsListScreen from './FriendsListScreen';
+import { friendshipsAPI } from '../../services/api';
 
 const { width } = Dimensions.get('window');
 
 const FriendsMainScreen = ({ navigation }) => {
   const [activeTab, setActiveTab] = useState('pets'); // 'pets' o 'humans'
   const [refreshKey, setRefreshKey] = useState(0);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  const fetchPendingCount = async () => {
+    try {
+      const response = await friendshipsAPI.getPending();
+      setPendingRequestsCount(response.data.requests?.length || 0);
+    } catch (err) {
+      // Silently fail - this is just for badge display
+    }
+  };
 
   useEffect(() => {
+    fetchPendingCount();
     const unsubscribe = navigation.addListener('focus', () => {
       setRefreshKey(prev => prev + 1);
+      fetchPendingCount();
     });
     return unsubscribe;
   }, [navigation]);
@@ -64,6 +77,11 @@ const FriendsMainScreen = ({ navigation }) => {
           <Text style={[styles.tabText, activeTab === 'humans' && styles.tabTextActive]}>
             Amigos Humanos
           </Text>
+          {pendingRequestsCount > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{pendingRequestsCount}</Text>
+            </View>
+          )}
         </TouchableOpacity>
       </View>
 
@@ -72,7 +90,11 @@ const FriendsMainScreen = ({ navigation }) => {
         {activeTab === 'pets' ? (
           <FriendsPetsScreen navigation={navigation} embedded />
         ) : (
-          <FriendsListScreen navigation={navigation} embedded />
+          <FriendsListScreen
+            navigation={navigation}
+            embedded
+            onPendingCountChange={fetchPendingCount}
+          />
         )}
       </View>
     </View>
@@ -132,6 +154,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  badge: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });
 

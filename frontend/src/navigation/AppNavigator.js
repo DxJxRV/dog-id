@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Image, Text, StyleSheet, TouchableOpacity, Modal, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { Loading } from '../components';
 import { API_URL } from '../utils/config';
+import { friendshipsAPI } from '../services/api';
 
 // Auth Screens
 import LoginScreen from '../screens/Auth/LoginScreen';
@@ -160,7 +161,18 @@ const PetsStack = () => (
     <Stack.Screen
       name="PetsList"
       component={PetsListScreen}
-      options={{ title: 'Mis Mascotas' }}
+      options={{
+        title: 'Mis Mascotas',
+        headerStyle: {
+          backgroundColor: '#007AFF',
+        },
+        headerTitleStyle: {
+          fontSize: 17,
+          fontWeight: '600',
+          color: '#fff',
+        },
+        headerTintColor: '#fff',
+      }}
     />
     <Stack.Screen
       name="ArchivedPets"
@@ -341,9 +353,26 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
 const MainTabs = ({ navigationRef }) => {
   const { userType } = useAuth();
   const isVet = userType === 'vet';
-  const [showAddButton, setShowAddButton] = React.useState(true);
-  const [showProfileModal, setShowProfileModal] = React.useState(false);
-  const [showAddPetModal, setShowAddPetModal] = React.useState(false);
+  const [showAddButton, setShowAddButton] = useState(true);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showAddPetModal, setShowAddPetModal] = useState(false);
+  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+
+  const fetchPendingCount = async () => {
+    try {
+      const response = await friendshipsAPI.getPending();
+      setPendingRequestsCount(response.data.requests?.length || 0);
+    } catch (err) {
+      // Silently fail - this is just for badge display
+    }
+  };
+
+  useEffect(() => {
+    fetchPendingCount();
+    // Set up an interval to refresh the count every 30 seconds
+    const interval = setInterval(fetchPendingCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <>
@@ -394,8 +423,27 @@ const MainTabs = ({ navigationRef }) => {
         <Tab.Screen
           name="Friends"
           component={FriendsStack}
+          listeners={{
+            focus: () => {
+              fetchPendingCount();
+            },
+            blur: () => {
+              fetchPendingCount();
+            },
+          }}
           options={{
             tabBarLabel: () => null,
+            tabBarBadge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
+            tabBarBadgeStyle: {
+              backgroundColor: '#FF3B30',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: '700',
+              minWidth: 20,
+              height: 20,
+              borderRadius: 10,
+              lineHeight: 20,
+            },
             tabBarIcon: ({ focused, color, size }) => (
               <Ionicons
                 name={focused ? 'people' : 'people-outline'}

@@ -20,7 +20,7 @@ import { showToast } from '../../utils/toast';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const FriendsListScreen = ({ navigation, embedded = false }) => {
+const FriendsListScreen = ({ navigation, embedded = false, onPendingCountChange }) => {
   const [friends, setFriends] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -106,6 +106,10 @@ const FriendsListScreen = ({ navigation, embedded = false }) => {
       await friendshipsAPI.accept(request.id);
       showToast.success(`Ahora eres amigo de ${request.user.nombre}`);
       fetchData();
+      // Notificar al componente padre para actualizar el contador de badges
+      if (onPendingCountChange) {
+        onPendingCountChange();
+      }
     } catch (err) {
       if (isNetworkError(err)) {
         showToast.networkError();
@@ -123,6 +127,10 @@ const FriendsListScreen = ({ navigation, embedded = false }) => {
       await friendshipsAPI.reject(request.id);
       showToast.success('Solicitud rechazada');
       fetchData();
+      // Notificar al componente padre para actualizar el contador de badges
+      if (onPendingCountChange) {
+        onPendingCountChange();
+      }
     } catch (err) {
       if (isNetworkError(err)) {
         showToast.networkError();
@@ -418,8 +426,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 16,
     marginBottom: 12,
-    borderWidth: 2,
-    borderColor: '#FFB800',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
