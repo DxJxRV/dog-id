@@ -8,6 +8,7 @@ export const ENDPOINTS = {
   // Auth
   USER_REGISTER: '/auth/user/register',
   USER_LOGIN: '/auth/user/login',
+  USER_GOOGLE_LOGIN: '/auth/user/google',
   VET_REGISTER: '/auth/vet/register',
   VET_LOGIN: '/auth/vet/login',
 
@@ -30,3 +31,6 @@ export const STORAGE_KEYS = {
   USER_DATA: 'user_data',
   USER_TYPE: 'user_type',
 };
+
+// Google OAuth
+export const GOOGLE_CLIENT_ID = '474914302160-n9ei7n4kgjeq94mr6l067t4hnj0jrcr9.apps.googleusercontent.com';

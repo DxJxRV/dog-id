@@ -6,6 +6,7 @@
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
     "userInterfaceStyle": "light",
+    "scheme": "mi-mascota-plus",
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -51,7 +52,8 @@
     "extra": {
       "eas": {
         "projectId": "c45bd479-8525-4d57-b267-e2b658c6c2c0"
-      }
+      },
+      "googleClientId": "474914302160-n9ei7n4kgjeq94mr6l067t4hnj0jrcr9.apps.googleusercontent.com"
     },
     "owner": "dxjx"
   }

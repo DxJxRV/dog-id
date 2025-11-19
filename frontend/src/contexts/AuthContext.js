@@ -61,6 +61,25 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const login = async (email, password) => {
+    try {
+      const response = await authAPI.login({ email, password });
+      const { token, user: userData, vet: vetData } = response.data;
+
+      // Determinar el tipo basándose en qué datos devolvió el backend
+      const accountType = userData ? 'user' : 'vet';
+      const accountData = userData || vetData;
+
+      await saveAuthData(token, accountData, accountType);
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Login failed',
+      };
+    }
+  };
+
   const loginUser = async (email, password) => {
     try {
       const response = await authAPI.loginUser({ email, password });
@@ -123,6 +142,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithGoogle = async (accessToken) => {
+    try {
+      const response = await authAPI.googleLogin({ accessToken });
+      const { token, user: userData } = response.data;
+      await saveAuthData(token, userData, 'user');
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Google login failed',
+      };
+    }
+  };
+
   const logout = async () => {
     await clearAuthData();
   };
@@ -134,10 +167,12 @@ export const AuthProvider = ({ children }) => {
         userType,
         isAuthenticated,
         loading,
+        login,
         loginUser,
         registerUser,
         loginVet,
         registerVet,
+        loginWithGoogle,
         logout,
       }}
     >

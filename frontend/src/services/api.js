@@ -41,8 +41,10 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
+  login: (data) => api.post('/auth/login', data), // Login unificado
   registerUser: (data) => api.post('/auth/user/register', data),
   loginUser: (data) => api.post('/auth/user/login', data),
+  googleLogin: (data) => api.post('/auth/user/google', data),
   registerVet: (data) => api.post('/auth/vet/register', data),
   loginVet: (data) => api.post('/auth/vet/login', data),
 };

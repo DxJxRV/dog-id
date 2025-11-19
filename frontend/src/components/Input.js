@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TextInput, Text, StyleSheet } from 'react-native';
+import { View, TextInput, Text, StyleSheet, TouchableOpacity } from 'react-native';
 
 const Input = ({
   label,
@@ -10,29 +10,45 @@ const Input = ({
   keyboardType = 'default',
   autoCapitalize = 'sentences',
   error,
+  success,
   multiline = false,
   numberOfLines = 1,
   style,
+  rightIcon,
+  onRightIconPress,
 }) => {
   return (
     <View style={[styles.container, style]}>
       {label && <Text style={styles.label}>{label}</Text>}
-      <TextInput
-        style={[
-          styles.input,
-          multiline && styles.multiline,
-          error && styles.inputError,
-        ]}
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#999"
-        secureTextEntry={secureTextEntry}
-        keyboardType={keyboardType}
-        autoCapitalize={autoCapitalize}
-        multiline={multiline}
-        numberOfLines={numberOfLines}
-      />
+      <View style={styles.inputContainer}>
+        <TextInput
+          style={[
+            styles.input,
+            multiline && styles.multiline,
+            error && styles.inputError,
+            success && styles.inputSuccess,
+            rightIcon && styles.inputWithIcon,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor="#999"
+          secureTextEntry={secureTextEntry}
+          keyboardType={keyboardType}
+          autoCapitalize={autoCapitalize}
+          multiline={multiline}
+          numberOfLines={numberOfLines}
+        />
+        {rightIcon && (
+          <TouchableOpacity
+            style={styles.rightIconContainer}
+            onPress={onRightIconPress}
+            activeOpacity={0.7}
+          >
+            {rightIcon}
+          </TouchableOpacity>
+        )}
+      </View>
       {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
@@ -48,6 +64,9 @@ const styles = StyleSheet.create({
     color: '#000',
     marginBottom: 8,
   },
+  inputContainer: {
+    position: 'relative',
+  },
   input: {
     borderWidth: 1,
     borderColor: '#E5E5EA',
@@ -57,12 +76,27 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: '#fff',
   },
+  inputWithIcon: {
+    paddingRight: 48,
+  },
   multiline: {
     minHeight: 100,
     textAlignVertical: 'top',
   },
   inputError: {
     borderColor: '#FF3B30',
+  },
+  inputSuccess: {
+    borderColor: '#34C759',
+  },
+  rightIconContainer: {
+    position: 'absolute',
+    right: 12,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: 40,
   },
   errorText: {
     color: '#FF3B30',
