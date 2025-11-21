@@ -47,6 +47,18 @@ export const authAPI = {
   googleLogin: (data) => api.post('/auth/user/google', data),
   registerVet: (data) => api.post('/auth/vet/register', data),
   loginVet: (data) => api.post('/auth/vet/login', data),
+  updateProfilePhoto: (formData) => {
+    return api.put('/auth/profile/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  updateCoverPhoto: (formData) => {
+    return api.put('/auth/profile/cover', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  updateProfile: (data) => api.put('/auth/profile', data),
+  deleteAccount: () => api.delete('/auth/profile'),
 };
 
 // Pets API
@@ -59,6 +71,11 @@ export const petsAPI = {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
   },
+  createQuickPet: (formData) => {
+    return api.post('/pets/quick-create', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   update: (id, formData) => {
     return api.put(`/pets/${id}`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
@@ -66,7 +83,9 @@ export const petsAPI = {
   },
   delete: (id) => api.delete(`/pets/${id}`),
   getLinkCode: (id) => api.get(`/pets/${id}/link-code`),
+  getTransferCode: (id) => api.get(`/pets/${id}/transfer-code`),
   linkPet: (linkCode) => api.post('/pets/link', { linkCode }),
+  claimPet: (transferCode) => api.post('/pets/claim', { transferCode }),
   unlinkPetAsVet: (id) => api.delete(`/pets/${id}/unlink-vet`),
   unlinkPetAsCoOwner: (id) => api.delete(`/pets/${id}/unlink-coowner`),
   archive: (id, archived) => api.patch(`/pets/${id}/archive`, { archived }),

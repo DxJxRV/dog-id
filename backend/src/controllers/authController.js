@@ -380,11 +380,293 @@ const login = async (req, res) => {
   }
 };
 
+// Actualizar foto de perfil
+const updateProfilePhoto = async (req, res) => {
+  try {
+    const { uploadPublicImage, deletePublicImage } = require('../services/s3Service');
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    // Subir imagen a S3
+    const fotoUrl = await uploadPublicImage(
+      req.file.buffer,
+      req.file.originalname,
+      'users/profiles'
+    );
+
+    // Actualizar según el tipo de usuario
+    let updatedUser;
+    if (userType === 'user') {
+      const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+
+      // Eliminar foto antigua de S3 si existe
+      if (currentUser.fotoUrl) {
+        await deletePublicImage(currentUser.fotoUrl);
+      }
+
+      updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { fotoUrl },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          coverPhotoUrl: true,
+          telefono: true,
+        }
+      });
+    } else if (userType === 'vet') {
+      const currentVet = await prisma.vet.findUnique({ where: { id: userId } });
+
+      // Eliminar foto antigua de S3 si existe
+      if (currentVet.fotoUrl) {
+        await deletePublicImage(currentVet.fotoUrl);
+      }
+
+      updatedUser = await prisma.vet.update({
+        where: { id: userId },
+        data: { fotoUrl },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          coverPhotoUrl: true,
+          telefono: true,
+          cedulaProfesional: true,
+        }
+      });
+    }
+
+    res.status(200).json({
+      message: 'Profile photo updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update profile photo error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Actualizar foto de portada
+const updateCoverPhoto = async (req, res) => {
+  try {
+    const { uploadPublicImage, deletePublicImage } = require('../services/s3Service');
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    // Subir imagen a S3
+    const coverPhotoUrl = await uploadPublicImage(
+      req.file.buffer,
+      req.file.originalname,
+      'users/covers'
+    );
+
+    // Actualizar según el tipo de usuario
+    let updatedUser;
+    if (userType === 'user') {
+      const currentUser = await prisma.user.findUnique({ where: { id: userId } });
+
+      // Eliminar foto antigua de S3 si existe
+      if (currentUser.coverPhotoUrl) {
+        await deletePublicImage(currentUser.coverPhotoUrl);
+      }
+
+      updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: { coverPhotoUrl },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          coverPhotoUrl: true,
+          telefono: true,
+        }
+      });
+    } else if (userType === 'vet') {
+      const currentVet = await prisma.vet.findUnique({ where: { id: userId } });
+
+      // Eliminar foto antigua de S3 si existe
+      if (currentVet.coverPhotoUrl) {
+        await deletePublicImage(currentVet.coverPhotoUrl);
+      }
+
+      updatedUser = await prisma.vet.update({
+        where: { id: userId },
+        data: { coverPhotoUrl },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          coverPhotoUrl: true,
+          telefono: true,
+          cedulaProfesional: true,
+        }
+      });
+    }
+
+    res.status(200).json({
+      message: 'Cover photo updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update cover photo error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Actualizar información del perfil
+const updateProfile = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+    const { nombre, telefono } = req.body;
+
+    const updateData = {};
+    if (nombre) updateData.nombre = nombre;
+    if (telefono) updateData.telefono = telefono;
+
+    let updatedUser;
+    if (userType === 'user') {
+      updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          telefono: true,
+        }
+      });
+    } else if (userType === 'vet') {
+      updatedUser = await prisma.vet.update({
+        where: { id: userId },
+        data: updateData,
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          fotoUrl: true,
+          telefono: true,
+          cedulaProfesional: true,
+        }
+      });
+    }
+
+    res.status(200).json({
+      message: 'Profile updated successfully',
+      user: updatedUser
+    });
+
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Eliminar cuenta del usuario
+const deleteAccount = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    if (userType === 'user') {
+      // Para usuarios, verificar si tienen mascotas como dueños principales
+      const petsAsOwner = await prisma.pet.findMany({
+        where: { userId: userId }
+      });
+
+      if (petsAsOwner.length > 0) {
+        return res.status(400).json({
+          error: 'Cannot delete account. Please transfer or delete all your pets first.'
+        });
+      }
+
+      // Eliminar foto de perfil de S3 si existe
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user.fotoUrl) {
+        const { deletePublicImage } = require('../services/s3Service');
+        await deletePublicImage(user.fotoUrl);
+      }
+
+      // Eliminar relaciones y el usuario
+      await prisma.$transaction([
+        // Eliminar solicitudes de amistad enviadas
+        prisma.friendRequest.deleteMany({ where: { senderId: userId } }),
+        // Eliminar solicitudes de amistad recibidas
+        prisma.friendRequest.deleteMany({ where: { receiverId: userId } }),
+        // Eliminar amistades
+        prisma.friendship.deleteMany({
+          where: {
+            OR: [
+              { user1Id: userId },
+              { user2Id: userId }
+            ]
+          }
+        }),
+        // Eliminar co-propiedades
+        prisma.petCoOwner.deleteMany({ where: { userId: userId } }),
+        // Eliminar el usuario
+        prisma.user.delete({ where: { id: userId } })
+      ]);
+
+    } else if (userType === 'vet') {
+      // Para veterinarios, verificar si tienen mascotas creadas pendientes de transferir
+      const petsCreatedByVet = await prisma.pet.findMany({
+        where: {
+          createdByVetId: userId,
+          userId: null // Mascotas que aún no han sido reclamadas
+        }
+      });
+
+      if (petsCreatedByVet.length > 0) {
+        return res.status(400).json({
+          error: 'Cannot delete account. You have pending pet transfers.'
+        });
+      }
+
+      // Eliminar foto de perfil de S3 si existe
+      const vet = await prisma.vet.findUnique({ where: { id: userId } });
+      if (vet.fotoUrl) {
+        const { deletePublicImage } = require('../services/s3Service');
+        await deletePublicImage(vet.fotoUrl);
+      }
+
+      // Eliminar el veterinario
+      await prisma.vet.delete({ where: { id: userId } });
+    }
+
+    res.status(200).json({ message: 'Account deleted successfully' });
+
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   registerVet,
   loginVet,
   googleLogin,
-  login
+  login,
+  updateProfilePhoto,
+  updateCoverPhoto,
+  updateProfile,
+  deleteAccount
 };

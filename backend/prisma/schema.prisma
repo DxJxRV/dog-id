@@ -11,14 +11,16 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  nombre       String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  googleId     String?  @unique @map("google_id")
-  fotoUrl      String?  @map("foto_url")
-  friendCode   String?  @unique @map("friend_code")
-  createdAt    DateTime @default(now()) @map("created_at")
+  id            String   @id @default(uuid())
+  nombre        String
+  email         String   @unique
+  passwordHash  String   @map("password_hash")
+  googleId      String?  @unique @map("google_id")
+  fotoUrl       String?  @map("foto_url")
+  coverPhotoUrl String?  @map("cover_photo_url")
+  telefono      String?
+  friendCode    String?  @unique @map("friend_code")
+  createdAt     DateTime @default(now()) @map("created_at")
 
   pets              Pet[]
   coOwnedPets       CoOwnerPetLink[]
@@ -35,29 +37,37 @@ model Vet {
   passwordHash        String   @map("password_hash")
   cedulaProfesional   String   @map("cedula_profesional")
   telefono            String?
+  fotoUrl             String?  @map("foto_url")
+  coverPhotoUrl       String?  @map("cover_photo_url")
   createdAt           DateTime @default(now()) @map("created_at")
 
   vaccines            Vaccine[]
   procedures          Procedure[]
   linkedPets          VetPetLink[]
+  createdPets         Pet[]
 
   @@map("vets")
 }
 
 model Pet {
-  id               String    @id @default(uuid())
-  userId           String    @map("user_id")
-  nombre           String
-  especie          String
-  raza             String?
-  fechaNacimiento  DateTime? @map("fecha_nacimiento")
-  fotoUrl          String?   @map("foto_url")
-  coverPhotoUrl    String?   @map("cover_photo_url")
-  linkCode         String?   @unique @map("link_code")
-  archivedByOwner  Boolean   @default(false) @map("archived_by_owner")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  id                      String    @id @default(uuid())
+  userId                  String?   @map("user_id")
+  nombre                  String
+  especie                 String
+  raza                    String?
+  fechaNacimiento         DateTime? @map("fecha_nacimiento")
+  fotoUrl                 String?   @map("foto_url")
+  coverPhotoUrl           String?   @map("cover_photo_url")
+  linkCode                String?   @unique @map("link_code")
+  archivedByOwner         Boolean   @default(false) @map("archived_by_owner")
+  transferCode            String?   @unique @map("transfer_code")
+  transferCodeExpiresAt   DateTime? @map("transfer_code_expires_at")
+  createdByVetId          String?   @map("created_by_vet_id")
+  pendingTransfer         Boolean   @default(false) @map("pending_transfer")
+  createdAt               DateTime  @default(now()) @map("created_at")
 
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdByVet     Vet?      @relation(fields: [createdByVetId], references: [id], onDelete: SetNull)
   vaccines         Vaccine[]
   procedures       Procedure[]
   linkedVets       VetPetLink[]

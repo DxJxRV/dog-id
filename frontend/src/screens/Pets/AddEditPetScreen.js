@@ -17,7 +17,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { DatePickerInput } from '../../components';
 import { petsAPI } from '../../services/api';
-import { API_URL } from '../../utils/config';
+import { getImageUrl } from '../../utils/imageHelper';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -389,7 +389,7 @@ const AddEditPetScreen = ({ navigation, route }) => {
           ) : petToEdit?.fotoUrl && !removePhoto ? (
             <View style={styles.imageContainer}>
               <Image
-                source={{ uri: `${API_URL}${petToEdit.fotoUrl}` }}
+                source={{ uri: getImageUrl(petToEdit.fotoUrl) }}
                 style={styles.imagePreview}
               />
               <View style={styles.imageOverlay}>
@@ -420,7 +420,7 @@ const AddEditPetScreen = ({ navigation, route }) => {
             ) : petToEdit?.coverPhotoUrl && !removeCoverPhoto ? (
               <View style={styles.coverImageContainer}>
                 <Image
-                  source={{ uri: `${API_URL}${petToEdit.coverPhotoUrl}` }}
+                  source={{ uri: getImageUrl(petToEdit.coverPhotoUrl) }}
                   style={styles.coverImagePreview}
                 />
                 <View style={styles.imageOverlay}>

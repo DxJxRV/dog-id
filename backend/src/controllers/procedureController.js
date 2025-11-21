@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { uploadPrivateImage, deletePrivateImage, generatePresignedUrl } = require('../services/s3Service');
 
 // Tipos de procedimientos permitidos
 const ALLOWED_PROCEDURES = [
@@ -56,10 +57,10 @@ const createProcedure = async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
 
-    // Procesar evidencia si existe
+    // Procesar evidencia si existe y subirla a S3 privado
     let evidenciaUrl = null;
     if (req.file) {
-      evidenciaUrl = `/uploads/procedures/${req.file.filename}`;
+      evidenciaUrl = await uploadPrivateImage(req.file.buffer, req.file.originalname, 'medical/procedures');
     }
 
     // Crear procedimiento
@@ -135,8 +136,16 @@ const getPetProcedures = async (req, res) => {
       orderBy: { fecha: 'desc' }
     });
 
+    // Generar presigned URLs para las evidencias
+    const proceduresWithUrls = await Promise.all(
+      procedures.map(async (procedure) => ({
+        ...procedure,
+        evidenciaUrl: procedure.evidenciaUrl ? await generatePresignedUrl(procedure.evidenciaUrl) : null
+      }))
+    );
+
     res.json({
-      procedures
+      procedures: proceduresWithUrls
     });
   } catch (error) {
     console.error('Get pet procedures error:', error);

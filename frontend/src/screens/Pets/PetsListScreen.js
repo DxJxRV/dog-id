@@ -16,10 +16,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
-import { API_URL } from '../../utils/config';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+import { getImageUrl } from '../../utils/imageHelper';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 20) / 2; // 8px padding on each side + 4px gap
@@ -162,6 +162,14 @@ const PetsListScreen = ({ navigation }) => {
     navigation.navigate('EditPet', { pet: selectedPet });
   };
 
+  const handleTransferPet = () => {
+    setShowOptionsMenu(false);
+    navigation.navigate('PetTransfer', {
+      petId: selectedPet.id,
+      petName: selectedPet.nombre
+    });
+  };
+
   const renderPetCard = ({ item }) => {
     const isArchivedByOwner = item.isArchivedByOwner || false;
 
@@ -173,7 +181,7 @@ const PetsListScreen = ({ navigation }) => {
         <ImageBackground
           source={
             item.fotoUrl
-              ? { uri: `${API_URL}${item.fotoUrl}` }
+              ? { uri: getImageUrl(item.fotoUrl) }
               : require('../../assets/adaptive-icon.png')
           }
           style={styles.cardBackground}
@@ -279,6 +287,16 @@ const PetsListScreen = ({ navigation }) => {
                 >
                   <Ionicons name="create-outline" size={22} color="#8E8E93" />
                   <Text style={styles.optionText}>Editar mascota</Text>
+                </TouchableOpacity>
+              )}
+
+              {selectedPet?.isCreatedByVet && isVet && (
+                <TouchableOpacity
+                  style={styles.optionItem}
+                  onPress={handleTransferPet}
+                >
+                  <Ionicons name="qr-code-outline" size={22} color="#007AFF" />
+                  <Text style={[styles.optionText, { color: '#007AFF' }]}>Ceder mascota</Text>
                 </TouchableOpacity>
               )}
 

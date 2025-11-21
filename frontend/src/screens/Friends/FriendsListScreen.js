@@ -14,9 +14,9 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { friendshipsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
-import { API_URL } from '../../utils/config';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+import { getImageUrl } from '../../utils/imageHelper';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
@@ -160,7 +160,7 @@ const FriendsListScreen = ({ navigation, embedded = false, onPendingCountChange 
         <View style={styles.friendCardContent}>
           {item.user.fotoUrl ? (
             <Image
-              source={{ uri: `${API_URL}${item.user.fotoUrl}` }}
+              source={{ uri: getImageUrl(item.user.fotoUrl) }}
               style={styles.avatar}
             />
           ) : (
@@ -201,7 +201,7 @@ const FriendsListScreen = ({ navigation, embedded = false, onPendingCountChange 
         <View style={styles.requestCardContent}>
           {item.user.fotoUrl ? (
             <Image
-              source={{ uri: `${API_URL}${item.user.fotoUrl}` }}
+              source={{ uri: getImageUrl(item.user.fotoUrl) }}
               style={styles.avatar}
             />
           ) : (

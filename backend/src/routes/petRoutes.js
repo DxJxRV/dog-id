@@ -6,16 +6,8 @@ const { validateUUIDParam } = require('../utils/validators');
 const multer = require('multer');
 const path = require('path');
 
-// Configurar multer para subida de fotos de mascotas
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/pets/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'pet-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configurar multer para mantener archivos en memoria (se subirán a S3)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,
@@ -48,5 +40,17 @@ router.get('/:id', authenticateUserOrVet, validateUUIDParam('id'), petController
 
 // Archivar/desarchivar mascota (ambos usuarios y vets)
 router.patch('/:id/archive', authenticateUserOrVet, validateUUIDParam('id'), petController.toggleArchivePet);
+
+// Crear mascota rápida (solo veterinarios)
+router.post('/quick-create', authenticateUserOrVet, upload.fields([
+  { name: 'foto', maxCount: 1 },
+  { name: 'coverPhoto', maxCount: 1 }
+]), petController.createQuickPet);
+
+// Obtener código de transferencia de una mascota
+router.get('/:id/transfer-code', authenticateUserOrVet, validateUUIDParam('id'), petController.getTransferCode);
+
+// Reclamar mascota con código de transferencia (solo usuarios)
+router.post('/claim', authenticateUser, petController.claimPet);
 
 module.exports = router;

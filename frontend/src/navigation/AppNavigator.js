@@ -6,7 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { Loading } from '../components';
-import { API_URL } from '../utils/config';
+import { getImageUrl } from '../utils/imageHelper';
 import { friendshipsAPI } from '../services/api';
 
 // Auth Screens
@@ -18,6 +18,9 @@ import PetsListScreen from '../screens/Pets/PetsListScreen';
 import PetDetailScreen from '../screens/Pets/PetDetailScreen';
 import AddEditPetScreen from '../screens/Pets/AddEditPetScreen';
 import LinkPetScreen from '../screens/Pets/LinkPetScreen';
+import QuickPetScreen from '../screens/Pets/QuickPetScreen';
+import PetTransferScreen from '../screens/Pets/PetTransferScreen';
+import ClaimPetScreen from '../screens/Pets/ClaimPetScreen';
 import ArchivedPetsScreen from '../screens/Pets/ArchivedPetsScreen';
 import AddVaccineScreen from '../screens/Pets/AddVaccineScreen';
 import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
@@ -33,10 +36,13 @@ import FriendsListScreen from '../screens/Friends/FriendsListScreen';
 import AddFriendScreen from '../screens/Friends/AddFriendScreen';
 import PetProfileScreen from '../screens/Friends/PetProfileScreen';
 
+// Profile Screens
+import ProfileScreen from '../screens/Profile/ProfileScreen';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
-const UserAvatar = ({ size = 28, focused, onPress }) => {
+const UserAvatar = ({ size = 28, focused }) => {
   const { user } = useAuth();
 
   const avatarStyle = {
@@ -47,7 +53,7 @@ const UserAvatar = ({ size = 28, focused, onPress }) => {
 
   const content = user?.fotoUrl ? (
     <Image
-      source={{ uri: `${API_URL}${user.fotoUrl}` }}
+      source={{ uri: getImageUrl(user.fotoUrl) }}
       style={avatarStyle}
     />
   ) : (
@@ -59,69 +65,46 @@ const UserAvatar = ({ size = 28, focused, onPress }) => {
   );
 
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      style={[styles.avatarContainer, focused && styles.avatarContainerFocused]}
-    >
+    <View style={[styles.avatarContainer, focused && styles.avatarContainerFocused]}>
       {content}
-    </TouchableOpacity>
+    </View>
   );
 };
 
-const ProfileModal = ({ visible, onClose }) => {
-  const { user, logout } = useAuth();
-
-  const handleLogout = () => {
-    Alert.alert(
-      'Cerrar sesión',
-      '¿Estás seguro de que deseas cerrar sesión?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Cerrar sesión',
-          style: 'destructive',
-          onPress: () => {
-            onClose();
-            logout();
-          },
+const ProfileStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: {
+        backgroundColor: '#fff',
+      },
+      headerTitleStyle: {
+        fontSize: 17,
+        fontWeight: '600',
+        color: '#000',
+      },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="ProfileMain"
+      component={ProfileScreen}
+      options={{
+        title: 'Perfil',
+        headerStyle: {
+          backgroundColor: '#007AFF',
         },
-      ]
-    );
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-      statusBarTranslucent
-    >
-      <View style={styles.profileModalOverlay}>
-        <TouchableOpacity
-          style={styles.profileModalBackdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
-        <View style={styles.profileModalContentWrapper}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalUserName}>{user?.nombre}</Text>
-              <Text style={styles.modalUserEmail}>{user?.email}</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={handleLogout}
-            >
-              <Ionicons name="log-out-outline" size={20} color="#FF3B30" />
-              <Text style={styles.logoutButtonText}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
-  );
-};
+        headerTitleStyle: {
+          fontSize: 17,
+          fontWeight: '600',
+          color: '#fff',
+        },
+        headerTintColor: '#fff',
+      }}
+    />
+  </Stack.Navigator>
+);
 
 const AddButton = ({ onPress }) => (
   <TouchableOpacity
@@ -200,6 +183,21 @@ const PetsStack = () => (
       options={{ title: 'Vincular Mascota' }}
     />
     <Stack.Screen
+      name="QuickPet"
+      component={QuickPetScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="PetTransfer"
+      component={PetTransferScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="ClaimPet"
+      component={ClaimPetScreen}
+      options={{ headerShown: false }}
+    />
+    <Stack.Screen
       name="AddVaccine"
       component={AddVaccineScreen}
       options={{ title: 'Agregar Vacuna' }}
@@ -271,14 +269,76 @@ const FriendsStack = () => (
   </Stack.Navigator>
 );
 
-const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet, isVet }) => {
+const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet, onNavigateToQuickPet, onNavigateToClaimPet, isVet }) => {
   if (isVet) {
-    // Para veterinarios, ir directo a LinkPet
-    if (visible && onNavigateToLinkPet) {
-      onNavigateToLinkPet();
-      onClose();
-    }
-    return null;
+    // Para veterinarios, mostrar menú con opciones
+    return (
+      <Modal
+        visible={visible}
+        transparent
+        animationType="fade"
+        onRequestClose={onClose}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={onClose}
+        >
+          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
+            <View style={styles.addModal}>
+              <Text style={styles.addModalTitle}>Agregar Mascota</Text>
+
+              <TouchableOpacity
+                style={styles.addModalOption}
+                onPress={() => {
+                  onClose();
+                  onNavigateToQuickPet();
+                }}
+              >
+                <View style={styles.addModalIconContainer}>
+                  <Ionicons name="flash" size={32} color="#007AFF" />
+                </View>
+                <View style={styles.addModalTextContainer}>
+                  <Text style={styles.addModalOptionTitle}>Crear Mascota Rápida</Text>
+                  <Text style={styles.addModalOptionSubtitle}>
+                    Crea una mascota y compártela con su dueño
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
+              </TouchableOpacity>
+
+              <View style={styles.addModalDivider} />
+
+              <TouchableOpacity
+                style={styles.addModalOption}
+                onPress={() => {
+                  onClose();
+                  onNavigateToLinkPet();
+                }}
+              >
+                <View style={styles.addModalIconContainer}>
+                  <Ionicons name="link" size={32} color="#007AFF" />
+                </View>
+                <View style={styles.addModalTextContainer}>
+                  <Text style={styles.addModalOptionTitle}>Vincular Mascota</Text>
+                  <Text style={styles.addModalOptionSubtitle}>
+                    Vincula una mascota existente a tu perfil
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.addModalCancelButton}
+                onPress={onClose}
+              >
+                <Text style={styles.addModalCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    );
   }
 
   return (
@@ -322,6 +382,27 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
               style={styles.addModalOption}
               onPress={() => {
                 onClose();
+                onNavigateToClaimPet();
+              }}
+            >
+              <View style={styles.addModalIconContainer}>
+                <Ionicons name="gift" size={32} color="#007AFF" />
+              </View>
+              <View style={styles.addModalTextContainer}>
+                <Text style={styles.addModalOptionTitle}>Reclamar Mascota</Text>
+                <Text style={styles.addModalOptionSubtitle}>
+                  Reclama una mascota creada por tu veterinario
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
+            </TouchableOpacity>
+
+            <View style={styles.addModalDivider} />
+
+            <TouchableOpacity
+              style={styles.addModalOption}
+              onPress={() => {
+                onClose();
                 onNavigateToLinkPet();
               }}
             >
@@ -354,11 +435,13 @@ const MainTabs = ({ navigationRef }) => {
   const { userType } = useAuth();
   const isVet = userType === 'vet';
   const [showAddButton, setShowAddButton] = useState(true);
-  const [showProfileModal, setShowProfileModal] = useState(false);
   const [showAddPetModal, setShowAddPetModal] = useState(false);
   const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
 
   const fetchPendingCount = async () => {
+    // Los veterinarios no tienen funcionalidad de amigos
+    if (isVet) return;
+
     try {
       const [pendingResponse, newPetsResponse] = await Promise.all([
         friendshipsAPI.getPending(),
@@ -373,11 +456,14 @@ const MainTabs = ({ navigationRef }) => {
   };
 
   useEffect(() => {
-    fetchPendingCount();
-    // Set up an interval to refresh the count every 30 seconds
-    const interval = setInterval(fetchPendingCount, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    // Solo cargar el contador si NO es veterinario
+    if (!isVet) {
+      fetchPendingCount();
+      // Set up an interval to refresh the count every 30 seconds
+      const interval = setInterval(fetchPendingCount, 30000);
+      return () => clearInterval(interval);
+    }
+  }, [isVet]);
 
   return (
     <>
@@ -425,39 +511,42 @@ const MainTabs = ({ navigationRef }) => {
             ),
           }}
         />
-        <Tab.Screen
-          name="Friends"
-          component={FriendsStack}
-          listeners={{
-            focus: () => {
-              fetchPendingCount();
-            },
-            blur: () => {
-              fetchPendingCount();
-            },
-          }}
-          options={{
-            tabBarLabel: () => null,
-            tabBarBadge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
-            tabBarBadgeStyle: {
-              backgroundColor: '#FF3B30',
-              color: '#fff',
-              fontSize: 12,
-              fontWeight: '700',
-              minWidth: 20,
-              height: 20,
-              borderRadius: 10,
-              lineHeight: 20,
-            },
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons
-                name={focused ? 'people' : 'people-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
+        {/* Solo mostrar tab de amigos para usuarios normales, no para veterinarios */}
+        {!isVet && (
+          <Tab.Screen
+            name="Friends"
+            component={FriendsStack}
+            listeners={{
+              focus: () => {
+                fetchPendingCount();
+              },
+              blur: () => {
+                fetchPendingCount();
+              },
+            }}
+            options={{
+              tabBarLabel: () => null,
+              tabBarBadge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
+              tabBarBadgeStyle: {
+                backgroundColor: '#FF3B30',
+                color: '#fff',
+                fontSize: 12,
+                fontWeight: '700',
+                minWidth: 20,
+                height: 20,
+                borderRadius: 10,
+                lineHeight: 20,
+              },
+              tabBarIcon: ({ focused, color, size }) => (
+                <Ionicons
+                  name={focused ? 'people' : 'people-outline'}
+                  size={size}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        )}
         <Tab.Screen
           name="Add"
           component={View}
@@ -482,29 +571,18 @@ const MainTabs = ({ navigationRef }) => {
         />
         <Tab.Screen
           name="Profile"
-          component={View}
-          listeners={{
-            tabPress: (e) => {
-              e.preventDefault();
-              setShowProfileModal(true);
-            },
-          }}
+          component={ProfileStack}
           options={{
             tabBarLabel: () => null,
             tabBarIcon: ({ focused }) => (
               <UserAvatar
                 size={32}
                 focused={focused}
-                onPress={() => setShowProfileModal(true)}
               />
             ),
           }}
         />
       </Tab.Navigator>
-      <ProfileModal
-        visible={showProfileModal}
-        onClose={() => setShowProfileModal(false)}
-      />
       <AddPetModal
         visible={showAddPetModal}
         onClose={() => setShowAddPetModal(false)}
@@ -516,6 +594,16 @@ const MainTabs = ({ navigationRef }) => {
         onNavigateToLinkPet={() => {
           if (navigationRef?.current) {
             navigationRef.current.navigate('Pets', { screen: 'LinkPet' });
+          }
+        }}
+        onNavigateToQuickPet={() => {
+          if (navigationRef?.current) {
+            navigationRef.current.navigate('Pets', { screen: 'QuickPet' });
+          }
+        }}
+        onNavigateToClaimPet={() => {
+          if (navigationRef?.current) {
+            navigationRef.current.navigate('Pets', { screen: 'ClaimPet' });
           }
         }}
         isVet={isVet}
@@ -573,58 +661,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
-  },
-  profileModalOverlay: {
-    flex: 1,
-  },
-  profileModalBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-  },
-  profileModalContentWrapper: {
-    position: 'absolute',
-    right: 16,
-    bottom: 80,
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    minWidth: 200,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  modalHeader: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  modalUserName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#000',
-    marginBottom: 4,
-  },
-  modalUserEmail: {
-    fontSize: 14,
-    color: '#666',
-  },
-  logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    gap: 8,
-  },
-  logoutButtonText: {
-    fontSize: 16,
-    color: '#FF3B30',
-    fontWeight: '500',
   },
   addModal: {
     backgroundColor: '#fff',

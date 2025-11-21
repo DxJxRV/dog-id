@@ -1,5 +1,6 @@
 const prisma = require('../utils/prisma');
 const { extractTextFromImage, parseVaccineInfo } = require('../services/ocrService');
+const { uploadPrivateImage, deletePrivateImage, generatePresignedUrl } = require('../services/s3Service');
 const path = require('path');
 
 // Crear una nueva vacuna
@@ -60,12 +61,25 @@ const createVaccine = async (req, res) => {
     let ocrStatus = 'manual';
     let evidenciaUrl = null;
 
-    // Procesar archivo (obligatorio)
-    evidenciaUrl = `/uploads/vaccines/${req.file.filename}`;
+    // Subir imagen a S3 privado (obligatorio)
+    evidenciaUrl = await uploadPrivateImage(req.file.buffer, req.file.originalname, 'medical/vaccines');
 
-    // Ejecutar OCR en la imagen para registro, pero no se usa para los campos obligatorios
+    // Ejecutar OCR en la imagen para registro
+    // Nota: Tesseract necesita un archivo físico, así que guardamos temporalmente
     try {
-      const ocrResult = await extractTextFromImage(req.file.path);
+      const fs = require('fs');
+      const os = require('os');
+      const tempPath = path.join(os.tmpdir(), `vaccine-${Date.now()}-${req.file.originalname}`);
+
+      // Guardar temporalmente
+      fs.writeFileSync(tempPath, req.file.buffer);
+
+      // Ejecutar OCR
+      const ocrResult = await extractTextFromImage(tempPath);
+
+      // Eliminar archivo temporal
+      fs.unlinkSync(tempPath);
+
       if (ocrResult.success && ocrResult.text) {
         ocrRawText = ocrResult.text;
         ocrStatus = 'success';
@@ -149,8 +163,16 @@ const getPetVaccines = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
+    // Generar presigned URLs para las evidencias
+    const vaccinesWithUrls = await Promise.all(
+      vaccines.map(async (vaccine) => ({
+        ...vaccine,
+        evidenciaUrl: vaccine.evidenciaUrl ? await generatePresignedUrl(vaccine.evidenciaUrl) : null
+      }))
+    );
+
     res.json({
-      vaccines
+      vaccines: vaccinesWithUrls
     });
   } catch (error) {
     console.error('Get pet vaccines error:', error);

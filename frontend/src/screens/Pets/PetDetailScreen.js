@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
 import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline } from '../../components';
-import { API_URL } from '../../utils/config';
+import { getImageUrl } from '../../utils/imageHelper';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
@@ -215,71 +215,113 @@ const PetDetailScreen = ({ route, navigation }) => {
 
   return (
     <ScrollView style={styles.container}>
-      {/* Cover Photo */}
+      {/* Header con Cover Photo como fondo */}
       {pet.coverPhotoUrl ? (
         <ImageBackground
-          source={{ uri: `${API_URL}${pet.coverPhotoUrl}` }}
-          style={styles.coverPhoto}
-          imageStyle={styles.coverPhotoImage}
+          source={{ uri: getImageUrl(pet.coverPhotoUrl) }}
+          style={styles.header}
+          imageStyle={styles.headerBackgroundImage}
         >
           <LinearGradient
-            colors={['transparent', 'rgba(255,255,255,0.9)']}
-            style={styles.coverGradient}
-          />
+            colors={['rgba(0,0,0,0.4)', 'rgba(0,0,0,0.6)', 'rgba(255,255,255,0.95)']}
+            locations={[0, 0.5, 1]}
+            style={styles.headerGradient}
+          >
+            {pet.fotoUrl ? (
+              <Image
+                source={{ uri: getImageUrl(pet.fotoUrl) }}
+                style={styles.petImage}
+              />
+            ) : (
+              <View style={styles.petImagePlaceholder}>
+                <Text style={styles.petImagePlaceholderText}>
+                  {pet.nombre.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.petName}>{pet.nombre}</Text>
+            <Text style={styles.petDetails}>
+              {pet.especie} • {pet.raza || 'Sin raza'}
+            </Text>
+            {pet.fechaNacimiento && (
+              <Text style={styles.petBirthdate}>
+                Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
+              </Text>
+            )}
+
+            {/* Botones horizontales */}
+            <View style={styles.actionsRow}>
+              {isOwner && (
+                <TouchableOpacity
+                  style={styles.qrButton}
+                  onPress={handleShowLinkCode}
+                >
+                  <Ionicons name="share-social-outline" size={32} color="#007AFF" />
+                  <Text style={styles.qrButtonText}>Compartir</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => setShowProcedureMenu(true)}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </ImageBackground>
       ) : (
-        <View style={styles.coverPhotoPlaceholder}>
+        <View style={styles.header}>
           <LinearGradient
             colors={['#667eea', '#764ba2']}
-            style={styles.coverGradient}
-          />
+            style={styles.headerGradient}
+          >
+            {pet.fotoUrl ? (
+              <Image
+                source={{ uri: getImageUrl(pet.fotoUrl) }}
+                style={styles.petImage}
+              />
+            ) : (
+              <View style={styles.petImagePlaceholder}>
+                <Text style={styles.petImagePlaceholderText}>
+                  {pet.nombre.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <Text style={styles.petName}>{pet.nombre}</Text>
+            <Text style={styles.petDetails}>
+              {pet.especie} • {pet.raza || 'Sin raza'}
+            </Text>
+            {pet.fechaNacimiento && (
+              <Text style={styles.petBirthdate}>
+                Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
+              </Text>
+            )}
+
+            {/* Botones horizontales */}
+            <View style={styles.actionsRow}>
+              {isOwner && (
+                <TouchableOpacity
+                  style={styles.qrButton}
+                  onPress={handleShowLinkCode}
+                >
+                  <Ionicons name="share-social-outline" size={32} color="#007AFF" />
+                  <Text style={styles.qrButtonText}>Compartir</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => setShowProcedureMenu(true)}
+              >
+                <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
+                <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
       )}
-
-      <View style={[styles.header, { marginTop: -40 }]}>
-        {pet.fotoUrl ? (
-          <Image
-            source={{ uri: `${API_URL}${pet.fotoUrl}` }}
-            style={styles.petImage}
-          />
-        ) : (
-          <View style={styles.petImagePlaceholder}>
-            <Text style={styles.petImagePlaceholderText}>
-              {pet.nombre.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
-        <Text style={styles.petName}>{pet.nombre}</Text>
-        <Text style={styles.petDetails}>
-          {pet.especie} • {pet.raza || 'Sin raza'}
-        </Text>
-        {pet.fechaNacimiento && (
-          <Text style={styles.petBirthdate}>
-            Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
-          </Text>
-        )}
-
-        {/* Botones horizontales */}
-        <View style={styles.actionsRow}>
-          {isOwner && (
-            <TouchableOpacity
-              style={styles.qrButton}
-              onPress={handleShowLinkCode}
-            >
-              <Ionicons name="share-social-outline" size={32} color="#007AFF" />
-              <Text style={styles.qrButtonText}>Compartir</Text>
-            </TouchableOpacity>
-          )}
-
-          <TouchableOpacity
-            style={styles.actionButton}
-            onPress={() => setShowProcedureMenu(true)}
-          >
-            <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-            <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
 
       {/* Banner de mascota archivada */}
       {isArchived && (
@@ -584,28 +626,24 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#F2F2F7',
   },
-  coverPhoto: {
+  header: {
     width: '100%',
-    height: 150,
+    minHeight: 320,
+    alignItems: 'center',
+    overflow: 'hidden',
   },
-  coverPhotoImage: {
+  headerBackgroundImage: {
     width: '100%',
     height: '100%',
   },
-  coverPhotoPlaceholder: {
-    width: '100%',
-    height: 150,
-    backgroundColor: '#667eea',
-  },
-  coverGradient: {
+  headerGradient: {
     flex: 1,
-  },
-  header: {
-    backgroundColor: '#fff',
+    width: '100%',
     alignItems: 'center',
     paddingTop: 24,
     paddingBottom: 24,
     paddingHorizontal: 16,
+    justifyContent: 'center',
   },
   petImage: {
     width: 120,
@@ -634,18 +672,27 @@ const styles = StyleSheet.create({
   petName: {
     fontSize: 24,
     fontWeight: '600',
-    color: '#000',
+    color: '#fff',
     marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   petDetails: {
     fontSize: 15,
-    color: '#8E8E93',
+    color: '#fff',
     marginBottom: 6,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   petBirthdate: {
     fontSize: 14,
-    color: '#C7C7CC',
+    color: '#fff',
     marginBottom: 32,
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
   actionsRow: {
     flexDirection: 'row',
@@ -656,7 +703,7 @@ const styles = StyleSheet.create({
   qrButton: {
     width: 88,
     height: 88,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
@@ -672,7 +719,7 @@ const styles = StyleSheet.create({
   actionButton: {
     flex: 1,
     height: 88,
-    backgroundColor: '#fff',
+    backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',

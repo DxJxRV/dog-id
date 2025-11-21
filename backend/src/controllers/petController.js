@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const path = require('path');
 const { generateLinkCode } = require('../utils/linkCodeGenerator');
+const { uploadPublicImage, deletePublicImage } = require('../services/s3Service');
 
 // Crear una nueva mascota
 const createPet = async (req, res) => {
@@ -13,10 +14,10 @@ const createPet = async (req, res) => {
       return res.status(400).json({ error: 'Nombre and especie are required' });
     }
 
-    // Procesar foto si existe
+    // Procesar foto si existe y subirla a S3
     let fotoUrl = null;
     if (req.file) {
-      fotoUrl = `/uploads/pets/${req.file.filename}`;
+      fotoUrl = await uploadPublicImage(req.file.buffer, req.file.originalname, 'pets/profiles');
     }
 
     // Generar código de linkeo único
@@ -64,8 +65,24 @@ const getUserPets = async (req, res) => {
     let hasArchivedPets = false;
 
     if (userType === 'vet') {
-      // Los veterinarios ven solo las mascotas linkeadas a ellos
+      // Los veterinarios ven las mascotas linkeadas a ellos Y las que crearon
       const allPets = await prisma.pet.findMany({
+        where: {
+          OR: [
+            // Mascotas linkeadas al veterinario
+            {
+              linkedVets: {
+                some: {
+                  vetId: userId
+                }
+              }
+            },
+            // Mascotas creadas por el veterinario
+            {
+              createdByVetId: userId
+            }
+          ]
+        },
         orderBy: { createdAt: 'desc' },
         include: {
           user: {
@@ -93,17 +110,23 @@ const getUserPets = async (req, res) => {
         pet.linkedVets.length > 0 && pet.linkedVets[0].archived
       );
 
-      // Filtrar solo las que están linkeadas y no archivadas por el vet
+      // Filtrar las que no están archivadas por el vet
       pets = allPets
         .filter(pet => {
-          // Solo mostrar si está linkeada y no archivada por el vet
-          return pet.linkedVets.length > 0 && !pet.linkedVets[0].archived;
+          // Mostrar si: 1) está linkeada y no archivada, O 2) fue creada por el vet
+          const isLinked = pet.linkedVets.length > 0;
+          const isArchived = isLinked && pet.linkedVets[0].archived;
+          const isCreatedByVet = pet.createdByVetId === userId;
+
+          return (isLinked && !isArchived) || (isCreatedByVet && !isLinked);
         })
         .map(pet => ({
           ...pet,
-          isLinked: true, // Todas las mostradas están linkeadas
-          isArchivedByOwner: pet.archivedByOwner, // Agregar flag para saber si está archivada por el dueño
-          linkedVets: undefined // Remover el array completo, solo necesitamos isLinked
+          isLinked: pet.linkedVets.length > 0,
+          isCreatedByVet: pet.createdByVetId === userId,
+          isPendingTransfer: pet.pendingTransfer,
+          isArchivedByOwner: pet.archivedByOwner,
+          linkedVets: undefined
         }));
     } else {
       // Verificar si el usuario tiene mascotas archivadas (propias o co-owned)
@@ -342,23 +365,40 @@ const updatePet = async (req, res) => {
     // Procesar foto de perfil
     let fotoUrl = pet.fotoUrl;
     if (req.files && req.files.foto) {
-      // Si hay una nueva foto de perfil
-      fotoUrl = `/uploads/pets/${req.files.foto[0].filename}`;
+      // Eliminar foto anterior si existe
+      if (pet.fotoUrl) {
+        await deletePublicImage(pet.fotoUrl);
+      }
+      // Subir nueva foto a S3
+      fotoUrl = await uploadPublicImage(req.files.foto[0].buffer, req.files.foto[0].originalname, 'pets/profiles');
     } else if (req.file && !req.files) {
       // Backward compatibility: si solo se sube un archivo con el nombre 'file'
-      fotoUrl = `/uploads/pets/${req.file.filename}`;
+      if (pet.fotoUrl) {
+        await deletePublicImage(pet.fotoUrl);
+      }
+      fotoUrl = await uploadPublicImage(req.file.buffer, req.file.originalname, 'pets/profiles');
     } else if (removeFoto === 'true') {
       // Si se solicita eliminar la foto
+      if (pet.fotoUrl) {
+        await deletePublicImage(pet.fotoUrl);
+      }
       fotoUrl = null;
     }
 
     // Procesar cover photo
     let coverPhotoUrl = pet.coverPhotoUrl;
     if (req.files && req.files.coverPhoto) {
-      // Si hay una nueva cover photo
-      coverPhotoUrl = `/uploads/pets/${req.files.coverPhoto[0].filename}`;
+      // Eliminar cover anterior si existe
+      if (pet.coverPhotoUrl) {
+        await deletePublicImage(pet.coverPhotoUrl);
+      }
+      // Subir nueva cover a S3
+      coverPhotoUrl = await uploadPublicImage(req.files.coverPhoto[0].buffer, req.files.coverPhoto[0].originalname, 'pets/covers');
     } else if (removeCoverPhoto === 'true') {
       // Si se solicita eliminar la cover photo
+      if (pet.coverPhotoUrl) {
+        await deletePublicImage(pet.coverPhotoUrl);
+      }
       coverPhotoUrl = null;
     }
 
@@ -589,6 +629,220 @@ const getArchivedPets = async (req, res) => {
   }
 };
 
+// Crear mascota rápida (solo para veterinarios)
+const createQuickPet = async (req, res) => {
+  try {
+    const { id: vetId, type: userType } = req.user;
+
+    // Verificar que sea veterinario
+    if (userType !== 'vet') {
+      return res.status(403).json({ error: 'Only vets can create quick pets' });
+    }
+
+    const { nombre, especie, raza, fechaNacimiento } = req.body;
+
+    // Validar solo el campo requerido
+    if (!nombre) {
+      return res.status(400).json({ error: 'Pet name is required' });
+    }
+
+    // Valores por defecto
+    const especieDefault = especie || 'Perro';
+
+    // Procesar foto de perfil si existe
+    let fotoUrl = null;
+    if (req.files && req.files.foto) {
+      fotoUrl = await uploadPublicImage(req.files.foto[0].buffer, req.files.foto[0].originalname, 'pets/profiles');
+    }
+
+    // Procesar foto de portada si existe
+    let coverPhotoUrl = null;
+    if (req.files && req.files.coverPhoto) {
+      coverPhotoUrl = await uploadPublicImage(req.files.coverPhoto[0].buffer, req.files.coverPhoto[0].originalname, 'pets/covers');
+    }
+
+    // Generar códigos únicos
+    let linkCode, transferCode;
+    let isUnique = false;
+
+    while (!isUnique) {
+      linkCode = generateLinkCode();
+      transferCode = generateLinkCode();
+
+      const existingLink = await prisma.pet.findUnique({
+        where: { linkCode }
+      });
+
+      const existingTransfer = await prisma.pet.findUnique({
+        where: { transferCode }
+      });
+
+      if (!existingLink && !existingTransfer) {
+        isUnique = true;
+      }
+    }
+
+    // Crear mascota sin dueño (userId = null) pendiente de transferencia
+    const pet = await prisma.pet.create({
+      data: {
+        userId: null, // Sin dueño hasta que alguien la reclame
+        nombre,
+        especie: especieDefault,
+        raza: raza || null,
+        fechaNacimiento: fechaNacimiento ? new Date(fechaNacimiento) : null,
+        fotoUrl,
+        coverPhotoUrl,
+        linkCode,
+        transferCode,
+        transferCodeExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
+        createdByVetId: vetId,
+        pendingTransfer: true
+      }
+    });
+
+    res.status(201).json({
+      message: 'Quick pet created successfully',
+      pet,
+      transferCode
+    });
+  } catch (error) {
+    console.error('Create quick pet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Generar/obtener código de transferencia para una mascota
+const getTransferCode = async (req, res) => {
+  try {
+    const { id: petId } = req.params;
+    const { id: userId, type: userType } = req.user;
+
+    // Buscar la mascota
+    const pet = await prisma.pet.findUnique({
+      where: { id: petId }
+    });
+
+    if (!pet) {
+      return res.status(404).json({ error: 'Pet not found' });
+    }
+
+    // Verificar permisos: debe ser el dueño o el veterinario que la creó
+    const isOwner = pet.userId === userId;
+    const isCreator = pet.createdByVetId === userId && userType === 'vet';
+
+    if (!isOwner && !isCreator) {
+      return res.status(403).json({ error: 'You do not have permission to transfer this pet' });
+    }
+
+    // Si ya tiene un código válido, devolverlo
+    if (pet.transferCode && pet.transferCodeExpiresAt && new Date(pet.transferCodeExpiresAt) > new Date()) {
+      return res.json({
+        transferCode: pet.transferCode,
+        expiresAt: pet.transferCodeExpiresAt
+      });
+    }
+
+    // Generar nuevo código
+    let transferCode;
+    let isUnique = false;
+
+    while (!isUnique) {
+      transferCode = generateLinkCode();
+      const existing = await prisma.pet.findUnique({
+        where: { transferCode }
+      });
+      if (!existing) {
+        isUnique = true;
+      }
+    }
+
+    // Actualizar mascota con nuevo código
+    const updatedPet = await prisma.pet.update({
+      where: { id: petId },
+      data: {
+        transferCode,
+        transferCodeExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 días
+        pendingTransfer: true
+      }
+    });
+
+    res.json({
+      transferCode: updatedPet.transferCode,
+      expiresAt: updatedPet.transferCodeExpiresAt
+    });
+  } catch (error) {
+    console.error('Get transfer code error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+// Reclamar mascota con código de transferencia
+const claimPet = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { transferCode } = req.body;
+
+    if (!transferCode) {
+      return res.status(400).json({ error: 'Transfer code is required' });
+    }
+
+    // Buscar mascota con ese código
+    const pet = await prisma.pet.findUnique({
+      where: { transferCode: transferCode.toUpperCase().trim() },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nombre: true
+          }
+        }
+      }
+    });
+
+    if (!pet) {
+      return res.status(404).json({ error: 'Invalid transfer code' });
+    }
+
+    // Verificar que no sea el mismo usuario
+    if (pet.userId === userId) {
+      return res.status(400).json({ error: 'You already own this pet' });
+    }
+
+    // Verificar que el código no haya expirado
+    if (!pet.transferCodeExpiresAt || new Date(pet.transferCodeExpiresAt) < new Date()) {
+      return res.status(400).json({ error: 'Transfer code has expired' });
+    }
+
+    // Transferir la mascota
+    const updatedPet = await prisma.pet.update({
+      where: { id: pet.id },
+      data: {
+        userId,
+        transferCode: null,
+        transferCodeExpiresAt: null,
+        pendingTransfer: false
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            nombre: true,
+            email: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      message: 'Pet claimed successfully',
+      pet: updatedPet
+    });
+  } catch (error) {
+    console.error('Claim pet error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPet,
   getUserPets,
@@ -596,5 +850,8 @@ module.exports = {
   updatePet,
   deletePet,
   toggleArchivePet,
-  getArchivedPets
+  getArchivedPets,
+  createQuickPet,
+  getTransferCode,
+  claimPet
 };

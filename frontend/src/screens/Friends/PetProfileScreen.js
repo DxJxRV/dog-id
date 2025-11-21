@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
-import { API_URL } from '../../utils/config';
+import { getImageUrl } from '../../utils/imageHelper';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { format } from 'date-fns';
@@ -96,7 +96,7 @@ const PetProfileScreen = ({ route, navigation }) => {
         <View style={styles.coverPhotoContainer}>
           {pet.coverPhotoUrl ? (
             <ImageBackground
-              source={{ uri: `${API_URL}${pet.coverPhotoUrl}` }}
+              source={{ uri: getImageUrl(pet.coverPhotoUrl) }}
               style={styles.coverPhoto}
               imageStyle={styles.coverPhotoImage}
             >
@@ -109,7 +109,7 @@ const PetProfileScreen = ({ route, navigation }) => {
                   <View style={styles.profilePhotoContainer}>
                     {pet.fotoUrl ? (
                       <Image
-                        source={{ uri: `${API_URL}${pet.fotoUrl}` }}
+                        source={{ uri: getImageUrl(pet.fotoUrl) }}
                         style={styles.profilePhoto}
                       />
                     ) : (
@@ -140,7 +140,7 @@ const PetProfileScreen = ({ route, navigation }) => {
                   <View style={styles.profilePhotoContainer}>
                     {pet.fotoUrl ? (
                       <Image
-                        source={{ uri: `${API_URL}${pet.fotoUrl}` }}
+                        source={{ uri: getImageUrl(pet.fotoUrl) }}
                         style={styles.profilePhoto}
                       />
                     ) : (
@@ -194,7 +194,7 @@ const PetProfileScreen = ({ route, navigation }) => {
           <View style={styles.ownerCard}>
             {pet.user?.fotoUrl ? (
               <Image
-                source={{ uri: `${API_URL}${pet.user.fotoUrl}` }}
+                source={{ uri: getImageUrl(pet.user.fotoUrl) }}
                 style={styles.ownerPhoto}
               />
             ) : (

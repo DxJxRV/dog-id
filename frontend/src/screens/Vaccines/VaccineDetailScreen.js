@@ -12,7 +12,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Loading, ErrorNetwork } from '../../components';
 import { petsAPI } from '../../services/api';
-import { API_URL } from '../../utils/config';
+import { getImageUrl } from '../../utils/imageHelper';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 
@@ -76,7 +76,7 @@ const VaccineDetailScreen = ({ route, navigation }) => {
       {vaccine.evidenciaUrl && (
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: `${API_URL}${vaccine.evidenciaUrl}` }}
+            source={{ uri: getImageUrl(vaccine.evidenciaUrl) }}
             style={styles.image}
             resizeMode="cover"
           />

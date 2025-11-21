@@ -6,16 +6,8 @@ const { validateUUIDParam } = require('../utils/validators');
 const multer = require('multer');
 const path = require('path');
 
-// Configurar multer para subida de fotos de vacunas
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, 'uploads/vaccines/');
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'vaccine-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Configurar multer para mantener archivos en memoria (se subirán a S3 privado)
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage: storage,

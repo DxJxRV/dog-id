@@ -14,9 +14,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { friendshipsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
-import { API_URL } from '../../utils/config';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+import { getImageUrl } from '../../utils/imageHelper';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 20) / 2;
@@ -94,7 +94,7 @@ const FriendsPetsScreen = ({ navigation, embedded = false, onPetsViewed }) => {
         <ImageBackground
           source={
             item.fotoUrl
-              ? { uri: `${API_URL}${item.fotoUrl}` }
+              ? { uri: getImageUrl(item.fotoUrl) }
               : require('../../assets/adaptive-icon.png')
           }
           style={styles.cardBackground}

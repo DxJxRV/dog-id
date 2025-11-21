@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
-import { API_URL } from '../../utils/config';
+import { getImageUrl } from '../../utils/imageHelper';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
@@ -107,7 +107,7 @@ const ArchivedPetsScreen = ({ navigation }) => {
         <ImageBackground
           source={
             item.fotoUrl
-              ? { uri: `${API_URL}${item.fotoUrl}` }
+              ? { uri: getImageUrl(item.fotoUrl) }
               : require('../../assets/adaptive-icon.png')
           }
           style={styles.cardBackground}

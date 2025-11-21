@@ -160,6 +160,16 @@ export const AuthProvider = ({ children }) => {
     await clearAuthData();
   };
 
+  const updateUser = async (userData) => {
+    try {
+      await SecureStore.setItemAsync(STORAGE_KEYS.USER_DATA, JSON.stringify(userData));
+      setUser(userData);
+    } catch (error) {
+      console.error('Error updating user data:', error);
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -174,6 +184,7 @@ export const AuthProvider = ({ children }) => {
         registerVet,
         loginWithGoogle,
         logout,
+        updateUser,
       }}
     >
       {children}
