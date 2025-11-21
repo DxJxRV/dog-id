@@ -1,7 +1,7 @@
 const prisma = require('../utils/prisma');
-const { extractTextFromImage, parseVaccineInfo } = require('../services/ocrService');
-const { uploadPrivateImage, deletePrivateImage, generatePresignedUrl } = require('../services/s3Service');
-const path = require('path');
+// const { extractTextFromImage, parseVaccineInfo } = require('../services/ocrService'); // Deshabilitado - Tesseract no instalado en VPS
+const { uploadPrivateImage, deletePrivateImage } = require('../services/s3Service');
+// const path = require('path'); // No se usa mientras OCR esté deshabilitado
 
 // Crear una nueva vacuna
 const createVaccine = async (req, res) => {
@@ -64,32 +64,39 @@ const createVaccine = async (req, res) => {
     // Subir imagen a S3 privado (obligatorio)
     evidenciaUrl = await uploadPrivateImage(req.file.buffer, req.file.originalname, 'medical/vaccines');
 
-    // Ejecutar OCR en la imagen para registro
-    // Nota: Tesseract necesita un archivo físico, así que guardamos temporalmente
-    try {
-      const fs = require('fs');
-      const os = require('os');
-      const tempPath = path.join(os.tmpdir(), `vaccine-${Date.now()}-${req.file.originalname}`);
+    // ===== OCR DESHABILITADO - Tesseract no instalado en VPS =====
+    // Usando texto estático por ahora
+    ocrRawText = 'OCR processing disabled - static placeholder text';
+    ocrStatus = 'manual';
 
-      // Guardar temporalmente
-      fs.writeFileSync(tempPath, req.file.buffer);
-
-      // Ejecutar OCR
-      const ocrResult = await extractTextFromImage(tempPath);
-
-      // Eliminar archivo temporal
-      fs.unlinkSync(tempPath);
-
-      if (ocrResult.success && ocrResult.text) {
-        ocrRawText = ocrResult.text;
-        ocrStatus = 'success';
-      } else {
-        ocrStatus = 'fail';
-      }
-    } catch (ocrError) {
-      console.error('OCR error:', ocrError);
-      ocrStatus = 'fail';
-    }
+    // ===== CÓDIGO ORIGINAL COMENTADO =====
+    // // Ejecutar OCR en la imagen para registro
+    // // Nota: Tesseract necesita un archivo físico, así que guardamos temporalmente
+    // try {
+    //   const fs = require('fs');
+    //   const os = require('os');
+    //   const tempPath = path.join(os.tmpdir(), `vaccine-${Date.now()}-${req.file.originalname}`);
+    //
+    //   // Guardar temporalmente
+    //   fs.writeFileSync(tempPath, req.file.buffer);
+    //
+    //   // Ejecutar OCR
+    //   const ocrResult = await extractTextFromImage(tempPath);
+    //
+    //   // Eliminar archivo temporal
+    //   fs.unlinkSync(tempPath);
+    //
+    //   if (ocrResult.success && ocrResult.text) {
+    //     ocrRawText = ocrResult.text;
+    //     ocrStatus = 'success';
+    //   } else {
+    //     ocrStatus = 'fail';
+    //   }
+    // } catch (ocrError) {
+    //   console.error('OCR error:', ocrError);
+    //   ocrStatus = 'fail';
+    // }
+    // ===== FIN CÓDIGO COMENTADO =====
 
     // Crear registro de vacuna
     const vaccine = await prisma.vaccine.create({
@@ -163,16 +170,9 @@ const getPetVaccines = async (req, res) => {
       orderBy: { createdAt: 'desc' }
     });
 
-    // Generar presigned URLs para las evidencias
-    const vaccinesWithUrls = await Promise.all(
-      vaccines.map(async (vaccine) => ({
-        ...vaccine,
-        evidenciaUrl: vaccine.evidenciaUrl ? await generatePresignedUrl(vaccine.evidenciaUrl) : null
-      }))
-    );
-
+    // No se presignan URLs aquí porque no se muestran las evidencias en este endpoint
     res.json({
-      vaccines: vaccinesWithUrls
+      vaccines
     });
   } catch (error) {
     console.error('Get pet vaccines error:', error);
