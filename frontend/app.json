@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Mi Mascota Plus",
-    "slug": "mi-mascota-plus",
+    "slug": "veterinary-control",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./src/assets/icon.png",
@@ -48,7 +48,8 @@
       "expo-asset",
       "expo-font",
       "expo-av",
-      "expo-barcode-scanner"
+      "expo-barcode-scanner",
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "eas": {

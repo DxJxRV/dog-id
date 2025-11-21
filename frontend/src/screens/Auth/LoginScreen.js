@@ -9,15 +9,29 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
+import Constants from 'expo-constants';
 import { useAuth } from '../../contexts/AuthContext';
 import { Button, Input } from '../../components';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { GOOGLE_CLIENT_ID } from '../../utils/config';
 
-WebBrowser.maybeCompleteAuthSession();
+// Mock inicial seguro para Expo Go
+let GoogleSignin = {
+  configure: () => {},
+  hasPlayServices: async () => {},
+  signIn: async () => {},
+};
+let statusCodes = {};
+
+try {
+  // Intentamos cargar la librería nativa solo si está disponible
+  const GooglePackage = require('@react-native-google-signin/google-signin');
+  GoogleSignin = GooglePackage.GoogleSignin;
+  statusCodes = GooglePackage.statusCodes;
+} catch (err) {
+  console.log('Google Signin nativo no encontrado (¿Estás en Expo Go?). Se usará mock.');
+}
 
 const LoginScreen = ({ navigation }) => {
   const { login, loginWithGoogle } = useAuth();
@@ -27,28 +41,15 @@ const LoginScreen = ({ navigation }) => {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
-  const [request, response, promptAsync] = Google.useAuthRequest({
-    expoClientId: GOOGLE_CLIENT_ID,
-    androidClientId: GOOGLE_CLIENT_ID,
-    iosClientId: GOOGLE_CLIENT_ID,
-  });
-
   useEffect(() => {
-    if (response?.type === 'success') {
-      const accessToken = response.authentication?.accessToken;
-      if (accessToken) {
-        fetchUserInfoAndLogin(accessToken);
-      } else {
-        showToast.error('No se recibió el token de Google');
-        setGoogleLoading(false);
-      }
-    } else if (response?.type === 'error') {
-      showToast.error('Error al iniciar sesión con Google');
-      setGoogleLoading(false);
-    } else if (response?.type === 'cancel') {
-      setGoogleLoading(false);
+    // Solo configurar GoogleSignin en builds nativos, no en Expo Go
+    if (Constants.appOwnership !== 'expo') {
+      GoogleSignin.configure({
+        webClientId: GOOGLE_CLIENT_ID,
+        offlineAccess: false,
+      });
     }
-  }, [response]);
+  }, []);
 
   const fetchUserInfoAndLogin = async (accessToken) => {
     setGoogleLoading(true);
@@ -97,7 +98,38 @@ const LoginScreen = ({ navigation }) => {
   };
 
   const handleGoogleSignIn = async () => {
-    await promptAsync({ useProxy: true, showInRecents: true });
+    // Verificar si estamos en Expo Go
+    if (Constants.appOwnership === 'expo') {
+      alert('Google Login solo disponible en la versión compilada (Build).');
+      return;
+    }
+
+    setGoogleLoading(true);
+    try {
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
+      const idToken = userInfo.idToken;
+
+      if (idToken) {
+        await fetchUserInfoAndLogin(idToken);
+      } else {
+        showToast.error('No se recibió el token de Google');
+        setGoogleLoading(false);
+      }
+    } catch (error) {
+      setGoogleLoading(false);
+      if (error.code === statusCodes.SIGN_IN_CANCELLED) {
+        // Usuario canceló el inicio de sesión
+        console.log('Sign in cancelled');
+      } else if (error.code === statusCodes.IN_PROGRESS) {
+        showToast.error('Inicio de sesión en progreso');
+      } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+        showToast.error('Google Play Services no disponible');
+      } else {
+        console.error('Google Sign-In error:', error);
+        showToast.error('Error al iniciar sesión con Google');
+      }
+    }
   };
 
   return (
@@ -157,7 +189,7 @@ const LoginScreen = ({ navigation }) => {
           <TouchableOpacity
             style={styles.googleButton}
             onPress={handleGoogleSignIn}
-            disabled={googleLoading || !request}
+            disabled={googleLoading}
           >
             <Ionicons name="logo-google" size={20} color="#EA4335" />
             <Text style={styles.googleButtonText}>

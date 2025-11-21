@@ -202,9 +202,13 @@ const ProfileScreen = () => {
   };
 
   const handleDeleteAccount = () => {
+    const message = userType === 'vet'
+      ? '¿Estás seguro de que deseas eliminar tu cuenta?\n\n• Se eliminarán tus mascotas pendientes de transferir\n• Tus vacunas y procedimientos registrados quedarán anónimos\n• Esta acción no se puede deshacer'
+      : '¿Estás seguro de que deseas eliminar tu cuenta?\n\n• Las mascotas con co-dueños serán transferidas automáticamente\n• Las mascotas sin co-dueños se eliminarán completamente\n• Se eliminarán tus amistades\n• Esta acción no se puede deshacer';
+
     Alert.alert(
       'Eliminar cuenta',
-      '¿Estás seguro de que deseas eliminar tu cuenta? Esta acción no se puede deshacer.',
+      message,
       [
         { text: 'Cancelar', style: 'cancel' },
         {

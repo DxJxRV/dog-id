@@ -581,51 +581,109 @@ const updateProfile = async (req, res) => {
 // Eliminar cuenta del usuario
 const deleteAccount = async (req, res) => {
   try {
+    const { deletePublicImage } = require('../services/s3Service');
     const userId = req.user.id;
     const userType = req.user.type;
 
     if (userType === 'user') {
-      // Para usuarios, verificar si tienen mascotas como dueños principales
+      // Obtener todas las mascotas donde es dueño principal
       const petsAsOwner = await prisma.pet.findMany({
-        where: { userId: userId }
+        where: { userId: userId },
+        include: {
+          coOwners: {
+            include: {
+              user: true
+            }
+          }
+        }
       });
 
-      if (petsAsOwner.length > 0) {
-        return res.status(400).json({
-          error: 'Cannot delete account. Please transfer or delete all your pets first.'
-        });
+      // Procesar cada mascota
+      for (const pet of petsAsOwner) {
+        if (pet.coOwners && pet.coOwners.length > 0) {
+          // Si tiene co-dueños, transferir la propiedad al primer co-dueño
+          const newOwnerId = pet.coOwners[0].userId;
+
+          // Actualizar la mascota con el nuevo dueño
+          await prisma.pet.update({
+            where: { id: pet.id },
+            data: { userId: newOwnerId }
+          });
+
+          // Eliminar el registro de co-propiedad del nuevo dueño
+          await prisma.coOwnerPetLink.delete({
+            where: { id: pet.coOwners[0].id }
+          });
+
+          console.log(`Mascota ${pet.nombre} transferida a ${pet.coOwners[0].user.nombre}`);
+        } else {
+          // Si NO tiene co-dueños, eliminar la mascota completamente
+
+          // Obtener vacunas y procedimientos con evidencia para eliminar fotos
+          const vaccines = await prisma.vaccine.findMany({
+            where: { petId: pet.id, evidenciaUrl: { not: null } },
+            select: { evidenciaUrl: true }
+          });
+
+          const procedures = await prisma.procedure.findMany({
+            where: { petId: pet.id, evidenciaUrl: { not: null } },
+            select: { evidenciaUrl: true }
+          });
+
+          // Eliminar fotos de evidencia de S3
+          for (const vaccine of vaccines) {
+            if (vaccine.evidenciaUrl) {
+              await deletePublicImage(vaccine.evidenciaUrl);
+            }
+          }
+
+          for (const procedure of procedures) {
+            if (procedure.evidenciaUrl) {
+              await deletePublicImage(procedure.evidenciaUrl);
+            }
+          }
+
+          // Eliminar fotos de la mascota de S3
+          if (pet.fotoUrl) {
+            await deletePublicImage(pet.fotoUrl);
+          }
+          if (pet.coverPhotoUrl) {
+            await deletePublicImage(pet.coverPhotoUrl);
+          }
+
+          // La mascota se eliminará en cascada por la transacción
+          console.log(`Mascota ${pet.nombre} será eliminada (sin co-dueños)`);
+        }
       }
 
-      // Eliminar foto de perfil de S3 si existe
+      // Eliminar fotos de perfil del usuario de S3
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (user.fotoUrl) {
-        const { deletePublicImage } = require('../services/s3Service');
         await deletePublicImage(user.fotoUrl);
       }
+      if (user.coverPhotoUrl) {
+        await deletePublicImage(user.coverPhotoUrl);
+      }
 
-      // Eliminar relaciones y el usuario
+      // Eliminar relaciones y el usuario en una transacción
       await prisma.$transaction([
-        // Eliminar solicitudes de amistad enviadas
-        prisma.friendRequest.deleteMany({ where: { senderId: userId } }),
-        // Eliminar solicitudes de amistad recibidas
-        prisma.friendRequest.deleteMany({ where: { receiverId: userId } }),
         // Eliminar amistades
         prisma.friendship.deleteMany({
           where: {
             OR: [
-              { user1Id: userId },
-              { user2Id: userId }
+              { requesterId: userId },
+              { addresseeId: userId }
             ]
           }
         }),
-        // Eliminar co-propiedades
-        prisma.petCoOwner.deleteMany({ where: { userId: userId } }),
-        // Eliminar el usuario
+        // Eliminar co-propiedades donde es co-dueño (no dueño principal)
+        prisma.coOwnerPetLink.deleteMany({ where: { userId: userId } }),
+        // Eliminar el usuario (esto eliminará mascotas sin co-dueños por CASCADE)
         prisma.user.delete({ where: { id: userId } })
       ]);
 
     } else if (userType === 'vet') {
-      // Para veterinarios, verificar si tienen mascotas creadas pendientes de transferir
+      // Para veterinarios, eliminar mascotas pendientes de transferir
       const petsCreatedByVet = await prisma.pet.findMany({
         where: {
           createdByVetId: userId,
@@ -633,20 +691,54 @@ const deleteAccount = async (req, res) => {
         }
       });
 
-      if (petsCreatedByVet.length > 0) {
-        return res.status(400).json({
-          error: 'Cannot delete account. You have pending pet transfers.'
+      // Eliminar fotos de mascotas pendientes y sus evidencias
+      for (const pet of petsCreatedByVet) {
+        // Obtener vacunas y procedimientos con evidencia
+        const vaccines = await prisma.vaccine.findMany({
+          where: { petId: pet.id, evidenciaUrl: { not: null } },
+          select: { evidenciaUrl: true }
         });
+
+        const procedures = await prisma.procedure.findMany({
+          where: { petId: pet.id, evidenciaUrl: { not: null } },
+          select: { evidenciaUrl: true }
+        });
+
+        // Eliminar fotos de evidencia
+        for (const vaccine of vaccines) {
+          if (vaccine.evidenciaUrl) {
+            await deletePublicImage(vaccine.evidenciaUrl);
+          }
+        }
+
+        for (const procedure of procedures) {
+          if (procedure.evidenciaUrl) {
+            await deletePublicImage(procedure.evidenciaUrl);
+          }
+        }
+
+        // Eliminar fotos de la mascota
+        if (pet.fotoUrl) {
+          await deletePublicImage(pet.fotoUrl);
+        }
+        if (pet.coverPhotoUrl) {
+          await deletePublicImage(pet.coverPhotoUrl);
+        }
       }
 
-      // Eliminar foto de perfil de S3 si existe
+      // Eliminar fotos de perfil del veterinario de S3
       const vet = await prisma.vet.findUnique({ where: { id: userId } });
       if (vet.fotoUrl) {
-        const { deletePublicImage } = require('../services/s3Service');
         await deletePublicImage(vet.fotoUrl);
+      }
+      if (vet.coverPhotoUrl) {
+        await deletePublicImage(vet.coverPhotoUrl);
       }
 
       // Eliminar el veterinario
+      // Las mascotas pendientes se eliminarán por CASCADE
+      // Las vacunas y procedimientos quedarán con vetId = null (SET NULL)
+      // Los vínculos VetPetLink se eliminarán por CASCADE
       await prisma.vet.delete({ where: { id: userId } });
     }
 
