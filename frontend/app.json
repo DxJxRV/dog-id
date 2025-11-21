@@ -48,7 +48,6 @@
       "expo-asset",
       "expo-font",
       "expo-av",
-      "expo-barcode-scanner",
       "@react-native-google-signin/google-signin"
     ],
     "extra": {
