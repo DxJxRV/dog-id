@@ -2,6 +2,15 @@ const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = re
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const path = require('path');
 
+// Debug logs para diagnosticar problemas de S3
+console.log('🔍 --- S3 DEBUG START ---');
+console.log('REGION:', process.env.AWS_REGION);
+console.log('PUBLIC_BUCKET:', process.env.AWS_S3_PUBLIC_BUCKET);
+console.log('PRIVATE_BUCKET:', process.env.AWS_S3_PRIVATE_BUCKET);
+console.log('KEY_ID:', process.env.AWS_ACCESS_KEY_ID ? process.env.AWS_ACCESS_KEY_ID.substring(0, 6) + '...' : 'UNDEFINED');
+console.log('SECRET_EXISTS:', !!process.env.AWS_SECRET_ACCESS_KEY);
+console.log('🔍 --- S3 DEBUG END ---');
+
 // Configurar cliente S3
 const s3Client = new S3Client({
   region: process.env.AWS_REGION,
