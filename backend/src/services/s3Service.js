@@ -88,16 +88,32 @@ const uploadPrivateImage = async (fileBuffer, originalName, folder) => {
  * @returns {Promise<string>} - URL firmada
  */
 const generatePresignedUrl = async (key, expiresIn = 300) => {
-  if (!key) return null;
+  console.log('🔗 [PRESIGNED] Generando URL presigned...');
+  console.log('   📁 Key:', key);
+  console.log('   🪣 Bucket:', PRIVATE_BUCKET);
+  console.log('   ⏱️  Expira en:', expiresIn, 'segundos');
 
-  const command = new GetObjectCommand({
-    Bucket: PRIVATE_BUCKET,
-    Key: key,
-  });
+  if (!key) {
+    console.log('   ❌ Key es null/undefined, retornando null');
+    return null;
+  }
 
-  // Generar URL firmada para lectura
-  const url = await getSignedUrl(s3Client, command, { expiresIn });
-  return url;
+  try {
+    const command = new GetObjectCommand({
+      Bucket: PRIVATE_BUCKET,
+      Key: key,
+    });
+
+    // Generar URL firmada para lectura
+    const url = await getSignedUrl(s3Client, command, { expiresIn });
+    console.log('   ✅ URL generada exitosamente');
+    console.log('   🔗 URL (primeros 50 chars):', url.substring(0, 50) + '...');
+    return url;
+  } catch (error) {
+    console.error('   ❌ ERROR al generar presigned URL:', error.message);
+    console.error('   📋 Stack:', error.stack);
+    throw error;
+  }
 };
 
 /**

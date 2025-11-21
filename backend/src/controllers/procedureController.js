@@ -1,5 +1,5 @@
 const prisma = require('../utils/prisma');
-const { uploadPrivateImage, deletePrivateImage, generatePresignedUrl } = require('../services/s3Service');
+const { uploadPrivateImage, deletePrivateImage } = require('../services/s3Service');
 
 // Tipos de procedimientos permitidos
 const ALLOWED_PROCEDURES = [
@@ -136,16 +136,9 @@ const getPetProcedures = async (req, res) => {
       orderBy: { fecha: 'desc' }
     });
 
-    // Generar presigned URLs para las evidencias
-    const proceduresWithUrls = await Promise.all(
-      procedures.map(async (procedure) => ({
-        ...procedure,
-        evidenciaUrl: procedure.evidenciaUrl ? await generatePresignedUrl(procedure.evidenciaUrl) : null
-      }))
-    );
-
+    // No se presignan URLs aquí porque no se muestran las evidencias en este endpoint
     res.json({
-      procedures: proceduresWithUrls
+      procedures
     });
   } catch (error) {
     console.error('Get pet procedures error:', error);
