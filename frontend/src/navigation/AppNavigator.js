@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { Loading } from '../components';
 import { getImageUrl } from '../utils/imageHelper';
@@ -28,6 +29,11 @@ import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
 // Vaccine & Procedure Detail Screens
 import VaccineDetailScreen from '../screens/Vaccines/VaccineDetailScreen';
 import ProcedureDetailScreen from '../screens/Procedures/ProcedureDetailScreen';
+
+// ECE Screens
+import ConsentScreen from '../screens/Consent/ConsentScreen';
+import PdfViewerScreen from '../screens/Pdf/PdfViewerScreen';
+import DeathCertificateFormScreen from '../screens/DeathCertificate/DeathCertificateFormScreen';
 
 // Friends Screens
 import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
@@ -217,6 +223,21 @@ const PetsStack = () => (
       component={ProcedureDetailScreen}
       options={{ title: 'Detalle de Procedimiento' }}
     />
+    <Stack.Screen
+      name="ConsentScreen"
+      component={ConsentScreen}
+      options={{ title: 'Consentimiento Informado' }}
+    />
+    <Stack.Screen
+      name="PdfViewer"
+      component={PdfViewerScreen}
+      options={({ route }) => ({ title: route.params?.title || 'Documento PDF' })}
+    />
+    <Stack.Screen
+      name="DeathCertificateForm"
+      component={DeathCertificateFormScreen}
+      options={{ title: 'Certificar Defunción' }}
+    />
   </Stack.Navigator>
 );
 
@@ -270,6 +291,8 @@ const FriendsStack = () => (
 );
 
 const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet, onNavigateToQuickPet, onNavigateToClaimPet, isVet }) => {
+  const insets = useSafeAreaInsets();
+
   if (isVet) {
     // Para veterinarios, mostrar menú con opciones
     return (
@@ -285,7 +308,7 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
           onPress={onClose}
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.addModal}>
+            <View style={[styles.addModal, { paddingBottom: 30 + insets.bottom }]}>
               <Text style={styles.addModalTitle}>Agregar Mascota</Text>
 
               <TouchableOpacity
@@ -354,7 +377,7 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
         onPress={onClose}
       >
         <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.addModal}>
+          <View style={[styles.addModal, { paddingBottom: 30 + insets.bottom }]}>
             <Text style={styles.addModalTitle}>Agregar Mascota</Text>
 
             <TouchableOpacity
@@ -433,6 +456,7 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
 
 const MainTabs = ({ navigationRef }) => {
   const { userType } = useAuth();
+  const insets = useSafeAreaInsets();
   const isVet = userType === 'vet';
   const [showAddButton, setShowAddButton] = useState(true);
   const [showAddPetModal, setShowAddPetModal] = useState(false);
@@ -473,8 +497,8 @@ const MainTabs = ({ navigationRef }) => {
           tabBarActiveTintColor: '#007AFF',
           tabBarInactiveTintColor: '#999',
           tabBarStyle: {
-            height: 60,
-            paddingBottom: 8,
+            height: 60 + insets.bottom,
+            paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
             paddingTop: 8,
           },
           headerStyle: {
@@ -667,7 +691,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
-    paddingBottom: 30,
     paddingHorizontal: 20,
   },
   addModalTitle: {

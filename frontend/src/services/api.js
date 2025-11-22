@@ -128,4 +128,25 @@ export const friendshipsAPI = {
   markPetsViewed: () => api.post('/friendships/friends/mark-viewed'),
 };
 
+// Medical Data API (ECE)
+export const medicalDataAPI = {
+  create: (procedureId, data) => api.post(`/procedures/${procedureId}/medical-data`, data),
+  getMedicalHistory: (petId) => api.get(`/pets/${petId}/medical-history`),
+  getWeightEvolution: (petId) => api.get(`/pets/${petId}/evolution/weight`),
+};
+
+// Consent API (ECE)
+export const consentAPI = {
+  createProcedureConsent: (procedureId, data) => api.post(`/consents/procedure/${procedureId}`, data),
+  createVaccineConsent: (vaccineId, data) => api.post(`/consents/vaccine/${vaccineId}`, data),
+  getConsent: (id) => api.get(`/consents/${id}`),
+  getLegalTexts: () => api.get('/legal-texts'),
+};
+
+// Death Certificate API (ECE)
+export const deathCertificateAPI = {
+  create: (data) => api.post('/death-certificates', data),
+  getByPetId: (petId) => api.get(`/pets/${petId}/death-certificate`),
+};
+
 export default api;

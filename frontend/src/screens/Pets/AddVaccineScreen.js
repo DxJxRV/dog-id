@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Image,
   Platform,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -18,7 +19,7 @@ import { isNetworkError, getErrorMessage } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 
 const AddVaccineScreen = ({ route, navigation }) => {
-  const { petId } = route.params;
+  const { petId, petName } = route.params;
   const { userType } = useAuth();
   const [loading, setLoading] = useState(false);
 
@@ -90,38 +91,51 @@ const AddVaccineScreen = ({ route, navigation }) => {
       return;
     }
 
+    // Todas las vacunas requieren consentimiento firmado
+    Alert.alert(
+      'Consentimiento Requerido',
+      'La aplicación de vacunas requiere un consentimiento informado firmado. Se solicitará la firma antes de registrar la vacuna.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Continuar',
+          onPress: () => navigateToConsent(),
+        },
+      ]
+    );
+  };
+
+  const navigateToConsent = () => {
     try {
       setLoading(true);
-
-      const formData = new FormData();
-      formData.append('nombreVacuna', nombreVacuna.trim());
-      formData.append('lote', lote.trim());
-      formData.append('caducidad', caducidad.toISOString().split('T')[0]);
-      formData.append('fechaAplicacion', fechaAplicacion.toISOString().split('T')[0]);
 
       const filename = evidencia.uri.split('/').pop();
       const match = /\.(\w+)$/.exec(filename);
       const type = match ? `image/${match[1]}` : 'image/jpeg';
 
-      formData.append('evidencia', {
-        uri: evidencia.uri,
-        name: filename,
-        type,
+      // Navegar a ConsentScreen con los datos de la vacuna
+      navigation.navigate('ConsentScreen', {
+        petId,
+        petName: petName || 'Mascota',
+        consentType: 'VACUNACION',
+        // Datos de la vacuna para crear después del consentimiento
+        vaccineData: {
+          nombreVacuna: nombreVacuna.trim(),
+          lote: lote.trim(),
+          caducidad: caducidad.toISOString().split('T')[0],
+          fechaAplicacion: fechaAplicacion.toISOString().split('T')[0],
+          evidencia: {
+            uri: evidencia.uri,
+            name: filename,
+            type,
+          },
+        },
       });
 
-      await vaccinesAPI.create(petId, formData);
-
-      showToast.success('Vacuna registrada correctamente');
-      setTimeout(() => navigation.goBack(), 500);
+      setLoading(false);
     } catch (err) {
-      console.error('Error creating vaccine:', err);
-      if (isNetworkError(err)) {
-        showToast.networkError();
-      } else {
-        const errorMessage = err.response?.data?.error || 'No se pudo registrar la vacuna';
-        showToast.error(errorMessage);
-      }
-    } finally {
+      console.error('Error preparing vaccine data:', err);
+      showToast.error('Error al preparar los datos');
       setLoading(false);
     }
   };
@@ -221,8 +235,16 @@ const AddVaccineScreen = ({ route, navigation }) => {
           </View>
         )}
 
+        {/* Warning de consentimiento */}
+        <View style={styles.consentWarning}>
+          <Ionicons name="document-text-outline" size={20} color="#FF9500" />
+          <Text style={styles.consentWarningText}>
+            Todas las vacunas requieren consentimiento informado firmado
+          </Text>
+        </View>
+
         <Button
-          title={loading ? 'Guardando...' : 'Guardar Vacuna'}
+          title={loading ? 'Guardando...' : 'Continuar con Consentimiento'}
           onPress={handleSubmit}
           disabled={loading}
         />
@@ -339,6 +361,24 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#007AFF',
+    lineHeight: 20,
+  },
+  consentWarning: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF3E0',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFE0B2',
+  },
+  consentWarningText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#E65100',
+    fontWeight: '600',
     lineHeight: 20,
   },
 });

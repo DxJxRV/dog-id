@@ -13,8 +13,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { petsAPI } from '../../services/api';
-import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline } from '../../components';
+import { petsAPI, medicalDataAPI, deathCertificateAPI } from '../../services/api';
+import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline, PetStatusBadge, WeightChart } from '../../components';
 import { getImageUrl } from '../../utils/imageHelper';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -44,6 +44,11 @@ const PetDetailScreen = ({ route, navigation }) => {
   });
   const [tempFilters, setTempFilters] = useState(filters);
 
+  // ECE: Toggle entre Historial y Evolución
+  const [activeTab, setActiveTab] = useState('historial'); // 'historial' | 'evolucion'
+  const [weightData, setWeightData] = useState([]);
+  const [loadingWeight, setLoadingWeight] = useState(false);
+
   const isVet = userType === 'vet';
 
   const fetchPetDetail = async () => {
@@ -63,6 +68,30 @@ const PetDetailScreen = ({ route, navigation }) => {
       setLoading(false);
     }
   };
+
+  // ECE: Cargar evolución de peso
+  const fetchWeightEvolution = async () => {
+    try {
+      setLoadingWeight(true);
+      const response = await medicalDataAPI.getWeightEvolution(petId);
+      setWeightData(response.data.weightEvolution || []);
+    } catch (err) {
+      console.error('Error fetching weight evolution:', err);
+      if (!isNetworkError(err)) {
+        showToast.error('No se pudo cargar la evolución de peso');
+      }
+      setWeightData([]);
+    } finally {
+      setLoadingWeight(false);
+    }
+  };
+
+  // Cargar peso cuando se cambia al tab de evolución
+  useEffect(() => {
+    if (activeTab === 'evolucion' && petId) {
+      fetchWeightEvolution();
+    }
+  }, [activeTab, petId]);
 
   useEffect(() => {
     fetchPetDetail();
@@ -201,6 +230,36 @@ const PetDetailScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleViewDeathCertificate = async () => {
+    try {
+      const response = await deathCertificateAPI.getByPetId(petId);
+      const certificate = response.data.deathCertificate;
+
+      if (certificate && certificate.certificatePdfUrl) {
+        navigation.navigate('PdfViewer', {
+          url: certificate.certificatePdfUrl,
+          title: `Certificado de Defunción - ${pet.nombre}`,
+        });
+      } else {
+        showToast.error('No se encontró el certificado PDF');
+      }
+    } catch (err) {
+      console.error('Error fetching death certificate:', err);
+      if (isNetworkError(err)) {
+        showToast.networkError();
+      } else {
+        showToast.error('No se pudo cargar el certificado');
+      }
+    }
+  };
+
+  const handleCertifyDeath = () => {
+    navigation.navigate('DeathCertificateForm', {
+      petId,
+      petName: pet.nombre,
+    });
+  };
+
   if (loading) {
     return <Loading />;
   }
@@ -239,7 +298,10 @@ const PetDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
             )}
-            <Text style={styles.petName}>{pet.nombre}</Text>
+            <View style={styles.petNameContainer}>
+              <Text style={styles.petName}>{pet.nombre}</Text>
+              <PetStatusBadge status={pet.status} style={styles.statusBadge} />
+            </View>
             <Text style={styles.petDetails}>
               {pet.especie} • {pet.raza || 'Sin raza'}
             </Text>
@@ -289,7 +351,10 @@ const PetDetailScreen = ({ route, navigation }) => {
                 </Text>
               </View>
             )}
-            <Text style={styles.petName}>{pet.nombre}</Text>
+            <View style={styles.petNameContainer}>
+              <Text style={styles.petName}>{pet.nombre}</Text>
+              <PetStatusBadge status={pet.status} style={styles.statusBadge} />
+            </View>
             <Text style={styles.petDetails}>
               {pet.especie} • {pet.raza || 'Sin raza'}
             </Text>
@@ -344,29 +409,108 @@ const PetDetailScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Historial Médico */}
+      {/* Sección de Certificado de Defunción */}
+      {pet.status === 'DECEASED' && (
+        <View style={styles.deathCertificateSection}>
+          <TouchableOpacity
+            style={styles.viewCertificateButton}
+            onPress={handleViewDeathCertificate}
+          >
+            <Ionicons name="document-text" size={24} color="#8E8E93" />
+            <Text style={styles.viewCertificateButtonText}>
+              Ver Certificado de Defunción
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {/* Historial Médico / Evolución */}
       <View style={styles.section}>
         <View style={styles.historyHeader}>
           <Text style={styles.sectionTitle}>
             Historial Médico ({(pet.vaccines?.length || 0) + (pet.procedures?.length || 0)})
           </Text>
+          {activeTab === 'historial' && (
+            <TouchableOpacity
+              style={styles.filterButton}
+              onPress={() => {
+                setTempFilters(filters);
+                setShowFiltersModal(true);
+              }}
+            >
+              <Ionicons name="filter-outline" size={22} color="#007AFF" />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Toggle entre Historial y Evolución */}
+        <View style={styles.tabsContainer}>
           <TouchableOpacity
-            style={styles.filterButton}
-            onPress={() => {
-              setTempFilters(filters);
-              setShowFiltersModal(true);
-            }}
+            style={[
+              styles.tab,
+              activeTab === 'historial' && styles.tabActive,
+            ]}
+            onPress={() => setActiveTab('historial')}
           >
-            <Ionicons name="filter-outline" size={22} color="#007AFF" />
+            <Ionicons
+              name="list-outline"
+              size={20}
+              color={activeTab === 'historial' ? '#007AFF' : '#8E8E93'}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'historial' && styles.tabTextActive,
+              ]}
+            >
+              Historial
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'evolucion' && styles.tabActive,
+            ]}
+            onPress={() => setActiveTab('evolucion')}
+          >
+            <Ionicons
+              name="analytics-outline"
+              size={20}
+              color={activeTab === 'evolucion' ? '#007AFF' : '#8E8E93'}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'evolucion' && styles.tabTextActive,
+              ]}
+            >
+              Evolución
+            </Text>
           </TouchableOpacity>
         </View>
 
-        <Timeline
-          vaccines={pet.vaccines || []}
-          procedures={pet.procedures || []}
-          filters={filters}
-          onItemPress={handleTimelineItemPress}
-        />
+        {/* Contenido según tab activo */}
+        {activeTab === 'historial' ? (
+          <Timeline
+            vaccines={pet.vaccines || []}
+            procedures={pet.procedures || []}
+            filters={filters}
+            onItemPress={handleTimelineItemPress}
+          />
+        ) : (
+          <View style={styles.evolutionContainer}>
+            {loadingWeight ? (
+              <View style={styles.loadingEvolution}>
+                <ActivityIndicator size="large" color="#007AFF" />
+                <Text style={styles.loadingText}>Cargando evolución...</Text>
+              </View>
+            ) : (
+              <WeightChart data={weightData} unit="kg" />
+            )}
+          </View>
+        )}
       </View>
 
       {/* Modal de código de vinculación */}
@@ -597,7 +741,11 @@ const PetDetailScreen = ({ route, navigation }) => {
                 style={styles.optionItem}
                 onPress={() => {
                   setShowProcedureMenu(false);
-                  navigation.navigate('AddProcedure', { petId });
+                  navigation.navigate('AddProcedure', {
+                    petId,
+                    petName: pet.nombre,
+                    petStatus: pet.status,
+                  });
                 }}
               >
                 <Ionicons name="document-text-outline" size={22} color="#8E8E93" />
@@ -669,14 +817,22 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '600',
   },
+  petNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
   petName: {
     fontSize: 24,
     fontWeight: '600',
     color: '#fff',
-    marginBottom: 8,
     textShadowColor: 'rgba(0, 0, 0, 0.75)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  statusBadge: {
+    marginTop: 0,
   },
   petDetails: {
     fontSize: 15,
@@ -892,6 +1048,105 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  // ECE: Estilos para tabs y evolución
+  tabsContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F2F2F7',
+    borderRadius: 10,
+    padding: 4,
+    marginBottom: 20,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  tabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#8E8E93',
+  },
+  tabTextActive: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#007AFF',
+  },
+  evolutionContainer: {
+    minHeight: 300,
+  },
+  loadingEvolution: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 60,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#8E8E93',
+  },
+  // ECE: Estilos para certificado de defunción
+  deathCertificateSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  viewCertificateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  viewCertificateButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  vetActionsSection: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  certifyDeathButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#FF3B30',
+    borderRadius: 12,
+  },
+  certifyDeathButtonText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FF3B30',
   },
 });
 

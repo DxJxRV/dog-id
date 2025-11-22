@@ -6,6 +6,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
@@ -15,6 +16,7 @@ import { petsAPI } from '../../services/api';
 import { getImageUrl } from '../../utils/imageHelper';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
+import { generatePresignedUrl } from '../../utils/presignedUrl';
 
 const VaccineDetailScreen = ({ route, navigation }) => {
   const { vaccineId, petId } = route.params;
@@ -29,7 +31,25 @@ const VaccineDetailScreen = ({ route, navigation }) => {
       const response = await petsAPI.getById(petId);
       const foundVaccine = response.data.pet.vaccines.find(v => v.id === vaccineId);
       if (foundVaccine) {
-        setVaccine(foundVaccine);
+        // Generar presigned URLs para evidencia y PDF de consentimiento
+        const evidenciaUrl = foundVaccine.evidenciaUrl
+          ? await generatePresignedUrl(foundVaccine.evidenciaUrl)
+          : null;
+
+        let consentRecord = foundVaccine.consentRecord;
+        if (consentRecord && consentRecord.pdfUrl) {
+          const consentPdfUrl = await generatePresignedUrl(consentRecord.pdfUrl, 3600);
+          consentRecord = {
+            ...consentRecord,
+            pdfUrl: consentPdfUrl
+          };
+        }
+
+        setVaccine({
+          ...foundVaccine,
+          evidenciaUrl,
+          consentRecord
+        });
       } else {
         showToast.error('Vacuna no encontrada');
         navigation.goBack();
@@ -147,6 +167,30 @@ const VaccineDetailScreen = ({ route, navigation }) => {
           <View style={styles.ocrBox}>
             <Text style={styles.ocrText}>{vaccine.ocrRawText}</Text>
           </View>
+        </View>
+      )}
+
+      {/* Consentimiento Informado */}
+      {vaccine.consentRecord && vaccine.consentRecord.pdfUrl && (
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Documentación Legal</Text>
+          <TouchableOpacity
+            style={styles.pdfButton}
+            onPress={() => navigation.navigate('PdfViewer', {
+              url: vaccine.consentRecord.pdfUrl,
+              title: 'Consentimiento de Vacunación',
+            })}
+            activeOpacity={0.7}
+          >
+            <View style={styles.pdfButtonIcon}>
+              <Ionicons name="document-text" size={24} color="#007AFF" />
+            </View>
+            <View style={styles.pdfButtonContent}>
+              <Text style={styles.pdfButtonTitle}>Consentimiento de Vacunación</Text>
+              <Text style={styles.pdfButtonSubtitle}>Ver documento firmado</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#C7C7CC" />
+          </TouchableOpacity>
         </View>
       )}
     </ScrollView>
@@ -295,6 +339,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#666',
     lineHeight: 18,
+  },
+  pdfButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 16,
+    backgroundColor: '#F9F9F9',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+    borderRadius: 12,
+    marginHorizontal: 16,
+    marginBottom: 16,
+  },
+  pdfButtonIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#E8F4FD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  pdfButtonContent: {
+    flex: 1,
+  },
+  pdfButtonTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 2,
+  },
+  pdfButtonSubtitle: {
+    fontSize: 13,
+    color: '#8E8E93',
   },
 });
 

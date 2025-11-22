@@ -240,7 +240,8 @@ const RegisterScreen = ({ navigation }) => {
             style={styles.registerButton}
           />
 
-          <View style={styles.divider}>
+          {/* TEMPORALMENTE DESHABILITADO - Google Sign-In */}
+          {/* <View style={styles.divider}>
             <View style={styles.dividerLine} />
             <Text style={styles.dividerText}>o</Text>
             <View style={styles.dividerLine} />
@@ -255,7 +256,7 @@ const RegisterScreen = ({ navigation }) => {
             <Text style={styles.googleButtonText}>
               {googleLoading ? 'Iniciando sesión...' : 'Continuar con Google'}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
 
           <TouchableOpacity
             onPress={() => navigation.goBack()}
