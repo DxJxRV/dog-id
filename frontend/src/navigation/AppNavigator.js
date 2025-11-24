@@ -35,6 +35,11 @@ import ConsentScreen from '../screens/Consent/ConsentScreen';
 import PdfViewerScreen from '../screens/Pdf/PdfViewerScreen';
 import DeathCertificateFormScreen from '../screens/DeathCertificate/DeathCertificateFormScreen';
 
+// Smart Consultation Screens
+import RecordConsultationScreen from '../screens/SmartConsultation/RecordConsultationScreen';
+import ConsultationsListScreen from '../screens/SmartConsultation/ConsultationsListScreen';
+import ConsultationDetailScreen from '../screens/SmartConsultation/ConsultationDetailScreen';
+
 // Friends Screens
 import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
 import FriendsPetsScreen from '../screens/Friends/FriendsPetsScreen';
@@ -237,6 +242,21 @@ const PetsStack = () => (
       name="DeathCertificateForm"
       component={DeathCertificateFormScreen}
       options={{ title: 'Certificar Defunción' }}
+    />
+    <Stack.Screen
+      name="RecordConsultation"
+      component={RecordConsultationScreen}
+      options={{ title: 'Grabar Consulta' }}
+    />
+    <Stack.Screen
+      name="ConsultationsList"
+      component={ConsultationsListScreen}
+      options={{ title: 'Consultas Inteligentes' }}
+    />
+    <Stack.Screen
+      name="ConsultationDetail"
+      component={ConsultationDetailScreen}
+      options={{ title: 'Detalle de Consulta' }}
     />
   </Stack.Navigator>
 );

@@ -10,6 +10,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== ENUMS ====================
+enum PetStatus {
+  ACTIVE
+  DECEASED
+  LOST
+  ARCHIVED
+}
+
+enum ConsentType {
+  ANESTESIA
+  CIRUGIA
+  HOSPITALIZACION
+  ESTETICA
+  VACUNACION
+  EUTANASIA
+  OTRO
+}
+
+enum DeathType {
+  NATURAL
+  EUTANASIA
+  ACCIDENTE
+  ENFERMEDAD
+  DESCONOCIDO
+}
+
+enum BodyDisposal {
+  CREMACION
+  ENTIERRO
+  DONACION_CIENCIA
+  RECOGIDA_MUNICIPAL
+  OTRO
+}
+
+// ==================== MODELOS EXISTENTES ====================
+
 model User {
   id            String   @id @default(uuid())
   nombre        String
@@ -45,71 +81,173 @@ model Vet {
   procedures          Procedure[]
   linkedPets          VetPetLink[]
   createdPets         Pet[]
+  deathCertificates   DeathCertificate[]
+  smartConsultations  SmartConsultation[]
 
   @@map("vets")
 }
 
 model Pet {
-  id                      String    @id @default(uuid())
-  userId                  String?   @map("user_id")
+  id                      String      @id @default(uuid())
+  userId                  String?     @map("user_id")
   nombre                  String
   especie                 String
   raza                    String?
-  fechaNacimiento         DateTime? @map("fecha_nacimiento")
-  fotoUrl                 String?   @map("foto_url")
-  coverPhotoUrl           String?   @map("cover_photo_url")
-  linkCode                String?   @unique @map("link_code")
-  archivedByOwner         Boolean   @default(false) @map("archived_by_owner")
-  transferCode            String?   @unique @map("transfer_code")
-  transferCodeExpiresAt   DateTime? @map("transfer_code_expires_at")
-  createdByVetId          String?   @map("created_by_vet_id")
-  pendingTransfer         Boolean   @default(false) @map("pending_transfer")
-  createdAt               DateTime  @default(now()) @map("created_at")
+  fechaNacimiento         DateTime?   @map("fecha_nacimiento")
+  fotoUrl                 String?     @map("foto_url")
+  coverPhotoUrl           String?     @map("cover_photo_url")
+  linkCode                String?     @unique @map("link_code")
+  archivedByOwner         Boolean     @default(false) @map("archived_by_owner")
+  transferCode            String?     @unique @map("transfer_code")
+  transferCodeExpiresAt   DateTime?   @map("transfer_code_expires_at")
+  createdByVetId          String?     @map("created_by_vet_id")
+  pendingTransfer         Boolean     @default(false) @map("pending_transfer")
+  status                  PetStatus   @default(ACTIVE)
+  createdAt               DateTime    @default(now()) @map("created_at")
 
-  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdByVet     Vet?      @relation(fields: [createdByVetId], references: [id], onDelete: SetNull)
-  vaccines         Vaccine[]
-  procedures       Procedure[]
-  linkedVets       VetPetLink[]
-  coOwners         CoOwnerPetLink[]
+  user               User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdByVet       Vet?                 @relation(fields: [createdByVetId], references: [id], onDelete: SetNull)
+  vaccines           Vaccine[]
+  procedures         Procedure[]
+  linkedVets         VetPetLink[]
+  coOwners           CoOwnerPetLink[]
+  deathCertificate   DeathCertificate?
+  smartConsultations SmartConsultation[]
 
   @@map("pets")
 }
 
 model Vaccine {
-  id             String    @id @default(uuid())
-  petId          String    @map("pet_id")
-  vetId          String?   @map("vet_id")
-  nombreVacuna   String    @map("nombre_vacuna")
-  lote           String?
-  caducidad      DateTime?
+  id              String    @id @default(uuid())
+  petId           String    @map("pet_id")
+  vetId           String?   @map("vet_id")
+  nombreVacuna    String    @map("nombre_vacuna")
+  lote            String?
+  caducidad       DateTime?
   fechaAplicacion DateTime? @map("fecha_aplicacion")
-  evidenciaUrl   String?   @map("evidencia_url")
-  ocrRawText     String?   @map("ocr_raw_text") @db.Text
-  ocrStatus      String    @default("pending") @map("ocr_status") // success, fail, manual, pending
-  createdAt      DateTime  @default(now()) @map("created_at")
+  evidenciaUrl    String?   @map("evidencia_url")
+  ocrRawText      String?   @map("ocr_raw_text") @db.Text
+  ocrStatus       String    @default("pending") @map("ocr_status")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  pet             Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet             Vet?          @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  consentRecord   ConsentRecord?
 
   @@map("vaccines")
 }
 
 model Procedure {
-  id             String    @id @default(uuid())
-  petId          String    @map("pet_id")
-  vetId          String?   @map("vet_id")
-  tipo           String    // desparasitacion, limpieza_dental, cirugia, chequeo_general, radiografia, otro
-  descripcion    String    @db.Text
-  fecha          DateTime  @default(now())
-  evidenciaUrl   String?   @map("evidencia_url")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id              String    @id @default(uuid())
+  petId           String    @map("pet_id")
+  vetId           String?   @map("vet_id")
+  tipo            String
+  descripcion     String    @db.Text
+  fecha           DateTime  @default(now())
+  evidenciaUrl    String?   @map("evidencia_url")
+  createdAt       DateTime  @default(now()) @map("created_at")
 
-  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet             Vet?           @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  medicalData     MedicalData?
+  consentRecord   ConsentRecord?
 
   @@map("procedures")
 }
+
+// ==================== NUEVOS MODELOS ECE ====================
+
+model MedicalData {
+  id                      String   @id @default(uuid())
+  procedureId             String   @unique @map("procedure_id")
+  peso                    Float?
+  temperatura             Float?
+  frecuenciaCardiaca      Int?     @map("frecuencia_cardiaca")
+  frecuenciaRespiratoria  Int?     @map("frecuencia_respiratoria")
+  pulso                   String?
+  mucosas                 String?
+  tllc                    String?
+  hidratacion             String?
+  condicionCorporal       Int?     @map("condicion_corporal")
+  ayuno                   Boolean  @default(false)
+  notas                   String?  @db.Text
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  procedure               Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+
+  @@map("medical_data")
+}
+
+model ConsentRecord {
+  id                    String       @id @default(uuid())
+  procedureId           String?      @unique @map("procedure_id")
+  vaccineId             String?      @unique @map("vaccine_id")
+  consentType           ConsentType  @map("consent_type")
+  pdfUrl                String       @map("pdf_url")
+  signatureUrl          String?      @map("signature_url")
+  signerName            String       @map("signer_name")
+  signerRelation        String?      @map("signer_relation")
+  legalTextVersion      String       @map("legal_text_version")
+  emergencyContactName  String?      @map("emergency_contact_name")
+  emergencyContactPhone String?      @map("emergency_contact_phone")
+  ipAddress             String?      @map("ip_address")
+  signedAt              DateTime     @default(now()) @map("signed_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+
+  procedure             Procedure?   @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  vaccine               Vaccine?     @relation(fields: [vaccineId], references: [id], onDelete: Cascade)
+
+  @@map("consent_records")
+}
+
+model DeathCertificate {
+  id                  String        @id @default(uuid())
+  petId               String        @unique @map("pet_id")
+  vetId               String        @map("vet_id")
+  deathDate           DateTime      @map("death_date")
+  deathType           DeathType     @map("death_type")
+  causeOfDeath        String        @map("cause_of_death") @db.Text
+  bodyDisposal        BodyDisposal  @map("body_disposal")
+  disposalLocation    String?       @map("disposal_location")
+  witnessName         String?       @map("witness_name")
+  witnessRelation     String?       @map("witness_relation")
+  pdfUrl              String        @map("pdf_url")
+  notes               String?       @db.Text
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  pet                 Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                 Vet           @relation(fields: [vetId], references: [id], onDelete: Restrict)
+
+  @@map("death_certificates")
+}
+
+model SmartConsultation {
+  id                String   @id @default(uuid())
+  petId             String   @map("pet_id")
+  vetId             String   @map("vet_id")
+
+  // Audio
+  audioUrl          String   @map("audio_url")
+  duration          Int      // Segundos
+
+  // Transcripción Cruda (Para el Player Interactivo)
+  rawText           String   @db.Text
+  transcriptionJson Json     @map("transcription_json") // Array de { word, start, end }
+
+  // Análisis de IA (Resumen Clínico)
+  summary           String   @db.Text
+  extractedVitals   Json?    @map("extracted_vitals") // { peso: 10, temperatura: 39... }
+  tags              Json?    // ["URGENTE", "DESHIDRATACION", "DOLOR"]
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  pet               Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet               Vet      @relation(fields: [vetId], references: [id], onDelete: Cascade)
+
+  @@map("smart_consultations")
+}
+
+// ==================== MODELOS DE RELACIONES ====================
 
 model VetPetLink {
   id        String   @id @default(uuid())
@@ -143,7 +281,7 @@ model Friendship {
   id                  String    @id @default(uuid())
   requesterId         String    @map("requester_id")
   addresseeId         String    @map("addressee_id")
-  status              String    @default("pending") // pending, accepted, rejected
+  status              String    @default("pending")
   acceptedAt          DateTime? @map("accepted_at")
   requesterViewedAt   DateTime? @map("requester_viewed_at")
   addresseeViewedAt   DateTime? @map("addressee_viewed_at")

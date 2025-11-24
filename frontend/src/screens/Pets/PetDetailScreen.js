@@ -409,6 +409,35 @@ const PetDetailScreen = ({ route, navigation }) => {
         </View>
       )}
 
+      {/* Asistente Veterinario por Voz - Solo para veterinarios */}
+      {isVet && pet.status !== 'DECEASED' && (
+        <TouchableOpacity
+          style={styles.aiAssistantCard}
+          onPress={() => navigation.navigate('ConsultationsList', { petId, petName: pet.nombre })}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#6366F1', '#8B5CF6']}
+            style={styles.aiAssistantGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.aiAssistantContent}>
+              <View style={styles.aiAssistantIconContainer}>
+                <Ionicons name="mic" size={32} color="#FFFFFF" />
+              </View>
+              <View style={styles.aiAssistantTextContainer}>
+                <Text style={styles.aiAssistantTitle}>Nueva Consulta con IA</Text>
+                <Text style={styles.aiAssistantSubtitle}>
+                  Graba y analiza consultas con inteligencia artificial
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      )}
+
       {/* Sección de Certificado de Defunción */}
       {pet.status === 'DECEASED' && (
         <View style={styles.deathCertificateSection}>
@@ -1147,6 +1176,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#FF3B30',
+  },
+  // Asistente de IA
+  aiAssistantCard: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  aiAssistantGradient: {
+    padding: 20,
+  },
+  aiAssistantContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  aiAssistantIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiAssistantTextContainer: {
+    flex: 1,
+  },
+  aiAssistantTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  aiAssistantSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
 });
 
