@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,7 +8,12 @@ import {
   Alert,
   Animated,
 } from 'react-native';
-import { useAudioRecorder } from 'expo-audio';
+import {
+  useAudioRecorder,
+  useAudioRecorderState,
+  setAudioModeAsync,
+  requestRecordingPermissionsAsync,
+} from 'expo-audio';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
 import axios from 'axios';
@@ -25,22 +30,18 @@ const RecordConsultationScreen = ({ route, navigation }) => {
   const recordingOptions = {
     android: {
       extension: '.m4a',
-      outputFormat: 2,
-      audioEncoder: 3,
+      outputFormat: 2, // MPEG_4
+      audioEncoder: 3, // AAC
       sampleRate: 44100,
       numberOfChannels: 2,
       bitRate: 128000,
     },
     ios: {
       extension: '.m4a',
-      outputFormat: 'kAudioFormatMPEG4AAC',
-      audioQuality: 127,
+      audioQuality: 127, // High quality
       sampleRate: 44100,
       numberOfChannels: 2,
       bitRate: 128000,
-      linearPCMBitDepth: 16,
-      linearPCMIsBigEndian: false,
-      linearPCMIsFloat: false,
     },
     web: {
       mimeType: 'audio/webm',
@@ -49,6 +50,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
   };
 
   const audioRecorder = useAudioRecorder(recordingOptions);
+  const recorderState = useAudioRecorderState(audioRecorder);
   const [recordingDuration, setRecordingDuration] = useState(0);
   const [isUploading, setIsUploading] = useState(false);
   const durationInterval = useRef(null);
@@ -57,7 +59,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
-    if (audioRecorder.isRecording) {
+    if (recorderState.isRecording) {
       // Animación de pulso durante grabación
       Animated.loop(
         Animated.sequence([
@@ -90,24 +92,48 @@ const RecordConsultationScreen = ({ route, navigation }) => {
         clearInterval(durationInterval.current);
       }
     };
-  }, [audioRecorder.isRecording]);
+  }, [recorderState.isRecording]);
 
   const startRecording = async () => {
     try {
       console.log('🎤 Starting recording...');
 
-      // Las opciones ya están configuradas en el hook
+      // 1. Verificar permisos de grabación con la API de expo-audio
+      const { status, granted } = await requestRecordingPermissionsAsync();
+      console.log('🎙️ Permission status:', status, '| Granted:', granted);
+
+      if (!granted) {
+        showToast.error('Se requieren permisos de micrófono');
+        return;
+      }
+      console.log('✅ Permissions granted');
+
+      // 2. Configurar audio mode con la API de expo-audio (NO expo-av)
+      // Las propiedades son: allowsRecording, playsInSilentMode (sin sufijo IOS)
+      console.log('🔧 Configuring audio mode for recording...');
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+      console.log('✅ Audio mode configured with expo-audio API');
+
+      // 3. Iniciar grabación
+      console.log('▶️ Starting recorder...');
       await audioRecorder.record();
 
       setRecordingDuration(0);
       showToast.success('Grabación iniciada');
+      console.log('✅ Recording started successfully');
     } catch (error) {
-      console.error('Failed to start recording:', error);
-      console.error('Error details:', JSON.stringify(error, null, 2));
+      console.error('❌ Failed to start recording:', error);
+      console.error('Error code:', error.code);
+      console.error('Error message:', error.message);
 
       // Verificar si es un error de permisos
       if (error.message?.includes('permission') || error.message?.includes('Permission')) {
         showToast.error('Se requieren permisos de micrófono');
+      } else if (error.code === 'ERR_RECORDING_DISABLED') {
+        showToast.error('Error de configuración de audio en iOS');
       } else {
         showToast.error('No se pudo iniciar la grabación');
       }
@@ -115,7 +141,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
   };
 
   const stopRecording = async () => {
-    if (!audioRecorder.isRecording) return;
+    if (!recorderState.isRecording) return;
 
     try {
       console.log('⏹️ Stopping recording...');
@@ -220,7 +246,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
       ) : (
         <>
           <View style={styles.recordingContainer}>
-            {audioRecorder.isRecording && (
+            {recorderState.isRecording && (
               <View style={styles.durationContainer}>
                 <View style={styles.recordingDot} />
                 <Text style={styles.durationText}>{formatDuration(recordingDuration)}</Text>
@@ -231,13 +257,13 @@ const RecordConsultationScreen = ({ route, navigation }) => {
               <TouchableOpacity
                 style={[
                   styles.recordButton,
-                  audioRecorder.isRecording && styles.recordButtonActive,
+                  recorderState.isRecording && styles.recordButtonActive,
                 ]}
-                onPress={audioRecorder.isRecording ? stopRecording : startRecording}
+                onPress={recorderState.isRecording ? stopRecording : startRecording}
                 activeOpacity={0.8}
               >
                 <Ionicons
-                  name={audioRecorder.isRecording ? 'stop' : 'mic'}
+                  name={recorderState.isRecording ? 'stop' : 'mic'}
                   size={60}
                   color="#FFFFFF"
                 />
@@ -245,7 +271,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
             </Animated.View>
 
             <Text style={styles.recordButtonLabel}>
-              {audioRecorder.isRecording ? 'Detener grabación' : 'Iniciar grabación'}
+              {recorderState.isRecording ? 'Detener grabación' : 'Iniciar grabación'}
             </Text>
           </View>
 

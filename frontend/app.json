@@ -44,6 +44,12 @@
           "photosPermission": "The app accesses your photos to let you share them with your pets."
         }
       ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record veterinary consultations."
+        }
+      ],
       "expo-secure-store",
       "expo-asset",
       "expo-font",
