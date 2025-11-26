@@ -261,9 +261,131 @@ const deleteProcedure = async (req, res) => {
   }
 };
 
+// Completar un borrador de procedimiento (convertir de DRAFT a COMPLETED)
+const completeDraftProcedure = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { descripcion, fecha } = req.body;
+
+    console.log('✅ [DRAFT] Completing draft procedure:', id);
+
+    // Verificar que el procedimiento existe y es borrador
+    const procedure = await prisma.procedure.findUnique({
+      where: { id },
+      include: { pet: true }
+    });
+
+    if (!procedure) {
+      return res.status(404).json({ error: 'Procedure not found' });
+    }
+
+    if (procedure.status !== 'DRAFT') {
+      return res.status(400).json({ error: 'Procedure is not a draft' });
+    }
+
+    // Verificar permisos
+    if (req.user.type === 'vet' && procedure.vetId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Validar campo obligatorio
+    if (!descripcion) {
+      return res.status(400).json({ error: 'Descripcion is required' });
+    }
+
+    let evidenciaUrl = procedure.evidenciaUrl;
+
+    // Si se subió nueva evidencia, actualizarla
+    if (req.file) {
+      // Eliminar evidencia anterior si existía
+      if (procedure.evidenciaUrl) {
+        try {
+          await deletePrivateImage(procedure.evidenciaUrl);
+        } catch (deleteError) {
+          console.error('⚠️ Failed to delete old evidence:', deleteError);
+        }
+      }
+
+      // Subir nueva evidencia
+      evidenciaUrl = await uploadPrivateImage(req.file.buffer, req.file.originalname, 'medical/procedures');
+    }
+
+    // Actualizar a COMPLETED
+    const updatedProcedure = await prisma.procedure.update({
+      where: { id },
+      data: {
+        descripcion,
+        fecha: fecha ? new Date(fecha) : procedure.fecha,
+        evidenciaUrl,
+        status: 'COMPLETED'
+      },
+      include: {
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        }
+      }
+    });
+
+    console.log('✅ [DRAFT] Procedure completed successfully');
+
+    res.json({
+      message: 'Draft procedure completed successfully',
+      procedure: updatedProcedure
+    });
+  } catch (error) {
+    console.error('❌ [DRAFT] Complete error:', error);
+    res.status(500).json({ error: 'Failed to complete draft procedure' });
+  }
+};
+
+// Eliminar un borrador de procedimiento (descartar sugerencia de IA)
+const deleteDraftProcedure = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('🗑️ [DRAFT] Deleting draft procedure:', id);
+
+    // Verificar que el procedimiento existe y es borrador
+    const procedure = await prisma.procedure.findUnique({
+      where: { id }
+    });
+
+    if (!procedure) {
+      return res.status(404).json({ error: 'Procedure not found' });
+    }
+
+    if (procedure.status !== 'DRAFT') {
+      return res.status(400).json({ error: 'Can only delete draft procedures' });
+    }
+
+    // Verificar permisos
+    if (req.user.type === 'vet' && procedure.vetId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Eliminar
+    await prisma.procedure.delete({
+      where: { id }
+    });
+
+    console.log('✅ [DRAFT] Draft procedure deleted successfully');
+
+    res.json({ message: 'Draft procedure deleted successfully' });
+  } catch (error) {
+    console.error('❌ [DRAFT] Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete draft procedure' });
+  }
+};
+
 module.exports = {
   createProcedure,
   getPetProcedures,
   updateProcedure,
-  deleteProcedure
+  deleteProcedure,
+  completeDraftProcedure,
+  deleteDraftProcedure
 };

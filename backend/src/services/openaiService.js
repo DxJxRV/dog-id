@@ -49,7 +49,7 @@ const analyzeVeterinaryConsultation = async (rawText, petName, petSpecies) => {
   try {
     console.log('🤖 [OPENAI] Analyzing veterinary consultation with GPT-4...');
 
-    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer MEDICAL HIGHLIGHTS (hallazgos clínicos clave).
+    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer MEDICAL HIGHLIGHTS (hallazgos clínicos clave) y SUGGESTED ACTIONS (acciones que deben registrarse en el historial).
 
 Debes generar una respuesta en formato JSON con la siguiente estructura:
 {
@@ -69,10 +69,18 @@ Debes generar una respuesta en formato JSON con la siguiente estructura:
     "pulso": string o null,
     "mucosas": string o null,
     "condicionCorporal": number (1-9) o null
-  }
+  },
+  "suggested_actions": [
+    {
+      "type": "VACCINE | PROCEDURE",
+      "name": "Nombre de la vacuna o procedimiento",
+      "description": "Por qué se sugiere registrar esta acción",
+      "category": "string (opcional, solo para PROCEDURE: desparasitación, limpieza dental, cirugía, chequeo general, radiografía, otro)"
+    }
+  ]
 }
 
-CATEGORÍAS (usa SOLO estas):
+CATEGORÍAS MEDICAL HIGHLIGHTS (usa SOLO estas):
 - URGENCIA: Condiciones que requieren atención inmediata (envenenamiento, trauma severo, dificultad respiratoria aguda)
 - SINTOMA: Signos clínicos observables (fiebre, vómito, diarrea, tos, cojera, letargo)
 - DIAGNOSTICO: Enfermedades identificadas (parvovirus, moquillo, insuficiencia renal, diabetes)
@@ -84,12 +92,17 @@ SEVERIDAD (usa criterio clínico estricto):
 - MEDIUM: Patología clara que requiere tratamiento (ej: Sarna, Gastroenteritis, Otitis severa, Parásitos abundantes)
 - LOW: Observaciones menores, hallazgos leves (ej: Ligera pérdida de peso, Cicatrices antiguas, Uñas largas)
 
+SUGGESTED ACTIONS - CUÁNDO SUGERIR:
+- VACCINE: Si se menciona que se aplicó una vacuna (ej: "Le puse la vacuna de rabia", "Se le aplicó la triple felina")
+- PROCEDURE: Si se realizó algún procedimiento médico que debe registrarse (ej: "Le hice una desparasitación", "Se realizó limpieza dental", "Tomé una radiografía", "Le corté las uñas")
+
 INSTRUCCIONES CRÍTICAS:
 1. La "triggerPhrase" debe ser el texto EXACTO de la transcripción (respeta mayúsculas, tildes, errores de transcripción).
 2. Extrae entre 3-8 highlights (los más relevantes clínicamente).
-3. NO inventes información que no esté en la transcripción.
-4. Los signos vitales solo si se mencionan explícitamente.
-5. Ordena por SEVERIDAD: primero HIGH, luego MEDIUM, al final LOW.`;
+3. Solo sugiere acciones si se mencionan EXPLÍCITAMENTE en la consulta.
+4. NO inventes información que no esté en la transcripción.
+5. Los signos vitales solo si se mencionan explícitamente.
+6. Ordena highlights por SEVERIDAD: primero HIGH, luego MEDIUM, al final LOW.`;
 
     const userPrompt = `Paciente: ${petName} (${petSpecies})
 
@@ -113,10 +126,12 @@ Analiza esta consulta y extrae los Medical Highlights con sus trigger phrases ex
     console.log('✅ [OPENAI] Analysis completed');
     console.log('🔍 [OPENAI] Medical Highlights:', analysisResult.medicalHighlights?.length || 0);
     console.log('💊 [OPENAI] Vitals extracted:', Object.keys(analysisResult.extractedVitals || {}).length);
+    console.log('📋 [OPENAI] Suggested Actions:', analysisResult.suggested_actions?.length || 0);
 
     return {
       medicalHighlights: analysisResult.medicalHighlights || [],
       extractedVitals: analysisResult.extractedVitals || {},
+      suggestedActions: analysisResult.suggested_actions || [],
       // Mantener tags legacy para compatibilidad
       tags: analysisResult.medicalHighlights?.map(h => h.category) || []
     };

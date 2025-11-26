@@ -92,7 +92,48 @@ const createSmartConsultation = async (req, res) => {
       }
     });
 
-    // Paso 4: Indexar en Pinecone para búsqueda semántica
+    // Paso 4: Crear registros borrador (DRAFT) a partir de las acciones sugeridas
+    console.log('📝 [SMART CONSULTATION] Creating draft records from suggested actions...');
+    if (aiResult.suggestedActions && aiResult.suggestedActions.length > 0) {
+      console.log('   📋 Found', aiResult.suggestedActions.length, 'suggested actions');
+
+      for (const action of aiResult.suggestedActions) {
+        try {
+          if (action.type === 'VACCINE') {
+            console.log('   💉 Creating draft vaccine:', action.name);
+            await prisma.vaccine.create({
+              data: {
+                petId,
+                vetId,
+                nombreVacuna: action.name,
+                status: 'DRAFT',
+                smartConsultationId: smartConsultation.id,
+                ocrStatus: 'pending'
+              }
+            });
+          } else if (action.type === 'PROCEDURE') {
+            console.log('   🏥 Creating draft procedure:', action.name);
+            await prisma.procedure.create({
+              data: {
+                petId,
+                vetId,
+                tipo: action.category || 'otro',
+                descripcion: action.description || action.name,
+                status: 'DRAFT',
+                smartConsultationId: smartConsultation.id,
+                fecha: new Date()
+              }
+            });
+          }
+        } catch (draftError) {
+          console.error('   ⚠️ Failed to create draft record:', draftError);
+          // No bloquear la respuesta si falla la creación de un borrador
+        }
+      }
+      console.log('   ✅ Draft records created');
+    }
+
+    // Paso 5: Indexar en Pinecone para búsqueda semántica
     console.log('📊 [SMART CONSULTATION] Indexing in Pinecone...');
     try {
       // Concatenar texto completo: transcripción + highlights para búsqueda semántica

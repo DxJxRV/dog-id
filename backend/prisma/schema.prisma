@@ -44,6 +44,11 @@ enum BodyDisposal {
   OTRO
 }
 
+enum RecordStatus {
+  COMPLETED
+  DRAFT
+}
+
 // ==================== MODELOS EXISTENTES ====================
 
 model User {
@@ -118,39 +123,45 @@ model Pet {
 }
 
 model Vaccine {
-  id              String    @id @default(uuid())
-  petId           String    @map("pet_id")
-  vetId           String?   @map("vet_id")
-  nombreVacuna    String    @map("nombre_vacuna")
-  lote            String?
-  caducidad       DateTime?
-  fechaAplicacion DateTime? @map("fecha_aplicacion")
-  evidenciaUrl    String?   @map("evidencia_url")
-  ocrRawText      String?   @map("ocr_raw_text") @db.Text
-  ocrStatus       String    @default("pending") @map("ocr_status")
-  createdAt       DateTime  @default(now()) @map("created_at")
+  id                    String        @id @default(uuid())
+  petId                 String        @map("pet_id")
+  vetId                 String?       @map("vet_id")
+  nombreVacuna          String        @map("nombre_vacuna")
+  lote                  String?
+  caducidad             DateTime?
+  fechaAplicacion       DateTime?     @map("fecha_aplicacion")
+  evidenciaUrl          String?       @map("evidencia_url")
+  ocrRawText            String?       @map("ocr_raw_text") @db.Text
+  ocrStatus             String        @default("pending") @map("ocr_status")
+  status                RecordStatus  @default(COMPLETED)
+  smartConsultationId   String?       @map("smart_consultation_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
 
-  pet             Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet             Vet?          @relation(fields: [vetId], references: [id], onDelete: SetNull)
-  consentRecord   ConsentRecord?
+  pet                   Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                   Vet?          @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  smartConsultation     SmartConsultation? @relation(fields: [smartConsultationId], references: [id], onDelete: SetNull)
+  consentRecord         ConsentRecord?
 
   @@map("vaccines")
 }
 
 model Procedure {
-  id              String    @id @default(uuid())
-  petId           String    @map("pet_id")
-  vetId           String?   @map("vet_id")
-  tipo            String
-  descripcion     String    @db.Text
-  fecha           DateTime  @default(now())
-  evidenciaUrl    String?   @map("evidencia_url")
-  createdAt       DateTime  @default(now()) @map("created_at")
+  id                    String        @id @default(uuid())
+  petId                 String        @map("pet_id")
+  vetId                 String?       @map("vet_id")
+  tipo                  String
+  descripcion           String        @db.Text
+  fecha                 DateTime      @default(now())
+  evidenciaUrl          String?       @map("evidencia_url")
+  status                RecordStatus  @default(COMPLETED)
+  smartConsultationId   String?       @map("smart_consultation_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
 
-  pet             Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet             Vet?           @relation(fields: [vetId], references: [id], onDelete: SetNull)
-  medicalData     MedicalData?
-  consentRecord   ConsentRecord?
+  pet                   Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                   Vet?           @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  smartConsultation     SmartConsultation? @relation(fields: [smartConsultationId], references: [id], onDelete: SetNull)
+  medicalData           MedicalData?
+  consentRecord         ConsentRecord?
 
   @@map("procedures")
 }
@@ -246,6 +257,8 @@ model SmartConsultation {
 
   pet               Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
   vet               Vet      @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  suggestedVaccines Vaccine[]
+  suggestedProcedures Procedure[]
 
   @@map("smart_consultations")
 }
