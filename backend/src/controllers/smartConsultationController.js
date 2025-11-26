@@ -1,5 +1,5 @@
 const prisma = require('../utils/prisma');
-const { uploadPrivateFile } = require('../services/s3Service');
+const { uploadPrivateFile, deletePrivateImage } = require('../services/s3Service');
 const { processVeterinaryAudio } = require('../services/openaiService');
 const fs = require('fs');
 const path = require('path');
@@ -321,11 +321,24 @@ const deleteSmartConsultation = async (req, res) => {
       return res.status(403).json({ error: 'Only the creator vet can delete this consultation' });
     }
 
+    // Eliminar el audio de S3 antes de eliminar de la base de datos
+    if (consultation.audioUrl) {
+      console.log('🗑️ [SMART CONSULTATION] Deleting audio from S3:', consultation.audioUrl);
+      try {
+        await deletePrivateImage(consultation.audioUrl);
+        console.log('✅ [SMART CONSULTATION] Audio deleted from S3');
+      } catch (s3Error) {
+        console.error('⚠️ [SMART CONSULTATION] Failed to delete audio from S3:', s3Error);
+        // Continuar con la eliminación de la base de datos aunque falle S3
+      }
+    }
+
+    // Eliminar de la base de datos (esto también elimina tags y highlights por cascade)
     await prisma.smartConsultation.delete({
       where: { id }
     });
 
-    console.log('✅ [SMART CONSULTATION] Deleted successfully');
+    console.log('✅ [SMART CONSULTATION] Deleted successfully (including tags)');
 
     res.json({ message: 'Consultation deleted successfully' });
   } catch (error) {

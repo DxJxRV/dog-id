@@ -10,6 +10,7 @@ import {
   Modal,
   ScrollView,
   Animated,
+  Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
@@ -40,6 +41,8 @@ const ConsultationsListScreen = ({ route, navigation }) => {
   const [previousCount, setPreviousCount] = useState(0); // Para detectar nueva consulta
   const [showTooltip, setShowTooltip] = useState(null); // ID de consulta con tooltip
   const checkTimeout = useRef(null);
+  const [deletingId, setDeletingId] = useState(null); // ID de consulta que se está eliminando
+  const [menuVisible, setMenuVisible] = useState(null); // ID de consulta con menú visible
 
   // Animación shimmer
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -355,6 +358,81 @@ const ConsultationsListScreen = ({ route, navigation }) => {
     }
   };
 
+  const handleDeleteConsultation = (consultation) => {
+    Alert.alert(
+      'Eliminar consulta',
+      `¿Estás seguro de que deseas eliminar la consulta del ${new Date(consultation.createdAt).toLocaleDateString('es-MX')}?\n\nSe eliminarán todos los datos, incluido el audio.`,
+      [
+        {
+          text: 'Cancelar',
+          style: 'cancel',
+        },
+        {
+          text: 'Eliminar',
+          style: 'destructive',
+          onPress: () => deleteConsultation(consultation.id),
+        },
+      ]
+    );
+  };
+
+  const deleteConsultation = async (consultationId) => {
+    try {
+      setDeletingId(consultationId);
+      console.log('🗑️ Deleting consultation:', consultationId);
+
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+      await axios.delete(
+        `${API_URL}/smart-consultations/${consultationId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      // Actualizar estado local
+      const updatedAll = allConsultations.filter((c) => c.id !== consultationId);
+      const updatedFiltered = consultations.filter((c) => c.id !== consultationId);
+
+      setAllConsultations(updatedAll);
+      setConsultations(updatedFiltered);
+      setPreviousCount(updatedAll.length);
+
+      // Recalcular tags
+      const tagsMap = new Map();
+      updatedAll.forEach((consultation) => {
+        if (consultation.medicalHighlights && Array.isArray(consultation.medicalHighlights)) {
+          consultation.medicalHighlights.forEach((highlight) => {
+            if (highlight.tag && !tagsMap.has(highlight.tag)) {
+              tagsMap.set(highlight.tag, {
+                tag: highlight.tag,
+                category: highlight.category,
+              });
+            }
+          });
+        }
+      });
+      setAllTags(Array.from(tagsMap.values()));
+
+      // Si el tag seleccionado ya no existe, limpiar filtro
+      if (selectedTag) {
+        const tagStillExists = Array.from(tagsMap.values()).some(
+          (t) => t.tag === selectedTag
+        );
+        if (!tagStillExists) {
+          setSelectedTag(null);
+        }
+      }
+
+      showToast.success('Consulta eliminada');
+      console.log('✅ Consultation deleted successfully');
+    } catch (error) {
+      console.error('❌ Error deleting consultation:', error);
+      showToast.error('Error al eliminar la consulta');
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const getSeverityColor = (severity) => {
     const colors = {
       HIGH: '#DC2626',      // Rojo
@@ -397,9 +475,19 @@ const ConsultationsListScreen = ({ route, navigation }) => {
 
   const renderConsultation = ({ item, index }) => {
     const hasTooltip = showTooltip === item.id;
+    const isMenuOpen = menuVisible === item.id;
 
     return (
       <View style={styles.cardWrapper}>
+        {/* Overlay local para este menú */}
+        {isMenuOpen && (
+          <TouchableOpacity
+            style={styles.menuOverlayLocal}
+            onPress={() => setMenuVisible(null)}
+            activeOpacity={1}
+          />
+        )}
+
         <TouchableOpacity
           style={styles.consultationCard}
           onPress={() =>
@@ -433,12 +521,16 @@ const ConsultationsListScreen = ({ route, navigation }) => {
               </Text>
               <Text style={styles.cardVet}>Dr. {item.vet.nombre}</Text>
             </View>
-            <View style={styles.durationBadge}>
-              <Ionicons name="time-outline" size={14} color="#8E8E93" />
-              <Text style={styles.durationText}>
-                {formatDuration(item.duration)}
-              </Text>
-            </View>
+            <TouchableOpacity
+              style={styles.menuButton}
+              onPress={(e) => {
+                e.stopPropagation();
+                setMenuVisible(isMenuOpen ? null : item.id);
+              }}
+              activeOpacity={0.6}
+            >
+              <Ionicons name="ellipsis-vertical" size={20} color="#8E8E93" />
+            </TouchableOpacity>
           </View>
 
           {/* Medical Highlights */}
@@ -475,7 +567,48 @@ const ConsultationsListScreen = ({ route, navigation }) => {
               )}
             </View>
           )}
+
+          {/* Footer con duración y ver más */}
+          <View style={styles.cardFooter}>
+            <View style={styles.footerLeft}>
+              <Ionicons name="time-outline" size={14} color="#8E8E93" />
+              <Text style={styles.footerDurationText}>
+                {formatDuration(item.duration)}
+              </Text>
+            </View>
+            <View style={styles.footerRight}>
+              <Text style={styles.footerViewMoreText}>Ver más</Text>
+              <Ionicons name="chevron-forward" size={14} color="#007AFF" />
+            </View>
+          </View>
         </TouchableOpacity>
+
+        {/* Menú contextual */}
+        {isMenuOpen && (
+          <View style={styles.contextMenu}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                // Cerrar menú primero
+                setMenuVisible(null);
+                // Esperar un momento antes de mostrar el Alert
+                setTimeout(() => {
+                  handleDeleteConsultation(item);
+                }, 100);
+              }}
+              activeOpacity={0.7}
+            >
+              {deletingId === item.id ? (
+                <ActivityIndicator size="small" color="#FF3B30" />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color="#FF3B30" />
+                  <Text style={styles.menuItemTextDanger}>Eliminar</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
       </View>
     );
   };
@@ -654,6 +787,10 @@ const ConsultationsListScreen = ({ route, navigation }) => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        onScroll={() => {
+          if (menuVisible) setMenuVisible(null);
+        }}
+        scrollEventThrottle={16}
         ListHeaderComponent={uploadStatus ? renderUploadCard() : null}
         ListEmptyComponent={
           !uploadStatus && (
@@ -912,19 +1049,76 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
   },
-  durationBadge: {
+  menuButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  menuOverlayLocal: {
+    position: 'absolute',
+    top: 0,
+    left: -20,
+    right: -20,
+    bottom: 0,
+    zIndex: 99,
+  },
+  contextMenu: {
+    position: 'absolute',
+    top: 52,
+    right: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    minWidth: 140,
+    zIndex: 100,
+  },
+  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F2F2F7',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  menuItemTextDanger: {
+    fontSize: 15,
+    color: '#FF3B30',
+    fontWeight: '500',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F2F2F7',
+  },
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
   },
-  durationText: {
-    fontSize: 12,
+  footerDurationText: {
+    fontSize: 13,
     color: '#8E8E93',
     fontVariant: ['tabular-nums'],
+  },
+  footerViewMoreText: {
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
   },
   highlightsContainer: {
     flexDirection: 'row',
