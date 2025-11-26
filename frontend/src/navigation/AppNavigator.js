@@ -246,17 +246,17 @@ const PetsStack = () => (
     <Stack.Screen
       name="RecordConsultation"
       component={RecordConsultationScreen}
-      options={{ title: 'Grabar Consulta' }}
+      options={{ title: 'Grabar Bitácora' }}
     />
     <Stack.Screen
       name="ConsultationsList"
       component={ConsultationsListScreen}
-      options={{ title: 'Consultas Inteligentes' }}
+      options={{ title: 'Bitácora Inteligente' }}
     />
     <Stack.Screen
       name="ConsultationDetail"
       component={ConsultationDetailScreen}
-      options={{ title: 'Detalle de Consulta' }}
+      options={{ title: 'Detalle de Bitácora' }}
     />
   </Stack.Navigator>
 );

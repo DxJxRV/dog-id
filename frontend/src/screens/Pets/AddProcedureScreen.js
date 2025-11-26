@@ -31,13 +31,15 @@ const PROCEDURE_TYPES = [
 ];
 
 const AddProcedureScreen = ({ route, navigation }) => {
-  const { petId, petName, petStatus } = route.params;
+  const { petId, petName, petStatus, draftData } = route.params;
   const { userType } = useAuth();
   const [loading, setLoading] = useState(false);
 
-  const [tipo, setTipo] = useState('');
-  const [descripcion, setDescripcion] = useState('');
-  const [fecha, setFecha] = useState(new Date());
+  const isDraftMode = !!draftData;
+
+  const [tipo, setTipo] = useState(draftData?.tipo || '');
+  const [descripcion, setDescripcion] = useState(draftData?.descripcion || '');
+  const [fecha, setFecha] = useState(draftData?.fecha ? new Date(draftData.fecha) : new Date());
   const [evidencia, setEvidencia] = useState(null);
 
   // ECE: Datos médicos (solo para veterinarios)
@@ -147,6 +149,12 @@ const AddProcedureScreen = ({ route, navigation }) => {
       return;
     }
 
+    if (isDraftMode) {
+      // Modo borrador: completar directamente sin consentimiento
+      await completeDraft();
+      return;
+    }
+
     // Si requiere consentimiento y es cirugía/anestesia, avisar al usuario
     if (requiresConsent()) {
       Alert.alert(
@@ -165,6 +173,47 @@ const AddProcedureScreen = ({ route, navigation }) => {
 
     // Si no requiere consentimiento, guardar directamente
     await saveProcedure(false);
+  };
+
+  const completeDraft = async () => {
+    try {
+      setLoading(true);
+
+      const formData = new FormData();
+      formData.append('descripcion', descripcion.trim());
+
+      if (fecha) {
+        formData.append('fecha', fecha.toISOString().split('T')[0]);
+      }
+
+      if (evidencia) {
+        const filename = evidencia.uri.split('/').pop();
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+
+        formData.append('evidencia', {
+          uri: evidencia.uri,
+          name: filename,
+          type,
+        });
+      }
+
+      await proceduresAPI.completeDraft(draftData.id, formData);
+
+      showToast.success('Procedimiento completado exitosamente');
+
+      // Notificar al PetDetailScreen que debe refrescar
+      if (route.params?.onRefresh) {
+        route.params.onRefresh();
+      }
+
+      navigation.goBack();
+    } catch (error) {
+      console.error('Error completing draft procedure:', error);
+      showToast.error(error.response?.data?.error || 'Error al completar el procedimiento');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveProcedure = async (needsConsent) => {
@@ -357,7 +406,7 @@ const AddProcedureScreen = ({ route, navigation }) => {
           </>
         )}
 
-        {requiresConsent() && (
+        {requiresConsent() && !isDraftMode && (
           <View style={styles.consentWarning}>
             <Ionicons name="warning-outline" size={20} color="#FF9500" />
             <Text style={styles.consentWarningText}>
@@ -366,8 +415,24 @@ const AddProcedureScreen = ({ route, navigation }) => {
           </View>
         )}
 
+        {/* Info de draft mode */}
+        {isDraftMode && (
+          <View style={styles.draftInfo}>
+            <Ionicons name="sparkles" size={20} color="#FF9500" />
+            <Text style={styles.draftInfoText}>
+              Completando registro detectado por IA
+            </Text>
+          </View>
+        )}
+
         <Button
-          title={loading ? 'Guardando...' : 'Guardar Procedimiento'}
+          title={
+            loading
+              ? 'Guardando...'
+              : isDraftMode
+              ? 'Completar Registro'
+              : 'Guardar Procedimiento'
+          }
           onPress={handleSubmit}
           disabled={loading}
         />
@@ -514,6 +579,24 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     color: '#E65100',
+    fontWeight: '600',
+    lineHeight: 20,
+  },
+  draftInfo: {
+    flexDirection: 'row',
+    backgroundColor: '#FFF9E6',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 24,
+    gap: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#FFD966',
+  },
+  draftInfoText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#FF9500',
     fontWeight: '600',
     lineHeight: 20,
   },

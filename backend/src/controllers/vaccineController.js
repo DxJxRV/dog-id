@@ -157,7 +157,10 @@ const getPetVaccines = async (req, res) => {
     }
 
     const vaccines = await prisma.vaccine.findMany({
-      where: { petId },
+      where: {
+        petId,
+        status: 'COMPLETED' // Filtrar solo completados, excluir drafts
+      },
       include: {
         vet: {
           select: {

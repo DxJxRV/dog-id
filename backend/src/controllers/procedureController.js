@@ -122,7 +122,10 @@ const getPetProcedures = async (req, res) => {
     }
 
     const procedures = await prisma.procedure.findMany({
-      where: { petId },
+      where: {
+        petId,
+        status: 'COMPLETED' // Filtrar solo completados, excluir drafts
+      },
       include: {
         vet: {
           select: {

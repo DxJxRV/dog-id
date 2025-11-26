@@ -160,7 +160,7 @@ const RecordConsultationScreen = ({ route, navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Ionicons name="mic-outline" size={80} color="#007AFF" />
-        <Text style={styles.title}>Consulta Inteligente</Text>
+        <Text style={styles.title}>Bitácora Inteligente</Text>
         <Text style={styles.subtitle}>Graba la consulta para análisis con IA</Text>
         <Text style={styles.petName}>{petName}</Text>
       </View>

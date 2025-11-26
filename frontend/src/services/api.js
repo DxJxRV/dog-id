@@ -100,6 +100,12 @@ export const vaccinesAPI = {
     });
   },
   update: (id, data) => api.put(`/pets/vaccines/${id}`, data),
+  completeDraft: (id, formData) => {
+    return api.put(`/pets/vaccines/${id}/complete`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteDraft: (id) => api.delete(`/pets/vaccines/${id}/draft`),
 };
 
 // Procedures API
@@ -112,6 +118,17 @@ export const proceduresAPI = {
   },
   update: (id, data) => api.put(`/pets/procedures/${id}`, data),
   delete: (id) => api.delete(`/pets/procedures/${id}`),
+  completeDraft: (id, formData) => {
+    return api.put(`/pets/procedures/${id}/complete`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  deleteDraft: (id) => api.delete(`/pets/procedures/${id}/draft`),
+};
+
+// Drafts API (Bitácora Inteligente)
+export const draftsAPI = {
+  getDrafts: (petId) => api.get(`/pets/${petId}/drafts`),
 };
 
 // Friendships API

@@ -94,6 +94,7 @@ const createSmartConsultation = async (req, res) => {
 
     // Paso 4: Crear registros borrador (DRAFT) a partir de las acciones sugeridas
     console.log('📝 [SMART CONSULTATION] Creating draft records from suggested actions...');
+    let draftsCreated = 0;
     if (aiResult.suggestedActions && aiResult.suggestedActions.length > 0) {
       console.log('   📋 Found', aiResult.suggestedActions.length, 'suggested actions');
 
@@ -111,6 +112,7 @@ const createSmartConsultation = async (req, res) => {
                 ocrStatus: 'pending'
               }
             });
+            draftsCreated++;
           } else if (action.type === 'PROCEDURE') {
             console.log('   🏥 Creating draft procedure:', action.name);
             await prisma.procedure.create({
@@ -124,13 +126,14 @@ const createSmartConsultation = async (req, res) => {
                 fecha: new Date()
               }
             });
+            draftsCreated++;
           }
         } catch (draftError) {
           console.error('   ⚠️ Failed to create draft record:', draftError);
           // No bloquear la respuesta si falla la creación de un borrador
         }
       }
-      console.log('   ✅ Draft records created');
+      console.log('   ✅ Draft records created:', draftsCreated);
     }
 
     // Paso 5: Indexar en Pinecone para búsqueda semántica
@@ -162,7 +165,8 @@ const createSmartConsultation = async (req, res) => {
 
     res.status(201).json({
       message: 'Smart consultation created successfully',
-      consultation: smartConsultation
+      consultation: smartConsultation,
+      draftsCreated // Cantidad de borradores creados
     });
   } catch (error) {
     console.error('❌ [SMART CONSULTATION] Creation error:', error);

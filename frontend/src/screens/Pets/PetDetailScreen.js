@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI, medicalDataAPI, deathCertificateAPI } from '../../services/api';
 import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline, PetStatusBadge, WeightChart } from '../../components';
+import PendingDraftsList from '../../components/PendingDraftsList';
 import { getImageUrl } from '../../utils/imageHelper';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -273,7 +274,11 @@ const PetDetailScreen = ({ route, navigation }) => {
   const isArchived = pet?.isArchived || pet?.archived;
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.wrapper}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.scrollContent}
+      >
       {/* Header con Cover Photo como fondo */}
       {pet.coverPhotoUrl ? (
         <ImageBackground
@@ -311,9 +316,9 @@ const PetDetailScreen = ({ route, navigation }) => {
               </Text>
             )}
 
-            {/* Botones horizontales */}
-            <View style={styles.actionsRow}>
-              {isOwner && (
+            {/* Botón compartir */}
+            {isOwner && (
+              <View style={styles.actionsRow}>
                 <TouchableOpacity
                   style={styles.qrButton}
                   onPress={handleShowLinkCode}
@@ -321,16 +326,8 @@ const PetDetailScreen = ({ route, navigation }) => {
                   <Ionicons name="share-social-outline" size={32} color="#007AFF" />
                   <Text style={styles.qrButtonText}>Compartir</Text>
                 </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => setShowProcedureMenu(true)}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-                <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            )}
           </LinearGradient>
         </ImageBackground>
       ) : (
@@ -364,9 +361,9 @@ const PetDetailScreen = ({ route, navigation }) => {
               </Text>
             )}
 
-            {/* Botones horizontales */}
-            <View style={styles.actionsRow}>
-              {isOwner && (
+            {/* Botón compartir */}
+            {isOwner && (
+              <View style={styles.actionsRow}>
                 <TouchableOpacity
                   style={styles.qrButton}
                   onPress={handleShowLinkCode}
@@ -374,16 +371,8 @@ const PetDetailScreen = ({ route, navigation }) => {
                   <Ionicons name="share-social-outline" size={32} color="#007AFF" />
                   <Text style={styles.qrButtonText}>Compartir</Text>
                 </TouchableOpacity>
-              )}
-
-              <TouchableOpacity
-                style={styles.actionButton}
-                onPress={() => setShowProcedureMenu(true)}
-              >
-                <Ionicons name="add-circle-outline" size={20} color="#007AFF" />
-                <Text style={styles.actionButtonText}>Agregar{'\n'}Procedimiento</Text>
-              </TouchableOpacity>
-            </View>
+              </View>
+            )}
           </LinearGradient>
         </View>
       )}
@@ -409,33 +398,40 @@ const PetDetailScreen = ({ route, navigation }) => {
         </View>
       )}
 
-      {/* Asistente Veterinario por Voz - Solo para veterinarios */}
+      {/* Banner de Bitácora Inteligente */}
       {isVet && pet.status !== 'DECEASED' && (
         <TouchableOpacity
-          style={styles.aiAssistantCard}
+          style={styles.aiBanner}
           onPress={() => navigation.navigate('ConsultationsList', { petId, petName: pet.nombre })}
           activeOpacity={0.8}
         >
           <LinearGradient
             colors={['#6366F1', '#8B5CF6']}
-            style={styles.aiAssistantGradient}
+            style={styles.aiBannerGradient}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
           >
-            <View style={styles.aiAssistantContent}>
-              <View style={styles.aiAssistantIconContainer}>
-                <Ionicons name="mic" size={32} color="#FFFFFF" />
+            <View style={styles.aiBannerContent}>
+              <View style={styles.aiBannerIcon}>
+                <Ionicons name="mic" size={20} color="#FFFFFF" />
               </View>
-              <View style={styles.aiAssistantTextContainer}>
-                <Text style={styles.aiAssistantTitle}>Nueva Consulta con IA</Text>
-                <Text style={styles.aiAssistantSubtitle}>
-                  Graba y analiza consultas con inteligencia artificial
-                </Text>
+              <View style={styles.aiBannerTextContainer}>
+                <Text style={styles.aiBannerTitle}>Bitácora Inteligente</Text>
+                <Text style={styles.aiBannerSubtitle}>Graba consultas y obtén análisis con IA</Text>
               </View>
-              <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.8)" />
+              <Ionicons name="chevron-forward" size={20} color="rgba(255,255,255,0.8)" />
             </View>
           </LinearGradient>
         </TouchableOpacity>
+      )}
+
+      {/* Registros Pendientes de Completar (Drafts de IA) */}
+      {userType === 'vet' && pet.status !== 'DECEASED' && (
+        <PendingDraftsList
+          petId={petId}
+          navigation={navigation}
+          onRefresh={fetchPetDetail}
+        />
       )}
 
       {/* Sección de Certificado de Defunción */}
@@ -755,6 +751,8 @@ const PetDetailScreen = ({ route, navigation }) => {
         >
           <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
             <View style={styles.optionsMenu}>
+              <Text style={styles.menuTitle}>Agregar Registro</Text>
+
               <TouchableOpacity
                 style={styles.optionItem}
                 onPress={() => {
@@ -762,7 +760,7 @@ const PetDetailScreen = ({ route, navigation }) => {
                   navigation.navigate('AddVaccine', { petId });
                 }}
               >
-                <Ionicons name="heart" size={22} color="#8E8E93" />
+                <Ionicons name="medical" size={22} color="#9B59B6" />
                 <Text style={styles.optionText}>Agregar Vacuna</Text>
               </TouchableOpacity>
 
@@ -777,9 +775,32 @@ const PetDetailScreen = ({ route, navigation }) => {
                   });
                 }}
               >
-                <Ionicons name="document-text-outline" size={22} color="#8E8E93" />
+                <Ionicons name="fitness" size={22} color="#FF9500" />
                 <Text style={styles.optionText}>Agregar Procedimiento</Text>
               </TouchableOpacity>
+
+              {isVet && pet.status !== 'DECEASED' && (
+                <>
+                  <View style={styles.optionSeparator} />
+
+                  <TouchableOpacity
+                    style={[styles.optionItem, styles.optionItemHighlight]}
+                    onPress={() => {
+                      setShowProcedureMenu(false);
+                      navigation.navigate('ConsultationsList', { petId, petName: pet.nombre });
+                    }}
+                  >
+                    <View style={styles.aiIconContainer}>
+                      <Ionicons name="mic" size={20} color="#FFFFFF" />
+                    </View>
+                    <View style={styles.aiOptionTextContainer}>
+                      <Text style={styles.optionText}>Bitácora Inteligente</Text>
+                      <Text style={styles.aiOptionSubtext}>Graba y analiza con IA</Text>
+                    </View>
+                    <Ionicons name="sparkles" size={18} color="#8B5CF6" />
+                  </TouchableOpacity>
+                </>
+              )}
 
               <View style={styles.optionSeparator} />
 
@@ -794,14 +815,51 @@ const PetDetailScreen = ({ route, navigation }) => {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
-    </ScrollView>
+      </ScrollView>
+
+      {/* Botones Flotantes */}
+      {pet.status !== 'DECEASED' && (
+        <View style={styles.floatingButtonsContainer}>
+          <TouchableOpacity
+            style={styles.floatingButtonSecondary}
+            onPress={() => setShowProcedureMenu(true)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add" size={28} color="#FFFFFF" />
+          </TouchableOpacity>
+
+          {isVet && (
+            <TouchableOpacity
+              style={styles.floatingButtonPrimary}
+              onPress={() => navigation.navigate('ConsultationsList', { petId, petName: pet.nombre })}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={['#6366F1', '#8B5CF6']}
+                style={styles.floatingButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+              >
+                <Ionicons name="mic" size={32} color="#FFFFFF" />
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  wrapper: {
+    flex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
+  },
+  scrollContent: {
+    paddingBottom: 100,
   },
   header: {
     width: '100%',
@@ -884,9 +942,10 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     paddingHorizontal: 8,
+    justifyContent: 'center',
   },
   qrButton: {
-    width: 88,
+    width: 100,
     height: 88,
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 12,
@@ -900,25 +959,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '500',
     marginTop: 4,
-  },
-  actionButton: {
-    flex: 1,
-    height: 88,
-    backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E5EA',
-    paddingHorizontal: 8,
-  },
-  actionButtonText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: '#000',
-    textAlign: 'center',
-    marginTop: 4,
-    lineHeight: 14,
   },
   archivedBanner: {
     backgroundColor: '#FFF3E0',
@@ -943,6 +983,49 @@ const styles = StyleSheet.create({
   },
   unarchiveButton: {
     padding: 8,
+  },
+  // Banner de Bitácora Inteligente
+  aiBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  aiBannerGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  aiBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  aiBannerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiBannerTextContainer: {
+    flex: 1,
+  },
+  aiBannerTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  aiBannerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
   section: {
     padding: 16,
@@ -1177,47 +1260,73 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FF3B30',
   },
-  // Asistente de IA
-  aiAssistantCard: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 16,
+  // Botones Flotantes
+  floatingButtonsContainer: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20,
+    alignItems: 'flex-end',
+    gap: 12,
+  },
+  floatingButtonPrimary: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     overflow: 'hidden',
     shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 10,
   },
-  aiAssistantGradient: {
-    padding: 20,
-  },
-  aiAssistantContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  aiAssistantIconContainer: {
+  floatingButtonSecondary: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 6,
+  },
+  floatingButtonGradient: {
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  aiAssistantTextContainer: {
+  // Estilos para el modal mejorado
+  menuTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  optionItemHighlight: {
+    backgroundColor: '#F3F0FF',
+    borderRadius: 12,
+    marginHorizontal: -8,
+    paddingHorizontal: 16,
+  },
+  aiIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#8B5CF6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiOptionTextContainer: {
     flex: 1,
   },
-  aiAssistantTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#FFFFFF',
-    marginBottom: 4,
-  },
-  aiAssistantSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
+  aiOptionSubtext: {
+    fontSize: 13,
+    color: '#666',
+    marginTop: 2,
   },
 });
 

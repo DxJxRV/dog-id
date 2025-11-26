@@ -236,6 +236,9 @@ const getPetById = async (req, res) => {
         }
       },
       vaccines: {
+        where: {
+          status: 'COMPLETED' // Filtrar solo vacunas completadas, excluir drafts
+        },
         include: {
           vet: {
             select: {
@@ -257,6 +260,9 @@ const getPetById = async (req, res) => {
         orderBy: { createdAt: 'desc' }
       },
       procedures: {
+        where: {
+          status: 'COMPLETED' // Filtrar solo procedimientos completados, excluir drafts
+        },
         include: {
           vet: {
             select: {

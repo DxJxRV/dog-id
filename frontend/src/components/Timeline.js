@@ -146,7 +146,10 @@ const Timeline = ({ vaccines = [], procedures = [], filters = {}, onItemPress })
       year,
       dates: Object.entries(groupedEvents[year])
         .sort(([a], [b]) => new Date(b) - new Date(a))
-        .map(([date, items]) => ({ date, items }))
+        .map(([date, items]) => ({
+          date,
+          items: items.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+        }))
     }));
 
   if (events.length === 0) {

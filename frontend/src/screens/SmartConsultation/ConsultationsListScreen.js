@@ -45,6 +45,7 @@ const ConsultationsListScreen = ({ route, navigation }) => {
   const checkTimeout = useRef(null);
   const [deletingId, setDeletingId] = useState(null); // ID de consulta que se está eliminando
   const [menuVisible, setMenuVisible] = useState(null); // ID de consulta con menú visible
+  const [draftsCreated, setDraftsCreated] = useState(0); // Cantidad de drafts creados
 
   // Estados para búsqueda semántica
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,6 +157,11 @@ const ConsultationsListScreen = ({ route, navigation }) => {
 
       console.log('✅ Upload success:', response.data);
 
+      // Guardar cantidad de drafts creados
+      if (response.data.draftsCreated) {
+        setDraftsCreated(response.data.draftsCreated);
+      }
+
       // Cambiar a estado de análisis y hacer UNA consulta para verificar
       setUploadStatus('analyzing');
       checkForNewConsultation();
@@ -224,6 +230,31 @@ const ConsultationsListScreen = ({ route, navigation }) => {
         // Mostrar tooltip en la nueva consulta
         setShowTooltip(newConsultation.id);
         showToast.success('¡Análisis completado!');
+
+        // Si se crearon drafts, mostrar alerta con opción de ir a completarlos
+        if (draftsCreated > 0) {
+          setTimeout(() => {
+            Alert.alert(
+              'Registros Pendientes',
+              `La IA detectó ${draftsCreated} ${draftsCreated === 1 ? 'registro' : 'registros'} que ${draftsCreated === 1 ? 'requiere' : 'requieren'} completar. ¿Deseas ir a completarlos ahora?`,
+              [
+                {
+                  text: 'Más tarde',
+                  style: 'cancel',
+                },
+                {
+                  text: 'Ir a completar',
+                  onPress: () => {
+                    navigation.navigate('PetDetail', {
+                      petId: petId,
+                    });
+                  },
+                },
+              ]
+            );
+            setDraftsCreated(0); // Reset
+          }, 1000);
+        }
 
         // Ocultar tooltip después de 5 segundos
         setTimeout(() => {
