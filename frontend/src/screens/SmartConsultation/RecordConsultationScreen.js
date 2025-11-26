@@ -4,17 +4,13 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
-  ActivityIndicator,
   Alert,
   Animated,
 } from 'react-native';
 // CAMBIO 1: Usamos la librería estable expo-av
-import { Audio } from 'expo-av'; 
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
-import axios from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import { API_URL, STORAGE_KEYS } from '../../utils/config';
 
 const RecordConsultationScreen = ({ route, navigation }) => {
   const { petId, petName } = route.params;
@@ -22,7 +18,6 @@ const RecordConsultationScreen = ({ route, navigation }) => {
   // Estado local para UI
   const [isRecording, setIsRecording] = useState(false);
   const [recordingDuration, setRecordingDuration] = useState(0);
-  const [isUploading, setIsUploading] = useState(false);
   
   // Referencia para mantener el objeto de grabación sin re-renderizar
   const recordingRef = useRef(null);
@@ -144,52 +139,15 @@ const RecordConsultationScreen = ({ route, navigation }) => {
     }
   };
 
-  const uploadRecording = async (uri) => {
+  const uploadRecording = (uri) => {
     if (!uri) return;
-    setIsUploading(true);
 
-    try {
-      console.log('☁️ Uploading...', uri);
-      
-      const formData = new FormData();
-      // Asegúrate de que el nombre tenga extensión .m4a
-      formData.append('audio', {
-        uri: uri,
-        type: 'audio/m4a',
-        name: `consultation-${Date.now()}.m4a`,
-      });
-
-      const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
-
-      const response = await axios.post(
-        `${API_URL}/pets/${petId}/smart-consultations`,
-        formData,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            'Content-Type': 'multipart/form-data',
-          },
-          timeout: 120000, // Esperar hasta 2 mins
-        }
-      );
-
-      console.log('✅ Success:', response.data);
-      showToast.success('Análisis completado');
-
-      navigation.replace('ConsultationDetail', {
-        consultationId: response.data.consultation.id,
-        petId,
-        petName,
-      });
-
-    } catch (error) {
-      console.error('Upload error:', error);
-      const msg = error.response?.data?.error || 'Error al subir el audio';
-      showToast.error(msg);
-    } finally {
-      setIsUploading(false);
-      setRecordingDuration(0);
-    }
+    // Navegar INMEDIATAMENTE con el URI del audio
+    navigation.navigate('ConsultationsList', {
+      petId,
+      petName,
+      pendingAudioUri: uri, // Pasar el URI para que la lista haga el upload
+    });
   };
 
   const formatDuration = (seconds) => {
@@ -198,7 +156,6 @@ const RecordConsultationScreen = ({ route, navigation }) => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // ... (El resto del renderizado UI se mantiene idéntico)
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -208,56 +165,43 @@ const RecordConsultationScreen = ({ route, navigation }) => {
         <Text style={styles.petName}>{petName}</Text>
       </View>
 
-      {isUploading ? (
-        <View style={styles.uploadingContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.uploadingText}>Procesando con IA...</Text>
-          <Text style={styles.uploadingSubtext}>
-            Esto puede tardar unos segundos...
-          </Text>
-        </View>
-      ) : (
-        <>
-          <View style={styles.recordingContainer}>
-            {isRecording && (
-              <View style={styles.durationContainer}>
-                <View style={styles.recordingDot} />
-                <Text style={styles.durationText}>{formatDuration(recordingDuration)}</Text>
-              </View>
-            )}
-
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-              <TouchableOpacity
-                style={[
-                  styles.recordButton,
-                  isRecording && styles.recordButtonActive,
-                ]}
-                onPress={isRecording ? stopRecording : startRecording}
-                activeOpacity={0.8}
-              >
-                <Ionicons
-                  name={isRecording ? 'stop' : 'mic'}
-                  size={60}
-                  color="#FFFFFF"
-                />
-              </TouchableOpacity>
-            </Animated.View>
-
-            <Text style={styles.recordButtonLabel}>
-              {isRecording ? 'Detener grabación' : 'Iniciar grabación'}
-            </Text>
+      <View style={styles.recordingContainer}>
+        {isRecording && (
+          <View style={styles.durationContainer}>
+            <View style={styles.recordingDot} />
+            <Text style={styles.durationText}>{formatDuration(recordingDuration)}</Text>
           </View>
+        )}
 
-          {!isRecording && (
-            <View style={styles.instructions}>
-              <View style={styles.instructionRow}>
-                <Ionicons name="checkmark-circle" size={24} color="#34C759" />
-                <Text style={styles.instructionText}>Graba toda la consulta</Text>
-              </View>
-              {/* Resto de instrucciones */}
-            </View>
-          )}
-        </>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          <TouchableOpacity
+            style={[
+              styles.recordButton,
+              isRecording && styles.recordButtonActive,
+            ]}
+            onPress={isRecording ? stopRecording : startRecording}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={isRecording ? 'stop' : 'mic'}
+              size={60}
+              color="#FFFFFF"
+            />
+          </TouchableOpacity>
+        </Animated.View>
+
+        <Text style={styles.recordButtonLabel}>
+          {isRecording ? 'Detener grabación' : 'Iniciar grabación'}
+        </Text>
+      </View>
+
+      {!isRecording && (
+        <View style={styles.instructions}>
+          <View style={styles.instructionRow}>
+            <Ionicons name="checkmark-circle" size={24} color="#34C759" />
+            <Text style={styles.instructionText}>Graba toda la consulta</Text>
+          </View>
+        </View>
       )}
     </View>
   );

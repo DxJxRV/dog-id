@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,13 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { API_URL, STORAGE_KEYS } from '../../utils/config';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -31,14 +33,139 @@ const ConsultationsListScreen = ({ route, navigation }) => {
   const [allTags, setAllTags] = useState([]); // Todos los tags únicos
   const [isTagCloudExpanded, setIsTagCloudExpanded] = useState(false); // Modal fullscreen
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchConsultations();
-    }, [petId])
-  );
+  // Estados para upload
+  const [pendingAudioUri, setPendingAudioUri] = useState(null); // URI del audio a subir
+  const [uploadStatus, setUploadStatus] = useState(null); // 'uploading' | 'analyzing' | 'error' | null
+  const [uploadError, setUploadError] = useState(null); // Mensaje de error
+  const [previousCount, setPreviousCount] = useState(0); // Para detectar nueva consulta
+  const [showTooltip, setShowTooltip] = useState(null); // ID de consulta con tooltip
+  const checkTimeout = useRef(null);
 
-  const fetchConsultations = async () => {
+  // Animación shimmer
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+  // Constante para el storage key
+  const PENDING_ERRORS_KEY = `@smart_consultation_errors_${petId}`;
+
+  // Cargar errores pendientes desde AsyncStorage
+  useEffect(() => {
+    const loadPendingErrors = async () => {
+      try {
+        const savedError = await AsyncStorage.getItem(PENDING_ERRORS_KEY);
+        if (savedError) {
+          const errorData = JSON.parse(savedError);
+          setPendingAudioUri(errorData.audioUri);
+          setUploadError(errorData.errorMessage);
+          setUploadStatus('error');
+          console.log('📋 Loaded pending error from storage:', errorData);
+        }
+      } catch (error) {
+        console.error('Error loading pending errors:', error);
+      }
+    };
+
+    loadPendingErrors();
+  }, []);
+
+  // Guardar error en AsyncStorage
+  const saveErrorToStorage = async (audioUri, errorMessage) => {
     try {
+      await AsyncStorage.setItem(
+        PENDING_ERRORS_KEY,
+        JSON.stringify({
+          audioUri,
+          errorMessage,
+          timestamp: Date.now(),
+        })
+      );
+      console.log('💾 Saved error to storage');
+    } catch (error) {
+      console.error('Error saving to storage:', error);
+    }
+  };
+
+  // Limpiar error de AsyncStorage
+  const clearErrorFromStorage = async () => {
+    try {
+      await AsyncStorage.removeItem(PENDING_ERRORS_KEY);
+      console.log('🗑️ Cleared error from storage');
+    } catch (error) {
+      console.error('Error clearing storage:', error);
+    }
+  };
+
+  // Iniciar animación shimmer
+  useEffect(() => {
+    if (uploadStatus && uploadStatus !== 'error') {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(shimmerAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(shimmerAnim, {
+            toValue: 0,
+            duration: 1500,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
+    } else {
+      shimmerAnim.setValue(0);
+    }
+  }, [uploadStatus, shimmerAnim]);
+
+  // Función para subir audio
+  const uploadAudio = async (uri) => {
+    try {
+      console.log('☁️ Uploading audio...', uri);
+      setUploadStatus('uploading');
+      setUploadError(null);
+
+      const formData = new FormData();
+      formData.append('audio', {
+        uri: uri,
+        type: 'audio/m4a',
+        name: `consultation-${Date.now()}.m4a`,
+      });
+
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+
+      const response = await axios.post(
+        `${API_URL}/pets/${petId}/smart-consultations`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'multipart/form-data',
+          },
+          timeout: 120000,
+        }
+      );
+
+      console.log('✅ Upload success:', response.data);
+
+      // Cambiar a estado de análisis y hacer UNA consulta para verificar
+      setUploadStatus('analyzing');
+      checkForNewConsultation();
+
+    } catch (error) {
+      console.error('❌ Upload error:', error);
+      const msg = error.response?.data?.error || 'Error al subir el audio';
+      setUploadError(msg);
+      setUploadStatus('error');
+
+      // Guardar error en AsyncStorage
+      await saveErrorToStorage(uri, msg);
+    }
+  };
+
+  // Función para verificar si la consulta ya está lista (una sola vez con retry)
+  const checkForNewConsultation = async (attempt = 1, maxAttempts = 10) => {
+    try {
+      console.log(`🔍 Checking for new consultation (attempt ${attempt}/${maxAttempts})...`);
+
       const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
       const response = await axios.get(
         `${API_URL}/pets/${petId}/smart-consultations`,
@@ -48,6 +175,101 @@ const ConsultationsListScreen = ({ route, navigation }) => {
       );
 
       const fetchedConsultations = response.data.consultations;
+
+      // Verificar si apareció una nueva consulta
+      if (fetchedConsultations.length > previousCount) {
+        console.log('✅ Nueva consulta encontrada!');
+
+        // La nueva consulta es la primera (más reciente)
+        const newConsultation = fetchedConsultations[0];
+
+        // Actualizar lista
+        setAllConsultations(fetchedConsultations);
+        setConsultations(fetchedConsultations);
+        setPreviousCount(fetchedConsultations.length);
+
+        // Extraer tags actualizados
+        const tagsMap = new Map();
+        fetchedConsultations.forEach((consultation) => {
+          if (consultation.medicalHighlights && Array.isArray(consultation.medicalHighlights)) {
+            consultation.medicalHighlights.forEach((highlight) => {
+              if (highlight.tag && !tagsMap.has(highlight.tag)) {
+                tagsMap.set(highlight.tag, {
+                  tag: highlight.tag,
+                  category: highlight.category,
+                });
+              }
+            });
+          }
+        });
+        setAllTags(Array.from(tagsMap.values()));
+
+        // Limpiar estados de upload
+        setUploadStatus(null);
+        setPendingAudioUri(null);
+
+        // Limpiar error de AsyncStorage
+        await clearErrorFromStorage();
+
+        // Mostrar tooltip en la nueva consulta
+        setShowTooltip(newConsultation.id);
+        showToast.success('¡Análisis completado!');
+
+        // Ocultar tooltip después de 5 segundos
+        setTimeout(() => {
+          setShowTooltip(null);
+        }, 5000);
+
+        return;
+      }
+
+      // Si no encontramos la consulta y aún hay intentos, reintentar en 3 segundos
+      if (attempt < maxAttempts) {
+        checkTimeout.current = setTimeout(() => {
+          checkForNewConsultation(attempt + 1, maxAttempts);
+        }, 3000);
+      } else {
+        // Máximo de intentos alcanzado
+        console.log('⚠️ Max attempts reached, stopping check');
+        const errorMsg = 'El análisis está tardando más de lo esperado. Intenta refrescar.';
+        setUploadStatus('error');
+        setUploadError(errorMsg);
+        // Guardar error en storage
+        if (pendingAudioUri) {
+          await saveErrorToStorage(pendingAudioUri, errorMsg);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error checking consultation:', error);
+      const errorMsg = 'Error al verificar el estado del análisis';
+      setUploadStatus('error');
+      setUploadError(errorMsg);
+      // Guardar error en storage
+      if (pendingAudioUri) {
+        await saveErrorToStorage(pendingAudioUri, errorMsg);
+      }
+    }
+  };
+
+  const fetchConsultations = async (silentRefresh = false) => {
+    try {
+      if (!silentRefresh) {
+        setLoading(true);
+      }
+
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+      const response = await axios.get(
+        `${API_URL}/pets/${petId}/smart-consultations`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      const fetchedConsultations = response.data.consultations;
+
+      // Actualizar count para siguiente detección
+      setPreviousCount(fetchedConsultations.length);
+
       setAllConsultations(fetchedConsultations);
       setConsultations(fetchedConsultations);
 
@@ -69,12 +291,40 @@ const ConsultationsListScreen = ({ route, navigation }) => {
       setAllTags(Array.from(tagsMap.values()));
     } catch (error) {
       console.error('Error fetching consultations:', error);
-      showToast.error('Error al cargar las consultas');
+      if (!silentRefresh) {
+        showToast.error('Error al cargar las consultas');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   };
+
+
+  // useFocusEffect para cargar y manejar nueva consulta
+  useFocusEffect(
+    useCallback(() => {
+      // Si viene con URI de audio pendiente, iniciar upload
+      if (route.params?.pendingAudioUri) {
+        console.log('🎵 Audio pendiente detectado, iniciando upload...');
+        const uri = route.params.pendingAudioUri;
+        setPendingAudioUri(uri);
+        uploadAudio(uri);
+        // Limpiar el parámetro
+        navigation.setParams({ pendingAudioUri: undefined });
+      }
+
+      fetchConsultations();
+
+      return () => {
+        // Limpiar timeout si existe
+        if (checkTimeout.current) {
+          clearTimeout(checkTimeout.current);
+        }
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [petId, route.params?.pendingAudioUri])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -145,81 +395,197 @@ const ConsultationsListScreen = ({ route, navigation }) => {
     return backgrounds[category] || '#F2F2F7';
   };
 
-  const renderConsultation = ({ item }) => (
-    <TouchableOpacity
-      style={styles.consultationCard}
-      onPress={() =>
-        navigation.navigate('ConsultationDetail', {
-          consultationId: item.id,
-          petId,
-          petName,
-        })
-      }
-      activeOpacity={0.7}
-    >
-      <View style={styles.cardHeader}>
-        <View style={styles.iconContainer}>
-          <Ionicons name="sparkles" size={24} color="#007AFF" />
-        </View>
-        <View style={styles.cardHeaderText}>
-          <Text style={styles.cardDate}>
-            {new Date(item.createdAt).toLocaleDateString('es-MX', {
-              day: 'numeric',
-              month: 'long',
-              year: 'numeric',
-            })}
-          </Text>
-          <Text style={styles.cardVet}>Dr. {item.vet.nombre}</Text>
-        </View>
-        <View style={styles.durationBadge}>
-          <Ionicons name="time-outline" size={14} color="#8E8E93" />
-          <Text style={styles.durationText}>
-            {formatDuration(item.duration)}
-          </Text>
-        </View>
-      </View>
+  const renderConsultation = ({ item, index }) => {
+    const hasTooltip = showTooltip === item.id;
 
-      {/* Medical Highlights */}
-      {item.medicalHighlights && item.medicalHighlights.length > 0 && (
-        <View style={styles.highlightsContainer}>
-          {item.medicalHighlights.slice(0, 5).map((highlight, index) => (
-            <View
-              key={index}
-              style={[
-                styles.highlightChip,
-                { backgroundColor: getCategoryBackground(highlight.category) },
-              ]}
-            >
-              <View
-                style={[
-                  styles.severityDot,
-                  { backgroundColor: getCategoryColor(highlight.category) },
-                ]}
-              />
-              <Text
-                style={[
-                  styles.highlightText,
-                  { color: getCategoryColor(highlight.category) },
-                ]}
-              >
-                {highlight.tag}
+    return (
+      <View style={styles.cardWrapper}>
+        <TouchableOpacity
+          style={styles.consultationCard}
+          onPress={() =>
+            navigation.navigate('ConsultationDetail', {
+              consultationId: item.id,
+              petId,
+              petName,
+            })
+          }
+          activeOpacity={0.7}
+        >
+          {/* Tooltip de "Análisis completado" */}
+          {hasTooltip && (
+            <View style={styles.tooltip}>
+              <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+              <Text style={styles.tooltipText}>¡Toca para ver el análisis!</Text>
+            </View>
+          )}
+
+          <View style={styles.cardHeader}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="sparkles" size={24} color="#007AFF" />
+            </View>
+            <View style={styles.cardHeaderText}>
+              <Text style={styles.cardDate}>
+                {new Date(item.createdAt).toLocaleDateString('es-MX', {
+                  day: 'numeric',
+                  month: 'long',
+                  year: 'numeric',
+                })}
+              </Text>
+              <Text style={styles.cardVet}>Dr. {item.vet.nombre}</Text>
+            </View>
+            <View style={styles.durationBadge}>
+              <Ionicons name="time-outline" size={14} color="#8E8E93" />
+              <Text style={styles.durationText}>
+                {formatDuration(item.duration)}
               </Text>
             </View>
-          ))}
-          {item.medicalHighlights.length > 5 && (
-            <Text style={styles.moreTagsText}>
-              +{item.medicalHighlights.length - 5} más
-            </Text>
+          </View>
+
+          {/* Medical Highlights */}
+          {item.medicalHighlights && item.medicalHighlights.length > 0 && (
+            <View style={styles.highlightsContainer}>
+              {item.medicalHighlights.slice(0, 5).map((highlight, index) => (
+                <View
+                  key={index}
+                  style={[
+                    styles.highlightChip,
+                    { backgroundColor: getCategoryBackground(highlight.category) },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.severityDot,
+                      { backgroundColor: getCategoryColor(highlight.category) },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.highlightText,
+                      { color: getCategoryColor(highlight.category) },
+                    ]}
+                  >
+                    {highlight.tag}
+                  </Text>
+                </View>
+              ))}
+              {item.medicalHighlights.length > 5 && (
+                <Text style={styles.moreTagsText}>
+                  +{item.medicalHighlights.length - 5} más
+                </Text>
+              )}
+            </View>
           )}
-        </View>
-      )}
-    </TouchableOpacity>
-  );
+        </TouchableOpacity>
+      </View>
+    );
+  };
 
   const formatDuration = (seconds) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Card con estado de upload/análisis
+  const renderUploadCard = () => {
+    if (uploadStatus === 'error') {
+      // Card de error estilizada como card normal
+      return (
+        <View style={styles.cardWrapper}>
+          {/* Tooltip de error (arriba de la card) */}
+          <View style={styles.errorTooltip}>
+            <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+            <Text style={styles.errorTooltipText}>Error al analizar</Text>
+          </View>
+
+          <View style={[styles.consultationCard, styles.errorCard]}>
+            {/* Header similar a card normal */}
+            <View style={styles.cardHeader}>
+              <View style={[styles.iconContainer, styles.errorIconContainer]}>
+                <Ionicons name="alert-circle-outline" size={24} color="#FF3B30" />
+              </View>
+              <View style={styles.cardHeaderText}>
+                <Text style={styles.cardDate}>Error en el análisis</Text>
+                <Text style={styles.cardVet}>Toca para reintentar</Text>
+              </View>
+            </View>
+
+            {/* Mensaje de error */}
+            <View style={styles.errorMessageContainer}>
+              <Text style={styles.errorMessageText}>{uploadError}</Text>
+            </View>
+
+            {/* Botón de reintentar */}
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={() => {
+                if (pendingAudioUri) {
+                  uploadAudio(pendingAudioUri);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Ionicons name="refresh" size={18} color="#FFFFFF" />
+              <Text style={styles.retryButtonText}>Reintentar análisis</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // Skeleton durante upload o análisis
+    const statusText = uploadStatus === 'uploading' ? 'Subiendo audio...' : 'Analizando con IA...';
+    const statusIcon = uploadStatus === 'uploading' ? 'cloud-upload' : 'sparkles';
+
+    // Animación de opacidad para shimmer
+    const shimmerOpacity = shimmerAnim.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0.3, 0.7],
+    });
+
+    return (
+      <View style={styles.cardWrapper}>
+        {/* Tooltip de estado (arriba de la card) */}
+        <View style={styles.uploadTooltip}>
+          <ActivityIndicator size="small" color="#007AFF" />
+          <Ionicons name={statusIcon} size={16} color="#007AFF" style={{ marginLeft: 6 }} />
+          <Text style={styles.uploadTooltipText}>{statusText}</Text>
+        </View>
+
+        <View style={[styles.consultationCard, styles.skeletonCard]}>
+          {/* Header skeleton */}
+          <View style={styles.cardHeader}>
+            <View style={styles.iconContainer}>
+              <Ionicons name="sparkles" size={24} color="#007AFF" />
+            </View>
+            <View style={styles.cardHeaderText}>
+              <Animated.View
+                style={[
+                  styles.skeletonLine,
+                  { width: '60%', height: 16, marginBottom: 8, opacity: shimmerOpacity },
+                ]}
+              />
+              <Animated.View
+                style={[styles.skeletonLine, { width: '40%', height: 14, opacity: shimmerOpacity }]}
+              />
+            </View>
+          </View>
+
+          {/* Highlights skeleton */}
+          <View style={styles.highlightsContainer}>
+            <Animated.View
+              style={[styles.skeletonLine, { width: 100, height: 28, borderRadius: 16, opacity: shimmerOpacity }]}
+            />
+            <Animated.View
+              style={[styles.skeletonLine, { width: 120, height: 28, borderRadius: 16, opacity: shimmerOpacity }]}
+            />
+            <Animated.View
+              style={[styles.skeletonLine, { width: 80, height: 28, borderRadius: 16, opacity: shimmerOpacity }]}
+            />
+          </View>
+        </View>
+      </View>
+    );
   };
 
   if (loading) {
@@ -288,14 +654,17 @@ const ConsultationsListScreen = ({ route, navigation }) => {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
+        ListHeaderComponent={uploadStatus ? renderUploadCard() : null}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Ionicons name="mic-off-outline" size={80} color="#C7C7CC" />
-            <Text style={styles.emptyText}>No hay consultas grabadas</Text>
-            <Text style={styles.emptySubtext}>
-              Graba la primera consulta para ver el análisis con IA
-            </Text>
-          </View>
+          !uploadStatus && (
+            <View style={styles.emptyContainer}>
+              <Ionicons name="mic-off-outline" size={80} color="#C7C7CC" />
+              <Text style={styles.emptyText}>No hay consultas grabadas</Text>
+              <Text style={styles.emptySubtext}>
+                Graba la primera consulta para ver el análisis con IA
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -389,16 +758,132 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 100,
   },
+  cardWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+  },
   consultationCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+  },
+  skeletonCard: {
+    opacity: 0.9,
+    borderWidth: 2,
+    borderColor: '#E3F2FF',
+  },
+  skeletonLine: {
+    backgroundColor: '#E5E5EA',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  errorCard: {
+    borderWidth: 2,
+    borderColor: '#FF3B30',
+    backgroundColor: '#FFFFFF',
+  },
+  errorIconContainer: {
+    backgroundColor: '#FFE5E5',
+  },
+  errorMessageContainer: {
+    backgroundColor: '#FFF5F5',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 12,
+  },
+  errorMessageText: {
+    fontSize: 14,
+    color: '#8E8E93',
+    lineHeight: 20,
+  },
+  errorTooltip: {
+    position: 'absolute',
+    top: -12,
+    right: 12,
+    backgroundColor: '#FF3B30',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 6,
+    gap: 6,
+    zIndex: 10,
+  },
+  errorTooltipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  retryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#007AFF',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    gap: 6,
+  },
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  uploadTooltip: {
+    position: 'absolute',
+    top: -12,
+    right: 12,
+    backgroundColor: '#E3F2FF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 6,
+    gap: 6,
+    zIndex: 10,
+  },
+  uploadTooltipText: {
+    color: '#007AFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  tooltip: {
+    position: 'absolute',
+    top: -12,
+    right: 12,
+    backgroundColor: '#34C759',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 6,
+    gap: 6,
+    zIndex: 10,
+  },
+  tooltipText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
   },
   cardHeader: {
     flexDirection: 'row',
