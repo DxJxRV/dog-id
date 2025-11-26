@@ -127,6 +127,46 @@ Analiza esta consulta y extrae los Medical Highlights con sus trigger phrases ex
 };
 
 /**
+ * Encuentra el timestamp de una frase en la transcripción
+ * @param {string} phrase - Frase a buscar
+ * @param {string} rawText - Texto completo
+ * @param {Array} transcriptionJson - Array de palabras con timestamps
+ * @returns {number|null} - Timestamp en segundos o null si no se encuentra
+ */
+const findPhraseTimestamp = (phrase, rawText, transcriptionJson) => {
+  try {
+    // Normalizar textos
+    const normalizedPhrase = phrase.toLowerCase().trim();
+    const normalizedText = rawText.toLowerCase();
+
+    // Encontrar índice de la frase en el texto
+    const phraseIndex = normalizedText.indexOf(normalizedPhrase);
+    if (phraseIndex === -1) {
+      console.warn('⚠️ Phrase not found in text:', phrase);
+      return null;
+    }
+
+    // Contar caracteres hasta llegar a la posición de la frase
+    let charCount = 0;
+    for (let i = 0; i < transcriptionJson.length; i++) {
+      const word = transcriptionJson[i];
+
+      // Cuando llegamos cerca de la posición, retornar el timestamp
+      if (charCount >= phraseIndex) {
+        return word.start;
+      }
+
+      charCount += word.word.length + 1; // +1 por el espacio
+    }
+
+    return null;
+  } catch (error) {
+    console.error('❌ Error finding phrase timestamp:', error);
+    return null;
+  }
+};
+
+/**
  * Procesar audio completo: Transcribir + Analizar
  * @param {string} audioFilePath - Ruta al archivo de audio
  * @param {string} petName - Nombre de la mascota
@@ -147,11 +187,28 @@ const processVeterinaryAudio = async (audioFilePath, petName, petSpecies) => {
       petSpecies
     );
 
+    // Paso 3: Agregar timestamps a los highlights
+    console.log('🕐 [OPENAI] Adding timestamps to highlights...');
+    const highlightsWithTimestamps = analysisResult.medicalHighlights.map(highlight => {
+      const timestamp = findPhraseTimestamp(
+        highlight.triggerPhrase,
+        transcriptionResult.rawText,
+        transcriptionResult.transcriptionJson
+      );
+
+      return {
+        ...highlight,
+        timestamp: timestamp !== null ? timestamp : 0, // Default a 0 si no se encuentra
+        snippet: highlight.triggerPhrase // Alias para el frontend
+      };
+    });
+
     console.log('✅ [OPENAI] Complete audio processing finished');
 
     return {
       ...transcriptionResult,
-      ...analysisResult
+      ...analysisResult,
+      medicalHighlights: highlightsWithTimestamps
     };
   } catch (error) {
     console.error('❌ [OPENAI] Processing error:', error);

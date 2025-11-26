@@ -253,29 +253,43 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
   };
 
   const handleTagPress = async (highlight) => {
-    if (!sound) return;
+    if (!sound || !consultation?.transcriptionJson) return;
 
     try {
-      // Los highlights ya tienen timestamp directo
-      if (highlight.timestamp !== undefined) {
-        // Retroceder 3 segundos para contexto
-        const seekTime = Math.max(0, highlight.timestamp - 3);
-        await seekToTime(seekTime);
+      let seekTime = 0;
 
-        // Si no está reproduciendo, empezar a reproducir
-        if (!isPlaying) {
-          await sound.playAsync();
+      // Si tiene timestamp del backend, usarlo directamente
+      if (highlight.timestamp && highlight.timestamp > 0) {
+        seekTime = Math.max(0, highlight.timestamp - 3);
+      } else if (highlight.snippet || highlight.triggerPhrase) {
+        // Fallback: buscar las primeras palabras del snippet en la transcripción
+        const searchText = (highlight.snippet || highlight.triggerPhrase).toLowerCase();
+        const firstWords = searchText.split(' ').slice(0, 3); // Primeras 3 palabras
+
+        // Buscar coincidencia simple en transcriptionJson
+        for (let i = 0; i < consultation.transcriptionJson.length; i++) {
+          const word = consultation.transcriptionJson[i].word.toLowerCase();
+
+          // Si encontramos la primera palabra del snippet
+          if (word === firstWords[0]) {
+            seekTime = Math.max(0, consultation.transcriptionJson[i].start - 3);
+            break;
+          }
         }
-
-        // Abrir player expandido para mejor visualización
-        setIsExpanded(true);
-        showToast.success(`Reproduciendo: ${highlight.tag}`);
-      } else {
-        showToast.info('No se encontró el momento en el audio');
       }
+
+      // Saltar al tiempo encontrado
+      await seekToTime(seekTime);
+
+      // Si el audio no está reproduciendo, empezar a reproducir
+      if (!isPlaying) {
+        await sound.playAsync();
+      }
+
+      // Abrir player expandido con animación
+      openExpandedPlayer();
     } catch (error) {
       console.error('Error playing from highlight:', error);
-      showToast.error('Error al reproducir');
     }
   };
 
