@@ -234,9 +234,12 @@ model SmartConsultation {
   rawText           String   @db.Text
   transcriptionJson Json     @map("transcription_json") // Array de { word, start, end }
 
-  // Análisis de IA (Resumen Clínico)
-  summary           String   @db.Text
+  // Análisis de IA (Medical Highlights)
+  medicalHighlights Json?    @map("medical_highlights") // Array de { tag, category, severity, triggerPhrase }
   extractedVitals   Json?    @map("extracted_vitals") // { peso: 10, temperatura: 39... }
+
+  // Legacy (mantener por compatibilidad)
+  summary           String?  @db.Text
   tags              Json?    // ["URGENTE", "DESHIDRATACION", "DOLOR"]
 
   createdAt         DateTime @default(now()) @map("created_at")

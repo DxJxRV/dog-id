@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Modal,
+  ScrollView,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
@@ -22,8 +24,12 @@ const ConsultationsListScreen = ({ route, navigation }) => {
   const { petId, petName } = route.params;
 
   const [consultations, setConsultations] = useState([]);
+  const [allConsultations, setAllConsultations] = useState([]); // Sin filtrar
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedTag, setSelectedTag] = useState(null); // Tag activo para filtrar
+  const [allTags, setAllTags] = useState([]); // Todos los tags únicos
+  const [isTagCloudExpanded, setIsTagCloudExpanded] = useState(false); // Modal fullscreen
 
   useFocusEffect(
     useCallback(() => {
@@ -41,7 +47,26 @@ const ConsultationsListScreen = ({ route, navigation }) => {
         }
       );
 
-      setConsultations(response.data.consultations);
+      const fetchedConsultations = response.data.consultations;
+      setAllConsultations(fetchedConsultations);
+      setConsultations(fetchedConsultations);
+
+      // Extraer todos los tags únicos de medical_highlights con categoría
+      const tagsMap = new Map();
+      fetchedConsultations.forEach((consultation) => {
+        if (consultation.medicalHighlights && Array.isArray(consultation.medicalHighlights)) {
+          consultation.medicalHighlights.forEach((highlight) => {
+            if (highlight.tag && !tagsMap.has(highlight.tag)) {
+              tagsMap.set(highlight.tag, {
+                tag: highlight.tag,
+                category: highlight.category
+              });
+            }
+          });
+        }
+      });
+
+      setAllTags(Array.from(tagsMap.values()));
     } catch (error) {
       console.error('Error fetching consultations:', error);
       showToast.error('Error al cargar las consultas');
@@ -53,7 +78,71 @@ const ConsultationsListScreen = ({ route, navigation }) => {
 
   const onRefresh = () => {
     setRefreshing(true);
+    setSelectedTag(null); // Reset filtro
     fetchConsultations();
+  };
+
+  const handleTagPress = (tagObj) => {
+    const tagName = typeof tagObj === 'string' ? tagObj : tagObj.tag;
+
+    // Cerrar modal si está abierto
+    if (isTagCloudExpanded) {
+      setIsTagCloudExpanded(false);
+    }
+
+    if (selectedTag === tagName) {
+      // Deseleccionar
+      setSelectedTag(null);
+      setConsultations(allConsultations);
+    } else {
+      // Filtrar consultas que contienen este tag
+      setSelectedTag(tagName);
+      const filtered = allConsultations.filter((consultation) => {
+        if (!consultation.medicalHighlights) return false;
+        return consultation.medicalHighlights.some((h) => h.tag === tagName);
+      });
+      setConsultations(filtered);
+    }
+  };
+
+  const getSeverityColor = (severity) => {
+    const colors = {
+      HIGH: '#DC2626',      // Rojo
+      MEDIUM: '#EA580C',    // Naranja
+      LOW: '#64748B',       // Gris azulado
+    };
+    return colors[severity] || '#8E8E93';
+  };
+
+  const getSeverityBackground = (severity) => {
+    const backgrounds = {
+      HIGH: '#FEE2E2',      // Rojo suave
+      MEDIUM: '#FFEDD5',    // Naranja suave
+      LOW: '#F1F5F9',       // Gris azulado suave
+    };
+    return backgrounds[severity] || '#F2F2F7';
+  };
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      URGENCIA: '#DC2626',      // Rojo
+      SINTOMA: '#3B82F6',       // Azul
+      DIAGNOSTICO: '#7C3AED',   // Morado
+      TRATAMIENTO: '#16A34A',   // Verde
+      VITAL: '#0891B2',         // Cyan
+    };
+    return colors[category] || '#8E8E93';
+  };
+
+  const getCategoryBackground = (category) => {
+    const backgrounds = {
+      URGENCIA: '#FEE2E2',      // Rojo suave
+      SINTOMA: '#DBEAFE',       // Azul suave
+      DIAGNOSTICO: '#F3E8FF',   // Morado suave
+      TRATAMIENTO: '#DCFCE7',   // Verde suave
+      VITAL: '#CFFAFE',         // Cyan suave
+    };
+    return backgrounds[category] || '#F2F2F7';
   };
 
   const renderConsultation = ({ item }) => (
@@ -90,19 +179,37 @@ const ConsultationsListScreen = ({ route, navigation }) => {
         </View>
       </View>
 
-      <Text style={styles.cardSummary} numberOfLines={3}>
-        {item.summary}
-      </Text>
-
-      {item.tags && item.tags.length > 0 && (
-        <View style={styles.tagsRow}>
-          {item.tags.slice(0, 3).map((tag, index) => (
-            <View key={index} style={styles.tag}>
-              <Text style={styles.tagText}>{tag}</Text>
+      {/* Medical Highlights */}
+      {item.medicalHighlights && item.medicalHighlights.length > 0 && (
+        <View style={styles.highlightsContainer}>
+          {item.medicalHighlights.slice(0, 5).map((highlight, index) => (
+            <View
+              key={index}
+              style={[
+                styles.highlightChip,
+                { backgroundColor: getCategoryBackground(highlight.category) },
+              ]}
+            >
+              <View
+                style={[
+                  styles.severityDot,
+                  { backgroundColor: getCategoryColor(highlight.category) },
+                ]}
+              />
+              <Text
+                style={[
+                  styles.highlightText,
+                  { color: getCategoryColor(highlight.category) },
+                ]}
+              >
+                {highlight.tag}
+              </Text>
             </View>
           ))}
-          {item.tags.length > 3 && (
-            <Text style={styles.moreTagsText}>+{item.tags.length - 3}</Text>
+          {item.medicalHighlights.length > 5 && (
+            <Text style={styles.moreTagsText}>
+              +{item.medicalHighlights.length - 5} más
+            </Text>
           )}
         </View>
       )}
@@ -126,6 +233,53 @@ const ConsultationsListScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
+      {/* TagCloud Header Compacto */}
+      {allTags.length > 0 && (
+        <View style={styles.tagCloudContainer}>
+          <Text style={styles.tagCloudTitle}>Filtrar por hallazgo</Text>
+          <View style={styles.tagCloud}>
+            {allTags.slice(0, 5).map((tagObj) => (
+              <TouchableOpacity
+                key={tagObj.tag}
+                style={[
+                  styles.tagCloudChip,
+                  selectedTag === tagObj.tag && {
+                    backgroundColor: getCategoryColor(tagObj.category),
+                  },
+                ]}
+                onPress={() => handleTagPress(tagObj)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    styles.tagCloudText,
+                    {
+                      color: selectedTag === tagObj.tag
+                        ? '#FFFFFF'
+                        : getCategoryColor(tagObj.category)
+                    },
+                  ]}
+                >
+                  {tagObj.tag}
+                </Text>
+              </TouchableOpacity>
+            ))}
+            {allTags.length > 5 && (
+              <TouchableOpacity
+                style={styles.moreTagsButton}
+                onPress={() => setIsTagCloudExpanded(true)}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.moreTagsButtonText}>
+                  +{allTags.length - 5} más
+                </Text>
+                <Ionicons name="chevron-down" size={14} color="#007AFF" />
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      )}
+
       <FlatList
         data={consultations}
         renderItem={renderConsultation}
@@ -155,6 +309,62 @@ const ConsultationsListScreen = ({ route, navigation }) => {
       >
         <Ionicons name="mic" size={28} color="#FFFFFF" />
       </TouchableOpacity>
+
+      {/* Modal Fullscreen - Nube de Tags Completa */}
+      <Modal
+        visible={isTagCloudExpanded}
+        animationType="slide"
+        transparent={false}
+        onRequestClose={() => setIsTagCloudExpanded(false)}
+      >
+        <View style={styles.tagCloudModal}>
+          <View style={styles.tagCloudModalHeader}>
+            <Text style={styles.tagCloudModalTitle}>
+              Todos los hallazgos clínicos
+            </Text>
+            <TouchableOpacity
+              onPress={() => setIsTagCloudExpanded(false)}
+              style={styles.tagCloudModalClose}
+            >
+              <Ionicons name="close-circle" size={32} color="#8E8E93" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            contentContainerStyle={styles.tagCloudModalContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.tagCloudExpanded}>
+              {allTags.map((tagObj) => (
+                <TouchableOpacity
+                  key={tagObj.tag}
+                  style={[
+                    styles.tagCloudChipExpanded,
+                    selectedTag === tagObj.tag && {
+                      backgroundColor: getCategoryColor(tagObj.category),
+                    },
+                  ]}
+                  onPress={() => handleTagPress(tagObj)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.tagCloudTextExpanded,
+                      {
+                        color: selectedTag === tagObj.tag
+                          ? '#FFFFFF'
+                          : getCategoryColor(tagObj.category),
+                      },
+                    ]}
+                  >
+                    {tagObj.tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -231,33 +441,82 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
     fontVariant: ['tabular-nums'],
   },
-  cardSummary: {
-    fontSize: 15,
-    lineHeight: 22,
-    color: '#1C1C1E',
-    marginBottom: 12,
-  },
-  tagsRow: {
+  highlightsContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
   },
-  tag: {
-    backgroundColor: '#007AFF',
+  highlightChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
   },
-  tagText: {
-    fontSize: 11,
+  severityDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  highlightText: {
+    fontSize: 12,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   moreTagsText: {
     fontSize: 12,
     color: '#8E8E93',
     fontWeight: '600',
+  },
+  // TagCloud Header Styles (Compacto - 1/3 más pequeño)
+  tagCloudContainer: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  tagCloudTitle: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#8E8E93',
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  tagCloud: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    alignItems: 'center',
+  },
+  tagCloudChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#F2F2F7',
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  tagCloudText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  moreTagsButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: '#E3F2FF',
+    gap: 4,
+  },
+  moreTagsButtonText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#007AFF',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -293,6 +552,61 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 12,
+  },
+  // Modal Fullscreen Styles
+  tagCloudModal: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+  },
+  tagCloudModalHeader: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  tagCloudModalTitle: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#1C1C1E',
+  },
+  tagCloudModalClose: {
+    padding: 4,
+  },
+  tagCloudModalContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  tagCloudExpanded: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 12,
+  },
+  tagCloudChipExpanded: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  tagCloudTextExpanded: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
   },
 });
 

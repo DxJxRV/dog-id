@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,30 +6,115 @@ import {
   ScrollView,
   ActivityIndicator,
   TouchableOpacity,
-  Alert,
+  Modal,
+  Animated,
+  PanResponder,
+  Dimensions,
+  SafeAreaView,
 } from 'react-native';
+import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
-import InteractiveAudioPlayer from '../../components/InteractiveAudioPlayer';
 import { showToast } from '../../utils/toast';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { API_URL, STORAGE_KEYS } from '../../utils/config';
 import { generatePresignedUrl } from '../../utils/presignedUrl';
 
+const { height: SCREEN_HEIGHT } = Dimensions.get('window');
+const MINI_PLAYER_HEIGHT = 70;
+
 /**
- * Pantalla de detalle de consulta inteligente
- * Muestra transcripción interactiva y análisis de IA
+ * ConsultationDetailScreen - Diseño Spotify
+ * MiniPlayer persistente + ExpandedPlayer con navegación por tags
  */
 const ConsultationDetailScreen = ({ route, navigation }) => {
   const { consultationId } = route.params;
 
+  // Estados principales
   const [consultation, setConsultation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [audioUrl, setAudioUrl] = useState(null);
 
+  // Audio player
+  const [sound, setSound] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isBuffering, setIsBuffering] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [currentWordIndex, setCurrentWordIndex] = useState(-1);
+  const [hasFinished, setHasFinished] = useState(false);
+
+  // UI States
+  const [isExpanded, setIsExpanded] = useState(false);
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const positionInterval = useRef(null);
+
   useEffect(() => {
     fetchConsultation();
+    return () => {
+      // Cleanup de forma segura sin bloquear la navegación
+      if (positionInterval.current) {
+        clearInterval(positionInterval.current);
+      }
+      if (sound) {
+        // No usar await aquí, dejar que se limpie en background
+        sound.stopAsync().catch(() => {});
+        sound.unloadAsync().catch(() => {});
+      }
+    };
   }, []);
+
+  // Listener para limpiar audio antes de salir (iOS fix)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', async () => {
+      // Pausar audio inmediatamente
+      if (sound) {
+        try {
+          await sound.pauseAsync();
+        } catch (e) {
+          // Ignorar errores
+        }
+      }
+      // Limpiar intervals
+      if (positionInterval.current) {
+        clearInterval(positionInterval.current);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, sound]);
+
+  // Update current word highlight
+  useEffect(() => {
+    if (isPlaying && consultation?.transcriptionJson) {
+      positionInterval.current = setInterval(async () => {
+        if (sound) {
+          const status = await sound.getStatusAsync();
+          if (status.isLoaded) {
+            const currentPos = status.positionMillis / 1000;
+            setCurrentTime(currentPos);
+
+            // Find current word
+            const currentWord = consultation.transcriptionJson.findIndex((word, index) => {
+              const nextWord = consultation.transcriptionJson[index + 1];
+              return currentPos >= word.start && (!nextWord || currentPos < nextWord.start);
+            });
+            setCurrentWordIndex(currentWord);
+          }
+        }
+      }, 100);
+    } else {
+      if (positionInterval.current) {
+        clearInterval(positionInterval.current);
+      }
+    }
+
+    return () => {
+      if (positionInterval.current) {
+        clearInterval(positionInterval.current);
+      }
+    };
+  }, [isPlaying, sound, consultation]);
 
   const fetchConsultation = async () => {
     try {
@@ -50,6 +135,9 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
 
       setConsultation(consultationData);
       setAudioUrl(presignedAudioUrl);
+
+      // Load audio
+      await loadAudio(presignedAudioUrl);
     } catch (error) {
       console.error('Error fetching consultation:', error);
       showToast.error('Error al cargar la consulta');
@@ -59,31 +147,197 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
     }
   };
 
-  const handleDelete = () => {
-    Alert.alert(
-      'Eliminar consulta',
-      '¿Estás seguro de que deseas eliminar esta consulta?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Eliminar',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
-              await axios.delete(`${API_URL}/smart-consultations/${consultationId}`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
+  const loadAudio = async (url) => {
+    try {
+      setIsBuffering(true);
 
-              showToast.success('Consulta eliminada');
-              navigation.goBack();
-            } catch (error) {
-              showToast.error('Error al eliminar la consulta');
-            }
-          },
-        },
-      ]
-    );
+      // Configurar modo de audio para reproducción (no grabación)
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+        playThroughEarpieceAndroid: false,
+      });
+
+      const { sound: newSound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: false },
+        onPlaybackStatusUpdate
+      );
+      setSound(newSound);
+      setIsBuffering(false);
+    } catch (error) {
+      console.error('Error loading audio:', error);
+      showToast.error('Error al cargar el audio');
+      setIsBuffering(false);
+    }
+  };
+
+  const onPlaybackStatusUpdate = (status) => {
+    if (status.isLoaded) {
+      setDuration(status.durationMillis / 1000);
+      setIsPlaying(status.isPlaying);
+      setIsBuffering(status.isBuffering || false);
+      setHasFinished(status.didJustFinish || false);
+
+      // Reset al finalizar
+      if (status.didJustFinish) {
+        setIsPlaying(false);
+      }
+    }
+  };
+
+  const handlePlayPause = async () => {
+    if (!sound || isBuffering) return;
+
+    try {
+      const status = await sound.getStatusAsync();
+      if (status.isLoaded) {
+        // Si terminó, reiniciar desde el principio
+        if (hasFinished) {
+          await sound.setPositionAsync(0);
+          setHasFinished(false);
+          await sound.playAsync();
+        } else if (isPlaying) {
+          await sound.pauseAsync();
+        } else {
+          await sound.playAsync();
+        }
+      }
+    } catch (error) {
+      console.error('Play/Pause error:', error);
+    }
+  };
+
+  const seekToTime = async (seconds) => {
+    if (!sound) return;
+
+    try {
+      const clampedSeconds = Math.max(0, Math.min(seconds, duration));
+      await sound.setPositionAsync(clampedSeconds * 1000);
+      setCurrentTime(clampedSeconds);
+      setHasFinished(false);
+    } catch (error) {
+      console.error('Seek error:', error);
+    }
+  };
+
+  const skipBackward = () => {
+    seekToTime(currentTime - 5);
+  };
+
+  const skipForward = () => {
+    seekToTime(currentTime + 5);
+  };
+
+  const handleWordPress = (wordData) => {
+    seekToTime(wordData.start);
+  };
+
+  const handleTagPress = async (highlight) => {
+    if (!consultation?.transcriptionJson || !consultation?.rawText) return;
+
+    // Buscar la triggerPhrase en rawText
+    const searchText = highlight.triggerPhrase.toLowerCase();
+    const fullText = consultation.rawText.toLowerCase();
+    const phraseIndex = fullText.indexOf(searchText);
+
+    if (phraseIndex === -1) {
+      showToast.info('No se encontró la frase en la transcripción');
+      return;
+    }
+
+    // Encontrar el word en transcriptionJson que corresponde a la frase
+    let charCount = 0;
+    let targetWordIndex = -1;
+
+    for (let i = 0; i < consultation.transcriptionJson.length; i++) {
+      const word = consultation.transcriptionJson[i];
+      charCount += word.word.length + 1; // +1 for space
+
+      if (charCount >= phraseIndex) {
+        targetWordIndex = i;
+        break;
+      }
+    }
+
+    if (targetWordIndex !== -1) {
+      const targetWord = consultation.transcriptionJson[targetWordIndex];
+      // Retroceder 5 segundos para contexto
+      const seekTime = Math.max(0, targetWord.start - 5);
+      await seekToTime(seekTime);
+      setIsExpanded(true);
+      showToast.success(`Saltando a: ${highlight.tag}`);
+    }
+  };
+
+  const openExpandedPlayer = () => {
+    setIsExpanded(true);
+    Animated.spring(slideAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start();
+  };
+
+  const closeExpandedPlayer = () => {
+    Animated.spring(slideAnim, {
+      toValue: SCREEN_HEIGHT,
+      useNativeDriver: true,
+      tension: 50,
+      friction: 8,
+    }).start(() => {
+      setIsExpanded(false);
+    });
+  };
+
+  const getSeverityColor = (severity) => {
+    const colors = {
+      HIGH: '#DC2626',      // Rojo
+      MEDIUM: '#EA580C',    // Naranja
+      LOW: '#64748B',       // Gris azulado
+    };
+    return colors[severity] || '#8E8E93';
+  };
+
+  const getSeverityBackground = (severity) => {
+    const backgrounds = {
+      HIGH: '#FEE2E2',      // Rojo suave
+      MEDIUM: '#FFEDD5',    // Naranja suave
+      LOW: '#F1F5F9',       // Gris azulado suave
+    };
+    return backgrounds[severity] || '#F2F2F7';
+  };
+
+  const getCategoryColor = (category) => {
+    const colors = {
+      URGENCIA: '#DC2626',      // Rojo
+      SINTOMA: '#3B82F6',       // Azul
+      DIAGNOSTICO: '#7C3AED',   // Morado
+      TRATAMIENTO: '#16A34A',   // Verde
+      VITAL: '#0891B2',         // Cyan
+    };
+    return colors[category] || '#8E8E93';
+  };
+
+  const getCategoryBackground = (category) => {
+    const backgrounds = {
+      URGENCIA: '#FEE2E2',      // Rojo suave
+      SINTOMA: '#DBEAFE',       // Azul suave
+      DIAGNOSTICO: '#F3E8FF',   // Morado suave
+      TRATAMIENTO: '#DCFCE7',   // Verde suave
+      VITAL: '#CFFAFE',         // Cyan suave
+    };
+    return backgrounds[category] || '#F2F2F7';
+  };
+
+  const formatTime = (seconds) => {
+    if (!seconds || isNaN(seconds)) return '0:00';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (loading) {
@@ -95,130 +349,306 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  if (!consultation || !audioUrl) {
+  if (!consultation) {
     return null;
   }
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scrollView}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="sparkles" size={32} color="#007AFF" />
-            </View>
-            <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-              <Ionicons name="trash-outline" size={24} color="#FF3B30" />
-            </TouchableOpacity>
+      {/* Main Content - Vitals Summary */}
+      <ScrollView style={styles.content} contentContainerStyle={styles.contentPadding}>
+        {/* Información básica */}
+        <View style={styles.infoCard}>
+          <View style={styles.infoRow}>
+            <Ionicons name="calendar-outline" size={20} color="#8E8E93" />
+            <Text style={styles.infoText}>
+              {new Date(consultation.createdAt).toLocaleDateString('es-MX', {
+                day: 'numeric',
+                month: 'long',
+                year: 'numeric',
+              })}
+            </Text>
           </View>
-
-          <Text style={styles.petName}>{consultation.pet.nombre}</Text>
-          <Text style={styles.species}>{consultation.pet.especie} • {consultation.pet.raza}</Text>
-
-          <View style={styles.metaInfo}>
-            <View style={styles.metaItem}>
-              <Ionicons name="person" size={16} color="#8E8E93" />
-              <Text style={styles.metaText}>Dr. {consultation.vet.nombre}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Ionicons name="time" size={16} color="#8E8E93" />
-              <Text style={styles.metaText}>
-                {formatDuration(consultation.duration)}
-              </Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Ionicons name="calendar" size={16} color="#8E8E93" />
-              <Text style={styles.metaText}>
-                {new Date(consultation.createdAt).toLocaleDateString()}
-              </Text>
-            </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="person-outline" size={20} color="#8E8E93" />
+            <Text style={styles.infoText}>Dr. {consultation.vet.nombre}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Ionicons name="time-outline" size={20} color="#8E8E93" />
+            <Text style={styles.infoText}>{formatTime(consultation.duration)}</Text>
           </View>
         </View>
 
-        {/* Tags */}
-        {consultation.tags && consultation.tags.length > 0 && (
-          <View style={styles.tagsContainer}>
-            {consultation.tags.map((tag, index) => (
-              <View key={index} style={styles.tag}>
-                <Text style={styles.tagText}>{tag}</Text>
-              </View>
+        {/* Medical Highlights */}
+        {consultation.medicalHighlights && consultation.medicalHighlights.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Hallazgos Clínicos</Text>
+            {consultation.medicalHighlights.map((highlight, index) => (
+              <TouchableOpacity
+                key={index}
+                style={[
+                  styles.highlightCard,
+                  { borderLeftColor: getCategoryColor(highlight.category) },
+                ]}
+                onPress={() => handleTagPress(highlight)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.highlightHeader}>
+                  <View
+                    style={[
+                      styles.highlightDot,
+                      { backgroundColor: getCategoryColor(highlight.category) },
+                    ]}
+                  />
+                  <Text style={styles.highlightTag}>
+                    {highlight.tag}
+                  </Text>
+                  <View
+                    style={[
+                      styles.highlightBadge,
+                      { backgroundColor: getCategoryBackground(highlight.category) },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.highlightCategory,
+                        { color: getCategoryColor(highlight.category) },
+                      ]}
+                    >
+                      {highlight.category}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.highlightPhrase}>"{highlight.triggerPhrase}"</Text>
+                <View style={styles.highlightFooter}>
+                  <Ionicons name="play-circle" size={16} color="#007AFF" />
+                  <Text style={styles.highlightAction}>Tocar para escuchar</Text>
+                </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
 
-        {/* Resumen Clínico */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="document-text" size={24} color="#007AFF" />
-            <Text style={styles.sectionTitle}>Resumen Clínico</Text>
-          </View>
-          <Text style={styles.summaryText}>{consultation.summary}</Text>
-        </View>
-
         {/* Signos Vitales */}
         {consultation.extractedVitals && Object.keys(consultation.extractedVitals).length > 0 && (
           <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="fitness" size={24} color="#FF9500" />
-              <Text style={styles.sectionTitle}>Signos Vitales</Text>
-            </View>
-
+            <Text style={styles.sectionTitle}>Signos Vitales</Text>
             <View style={styles.vitalsGrid}>
-              {renderVital('Peso', consultation.extractedVitals.peso, 'kg', 'scale-outline')}
-              {renderVital('Temperatura', consultation.extractedVitals.temperatura, '°C', 'thermometer-outline')}
-              {renderVital('FC', consultation.extractedVitals.frecuenciaCardiaca, 'lpm', 'heart-outline')}
-              {renderVital('FR', consultation.extractedVitals.frecuenciaRespiratoria, 'rpm', 'pulse-outline')}
-              {renderVital('Pulso', consultation.extractedVitals.pulso, '', 'hand-left-outline')}
-              {renderVital('Mucosas', consultation.extractedVitals.mucosas, '', 'eye-outline')}
-              {renderVital('CC', consultation.extractedVitals.condicionCorporal, '/9', 'body-outline')}
+              {consultation.extractedVitals.peso && (
+                <View style={styles.vitalCard}>
+                  <Ionicons name="scale-outline" size={24} color="#007AFF" />
+                  <Text style={styles.vitalValue}>{consultation.extractedVitals.peso} kg</Text>
+                  <Text style={styles.vitalLabel}>Peso</Text>
+                </View>
+              )}
+              {consultation.extractedVitals.temperatura && (
+                <View style={styles.vitalCard}>
+                  <Ionicons name="thermometer-outline" size={24} color="#FF9500" />
+                  <Text style={styles.vitalValue}>{consultation.extractedVitals.temperatura}°C</Text>
+                  <Text style={styles.vitalLabel}>Temperatura</Text>
+                </View>
+              )}
+              {consultation.extractedVitals.frecuenciaCardiaca && (
+                <View style={styles.vitalCard}>
+                  <Ionicons name="heart-outline" size={24} color="#FF3B30" />
+                  <Text style={styles.vitalValue}>{consultation.extractedVitals.frecuenciaCardiaca} bpm</Text>
+                  <Text style={styles.vitalLabel}>FC</Text>
+                </View>
+              )}
             </View>
           </View>
         )}
-
-        {/* Reproductor interactivo */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="play-circle" size={24} color="#34C759" />
-            <Text style={styles.sectionTitle}>Transcripción Interactiva</Text>
-          </View>
-          <Text style={styles.sectionSubtitle}>
-            Toca cualquier palabra para saltar a ese momento
-          </Text>
-        </View>
       </ScrollView>
 
-      {/* Audio player fijo en la parte inferior */}
-      <View style={styles.playerContainer}>
-        <InteractiveAudioPlayer
-          audioUrl={audioUrl}
-          transcriptionJson={consultation.transcriptionJson}
-          rawText={consultation.rawText}
-        />
+      {/* MiniPlayer - Barra inferior persistente */}
+      <View style={styles.miniPlayerContainer}>
+        {/* Barra de progreso delgada */}
+        <View style={styles.miniProgressBar}>
+          <View
+            style={[
+              styles.miniProgressFill,
+              { width: duration > 0 ? `${(currentTime / duration) * 100}%` : '0%' },
+            ]}
+          />
+        </View>
+
+        <TouchableOpacity
+          style={styles.miniPlayer}
+          onPress={openExpandedPlayer}
+          activeOpacity={0.9}
+        >
+          <TouchableOpacity
+            style={styles.miniPlayButton}
+            onPress={handlePlayPause}
+            disabled={isBuffering}
+          >
+            {isBuffering ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Ionicons
+                name={hasFinished ? 'reload' : isPlaying ? 'pause' : 'play'}
+                size={24}
+                color="#FFFFFF"
+              />
+            )}
+          </TouchableOpacity>
+          <View style={styles.miniPlayerInfo}>
+            <Text style={styles.miniPlayerTitle} numberOfLines={1}>
+              Consulta Veterinaria
+            </Text>
+            <Text style={styles.miniPlayerTime}>
+              {formatTime(currentTime)} / {formatTime(duration)}
+            </Text>
+          </View>
+          <Ionicons name="chevron-up" size={24} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
+
+      {/* ExpandedPlayer - Modal fullscreen */}
+      <Modal
+        visible={isExpanded}
+        transparent
+        animationType="none"
+        onRequestClose={closeExpandedPlayer}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: 'transparent' }}>
+          <Animated.View
+            style={[
+              styles.expandedPlayer,
+              {
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            {/* Header */}
+            <View style={styles.expandedHeader}>
+            <TouchableOpacity onPress={closeExpandedPlayer}>
+              <Ionicons name="chevron-down" size={28} color="#1C1C1E" />
+            </TouchableOpacity>
+            <Text style={styles.expandedTitle}>Transcripción</Text>
+            <View style={{ width: 28 }} />
+          </View>
+
+          {/* Tags Header - Navegación rápida */}
+          {consultation.medicalHighlights && consultation.medicalHighlights.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.tagsScrollView}
+              contentContainerStyle={styles.tagsScrollContent}
+            >
+              {consultation.medicalHighlights.map((highlight, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.tagChip}
+                  onPress={() => handleTagPress(highlight)}
+                  activeOpacity={0.7}
+                >
+                  <View
+                    style={[
+                      styles.tagChipDot,
+                      { backgroundColor: getCategoryColor(highlight.category) },
+                    ]}
+                  />
+                  <Text
+                    style={[
+                      styles.tagChipText,
+                      { color: getCategoryColor(highlight.category) },
+                    ]}
+                  >
+                    {highlight.tag}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
+
+          {/* Interactive Transcript */}
+          <ScrollView style={styles.transcriptScroll}>
+            <View style={styles.transcriptContainer}>
+              {consultation.transcriptionJson &&
+                consultation.transcriptionJson.map((wordData, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    onPress={() => handleWordPress(wordData)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        styles.transcriptWord,
+                        index === currentWordIndex && styles.transcriptWordActive,
+                      ]}
+                    >
+                      {wordData.word}{' '}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+            </View>
+          </ScrollView>
+
+          {/* Player Controls */}
+          <View style={styles.playerControls}>
+            <View style={styles.progressBar}>
+              <View
+                style={[
+                  styles.progressFill,
+                  { width: `${(currentTime / duration) * 100}%` },
+                ]}
+              />
+            </View>
+            <View style={styles.timeRow}>
+              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+              <Text style={styles.timeText}>{formatTime(duration)}</Text>
+            </View>
+
+            {/* Controles con +5s / -5s */}
+            <View style={styles.controlsRow}>
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={skipBackward}
+                disabled={isBuffering}
+              >
+                <Ionicons name="play-back" size={32} color={isBuffering ? '#C7C7CC' : '#007AFF'} />
+                <Text style={[styles.skipText, isBuffering && { color: '#C7C7CC' }]}>5s</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.playButton}
+                onPress={handlePlayPause}
+                disabled={isBuffering}
+              >
+                {isBuffering ? (
+                  <ActivityIndicator size="large" color="#007AFF" />
+                ) : (
+                  <Ionicons
+                    name={
+                      hasFinished
+                        ? 'reload-circle'
+                        : isPlaying
+                        ? 'pause-circle'
+                        : 'play-circle'
+                    }
+                    size={64}
+                    color="#007AFF"
+                  />
+                )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.skipButton}
+                onPress={skipForward}
+                disabled={isBuffering}
+              >
+                <Ionicons name="play-forward" size={32} color={isBuffering ? '#C7C7CC' : '#007AFF'} />
+                <Text style={[styles.skipText, isBuffering && { color: '#C7C7CC' }]}>5s</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          </Animated.View>
+        </SafeAreaView>
+      </Modal>
     </View>
   );
-};
-
-const renderVital = (label, value, unit, icon) => {
-  if (!value) return null;
-
-  return (
-    <View style={styles.vitalCard}>
-      <Ionicons name={icon} size={20} color="#007AFF" />
-      <Text style={styles.vitalLabel}>{label}</Text>
-      <Text style={styles.vitalValue}>
-        {value}
-        {unit && <Text style={styles.vitalUnit}> {unit}</Text>}
-      </Text>
-    </View>
-  );
-};
-
-const formatDuration = (seconds) => {
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
 };
 
 const styles = StyleSheet.create({
@@ -237,146 +667,275 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#8E8E93',
   },
-  scrollView: {
+  content: {
     flex: 1,
   },
-  header: {
+  contentPadding: {
+    padding: 16,
+    paddingBottom: MINI_PLAYER_HEIGHT + 32,
+  },
+  infoCard: {
     backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderRadius: 16,
+    padding: 16,
     marginBottom: 16,
+    gap: 12,
   },
-  iconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: '#E3F2FF',
-    justifyContent: 'center',
+  infoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
-  deleteButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#FFE5E5',
-    justifyContent: 'center',
-    alignItems: 'center',
+  infoText: {
+    fontSize: 15,
+    color: '#1C1C1E',
   },
-  petName: {
-    fontSize: 28,
+  section: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 20,
     fontWeight: '700',
     color: '#1C1C1E',
-    marginBottom: 4,
-  },
-  species: {
-    fontSize: 16,
-    color: '#8E8E93',
     marginBottom: 16,
   },
-  metaInfo: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 16,
+  highlightCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
   },
-  metaItem: {
+  highlightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8,
+  },
+  highlightDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  highlightTag: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  highlightBadge: {
+    backgroundColor: '#F2F2F7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  highlightCategory: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  highlightPhrase: {
+    fontSize: 14,
+    color: '#8E8E93',
+    fontStyle: 'italic',
+    marginBottom: 8,
+  },
+  highlightFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
-  metaText: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 20,
-    gap: 8,
-  },
-  tag: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  tagText: {
-    fontSize: 12,
+  highlightAction: {
+    fontSize: 13,
     fontWeight: '600',
-    color: '#FFFFFF',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1C1C1E',
-    marginLeft: 12,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: '#8E8E93',
-    marginTop: 4,
-  },
-  summaryText: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: '#1C1C1E',
+    color: '#007AFF',
   },
   vitalsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
-    marginTop: 8,
   },
   vitalCard: {
-    flexBasis: '30%',
-    backgroundColor: '#F2F2F7',
-    padding: 12,
+    flex: 1,
+    minWidth: 100,
+    backgroundColor: '#FFFFFF',
     borderRadius: 12,
+    padding: 16,
     alignItems: 'center',
-  },
-  vitalLabel: {
-    fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 4,
-    marginBottom: 2,
+    gap: 8,
   },
   vitalValue: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '700',
     color: '#1C1C1E',
   },
-  vitalUnit: {
-    fontSize: 14,
-    fontWeight: '400',
+  vitalLabel: {
+    fontSize: 13,
     color: '#8E8E93',
   },
-  playerContainer: {
-    height: 350,
+  // MiniPlayer Styles
+  miniPlayerContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  miniProgressBar: {
+    height: 3,
+    backgroundColor: '#3A3A3C',
+  },
+  miniProgressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+  },
+  miniPlayer: {
+    height: MINI_PLAYER_HEIGHT,
+    backgroundColor: '#1C1C1E',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  miniPlayButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  miniPlayerInfo: {
+    flex: 1,
+  },
+  miniPlayerTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  miniPlayerTime: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
+  // ExpandedPlayer Styles
+  expandedPlayer: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 12,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+  },
+  expandedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  expandedTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1C1C1E',
+  },
+  tagsScrollView: {
+    maxHeight: 60,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  tagsScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  tagChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: '#F2F2F7',
+    gap: 6,
+  },
+  tagChipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  tagChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  transcriptScroll: {
+    flex: 1,
+  },
+  transcriptContainer: {
+    padding: 20,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  transcriptWord: {
+    fontSize: 16,
+    lineHeight: 28,
+    color: '#1C1C1E',
+  },
+  transcriptWordActive: {
+    backgroundColor: '#007AFF',
+    color: '#FFFFFF',
+    borderRadius: 4,
+    paddingHorizontal: 4,
+  },
+  playerControls: {
+    padding: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E5EA',
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#E5E5EA',
+    borderRadius: 2,
+    marginBottom: 8,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#007AFF',
+    borderRadius: 2,
+  },
+  timeRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  timeText: {
+    fontSize: 12,
+    color: '#8E8E93',
+    fontVariant: ['tabular-nums'],
+  },
+  controlsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 40,
+  },
+  skipButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 8,
+    position: 'relative',
+  },
+  skipText: {
+    position: 'absolute',
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#007AFF',
+    bottom: 4,
+  },
+  playButton: {
+    alignSelf: 'center',
+    width: 70,
+    height: 70,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

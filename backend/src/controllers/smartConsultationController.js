@@ -75,9 +75,10 @@ const createSmartConsultation = async (req, res) => {
         duration: Math.round(aiResult.duration || 0),
         rawText: aiResult.rawText,
         transcriptionJson: aiResult.transcriptionJson,
-        summary: aiResult.summary,
+        medicalHighlights: aiResult.medicalHighlights,
         extractedVitals: aiResult.extractedVitals,
-        tags: aiResult.tags
+        tags: aiResult.tags, // Legacy
+        summary: null // Explicitly set to null (legacy field)
       },
       include: {
         vet: {
@@ -126,20 +127,73 @@ const getPetSmartConsultations = async (req, res) => {
     const { petId } = req.params;
 
     console.log('📋 [SMART CONSULTATION] Fetching consultations for pet:', petId);
+    console.log('👤 [SMART CONSULTATION] User type:', req.user.type);
+    console.log('🆔 [SMART CONSULTATION] User ID:', req.user.id);
 
-    // Verificar acceso a la mascota
-    const pet = await prisma.pet.findFirst({
-      where: {
-        id: petId,
-        OR: [
-          { userId: req.user.type === 'user' ? req.user.id : undefined },
-          { coOwners: { some: { userId: req.user.type === 'user' ? req.user.id : undefined } } },
-          { linkedVets: { some: { vetId: req.user.type === 'vet' ? req.user.id : undefined } } }
-        ]
+    // Construir la query de acceso según el tipo de usuario
+    let petQuery = {
+      id: petId,
+    };
+
+    if (req.user.type === 'user') {
+      // Si es usuario, verificar que sea owner o co-owner
+      petQuery.OR = [
+        { userId: req.user.id },
+        { coOwners: { some: { userId: req.user.id } } }
+      ];
+    } else if (req.user.type === 'vet') {
+      // Si es vet, verificar que esté vinculado O que haya creado la mascota
+      petQuery.OR = [
+        { linkedVets: { some: { vetId: req.user.id } } },
+        { createdByVetId: req.user.id } // Permitir acceso si el vet creó la mascota
+      ];
+    }
+
+    console.log('🔍 [SMART CONSULTATION] Pet query:', JSON.stringify(petQuery));
+
+    // Primero verificar si la mascota existe en general
+    const petExists = await prisma.pet.findUnique({
+      where: { id: petId },
+      select: {
+        id: true,
+        nombre: true,
+        userId: true,
+        createdByVetId: true,
+        linkedVets: {
+          select: {
+            vetId: true,
+            vet: {
+              select: { nombre: true }
+            }
+          }
+        }
       }
     });
 
+    console.log('🐕 [SMART CONSULTATION] Pet exists:', !!petExists);
+    if (petExists) {
+      console.log('📝 [SMART CONSULTATION] Pet info:', {
+        id: petExists.id,
+        nombre: petExists.nombre,
+        ownerId: petExists.userId,
+        createdByVetId: petExists.createdByVetId
+      });
+      console.log('👨‍⚕️ [SMART CONSULTATION] Linked vets:', petExists.linkedVets);
+    }
+
+    // Verificar acceso a la mascota
+    const pet = await prisma.pet.findFirst({
+      where: petQuery
+    });
+
+    console.log('✅ [SMART CONSULTATION] Pet access granted:', !!pet);
+
     if (!pet) {
+      console.log('❌ [SMART CONSULTATION] Pet not found or access denied');
+      if (petExists) {
+        console.log('⚠️ [SMART CONSULTATION] Pet exists but user has no access');
+        console.log('💡 [SMART CONSULTATION] Need to link vet to pet first');
+      }
       return res.status(404).json({ error: 'Pet not found or access denied' });
     }
 
@@ -186,7 +240,8 @@ const getSmartConsultationById = async (req, res) => {
             nombre: true,
             especie: true,
             raza: true,
-            fotoUrl: true
+            fotoUrl: true,
+            createdByVetId: true
           }
         },
         vet: {
@@ -205,19 +260,32 @@ const getSmartConsultationById = async (req, res) => {
     }
 
     // Verificar acceso
-    const hasAccess = req.user.type === 'vet'
-      ? consultation.vetId === req.user.id
-      : await prisma.pet.findFirst({
-          where: {
-            id: consultation.petId,
-            OR: [
-              { userId: req.user.id },
-              { coOwners: { some: { userId: req.user.id } } }
-            ]
-          }
-        });
+    let hasAccess = false;
 
-    if (!hasAccess && req.user.type === 'user') {
+    if (req.user.type === 'vet') {
+      // Vet tiene acceso si creó la consulta O creó la mascota O está vinculado
+      hasAccess = consultation.vetId === req.user.id ||
+                  consultation.pet.createdByVetId === req.user.id ||
+                  await prisma.vetPetLink.findFirst({
+                    where: {
+                      vetId: req.user.id,
+                      petId: consultation.petId
+                    }
+                  });
+    } else {
+      // Usuario tiene acceso si es owner o co-owner
+      hasAccess = await prisma.pet.findFirst({
+        where: {
+          id: consultation.petId,
+          OR: [
+            { userId: req.user.id },
+            { coOwners: { some: { userId: req.user.id } } }
+          ]
+        }
+      });
+    }
+
+    if (!hasAccess) {
       return res.status(403).json({ error: 'Access denied' });
     }
 

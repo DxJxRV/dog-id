@@ -39,21 +39,28 @@ const transcribeAudioWithTimestamps = async (audioFilePath) => {
 };
 
 /**
- * Analizar transcripción veterinaria con GPT-4
+ * Analizar transcripción veterinaria con GPT-4 - Medical Highlights
  * @param {string} rawText - Texto transcrito
  * @param {string} petName - Nombre de la mascota
  * @param {string} petSpecies - Especie
- * @returns {Promise<{summary: string, extractedVitals: Object, tags: Array}>}
+ * @returns {Promise<{medicalHighlights: Array, extractedVitals: Object}>}
  */
 const analyzeVeterinaryConsultation = async (rawText, petName, petSpecies) => {
   try {
     console.log('🤖 [OPENAI] Analyzing veterinary consultation with GPT-4...');
 
-    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer información clínica estructurada.
+    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer MEDICAL HIGHLIGHTS (hallazgos clínicos clave).
 
 Debes generar una respuesta en formato JSON con la siguiente estructura:
 {
-  "summary": "Resumen clínico detallado de la consulta en español, incluyendo motivo de consulta, hallazgos, diagnóstico presuntivo y plan terapéutico",
+  "medicalHighlights": [
+    {
+      "tag": "Título corto del hallazgo (ej: Parvovirus, Temperatura 38°, Cojera pata derecha)",
+      "category": "URGENCIA | SINTOMA | DIAGNOSTICO | TRATAMIENTO | VITAL",
+      "severity": "HIGH | MEDIUM | LOW",
+      "triggerPhrase": "Fragmento literal de texto donde se menciona (5-15 palabras)"
+    }
+  ],
   "extractedVitals": {
     "peso": number o null,
     "temperatura": number o null,
@@ -62,19 +69,34 @@ Debes generar una respuesta en formato JSON con la siguiente estructura:
     "pulso": string o null,
     "mucosas": string o null,
     "condicionCorporal": number (1-9) o null
-  },
-  "tags": ["array", "de", "palabras", "clave"] // Máximo 5 tags relevantes como URGENTE, DOLOR, DESHIDRATACION, VACUNACION, etc.
+  }
 }
 
-Extrae SOLO los signos vitales que se mencionen explícitamente. Si no se mencionan, usa null.
-Para los tags, identifica las palabras clave más importantes para búsqueda y filtrado.`;
+CATEGORÍAS (usa SOLO estas):
+- URGENCIA: Condiciones que requieren atención inmediata (envenenamiento, trauma severo, dificultad respiratoria aguda)
+- SINTOMA: Signos clínicos observables (fiebre, vómito, diarrea, tos, cojera, letargo)
+- DIAGNOSTICO: Enfermedades identificadas (parvovirus, moquillo, insuficiencia renal, diabetes)
+- TRATAMIENTO: Medicamentos o procedimientos aplicados (antibióticos, fluidos IV, cirugía)
+- VITAL: Signos vitales medidos (peso, temperatura, frecuencia cardíaca, presión)
+
+SEVERIDAD (usa criterio clínico estricto):
+- HIGH: Peligro de vida, dolor agudo, enfermedades graves (ej: Parvovirus, Trauma craneal, Insuficiencia renal aguda)
+- MEDIUM: Patología clara que requiere tratamiento (ej: Sarna, Gastroenteritis, Otitis severa, Parásitos abundantes)
+- LOW: Observaciones menores, hallazgos leves (ej: Ligera pérdida de peso, Cicatrices antiguas, Uñas largas)
+
+INSTRUCCIONES CRÍTICAS:
+1. La "triggerPhrase" debe ser el texto EXACTO de la transcripción (respeta mayúsculas, tildes, errores de transcripción).
+2. Extrae entre 3-8 highlights (los más relevantes clínicamente).
+3. NO inventes información que no esté en la transcripción.
+4. Los signos vitales solo si se mencionan explícitamente.
+5. Ordena por SEVERIDAD: primero HIGH, luego MEDIUM, al final LOW.`;
 
     const userPrompt = `Paciente: ${petName} (${petSpecies})
 
 Transcripción de la consulta:
 ${rawText}
 
-Analiza esta consulta veterinaria y proporciona el resumen clínico, signos vitales y tags en formato JSON.`;
+Analiza esta consulta y extrae los Medical Highlights con sus trigger phrases exactas.`;
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -83,20 +105,20 @@ Analiza esta consulta veterinaria y proporciona el resumen clínico, signos vita
         { role: 'user', content: userPrompt }
       ],
       response_format: { type: 'json_object' },
-      temperature: 0.3, // Baja temperatura para mayor precisión
+      temperature: 0.2, // Muy baja para precisión en trigger phrases
     });
 
     const analysisResult = JSON.parse(completion.choices[0].message.content);
 
     console.log('✅ [OPENAI] Analysis completed');
-    console.log('📊 [OPENAI] Summary length:', analysisResult.summary?.length || 0);
+    console.log('🔍 [OPENAI] Medical Highlights:', analysisResult.medicalHighlights?.length || 0);
     console.log('💊 [OPENAI] Vitals extracted:', Object.keys(analysisResult.extractedVitals || {}).length);
-    console.log('🏷️ [OPENAI] Tags:', analysisResult.tags);
 
     return {
-      summary: analysisResult.summary || 'No se pudo generar un resumen.',
+      medicalHighlights: analysisResult.medicalHighlights || [],
       extractedVitals: analysisResult.extractedVitals || {},
-      tags: analysisResult.tags || []
+      // Mantener tags legacy para compatibilidad
+      tags: analysisResult.medicalHighlights?.map(h => h.category) || []
     };
   } catch (error) {
     console.error('❌ [OPENAI] Analysis error:', error);
