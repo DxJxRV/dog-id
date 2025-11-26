@@ -1,6 +1,7 @@
 const prisma = require('../utils/prisma');
 const { uploadPrivateFile, deletePrivateImage } = require('../services/s3Service');
 const { processVeterinaryAudio } = require('../services/openaiService');
+const { indexConsultation, deleteConsultationFromIndex } = require('../services/embeddingService');
 const fs = require('fs');
 const path = require('path');
 
@@ -90,6 +91,26 @@ const createSmartConsultation = async (req, res) => {
         }
       }
     });
+
+    // Paso 4: Indexar en Pinecone para búsqueda semántica
+    console.log('📊 [SMART CONSULTATION] Indexing in Pinecone...');
+    try {
+      // Concatenar texto completo: transcripción + highlights para búsqueda semántica
+      const textForEmbedding = [
+        aiResult.rawText,
+        // Agregar tags para mejorar búsqueda
+        aiResult.medicalHighlights?.map(h => `${h.tag}: ${h.snippet}`).join('. ') || ''
+      ].join('\n\n');
+
+      await indexConsultation(
+        smartConsultation.id,
+        textForEmbedding,
+        petId
+      );
+    } catch (embeddingError) {
+      // No bloquear la respuesta si falla el indexado
+      console.error('⚠️ [SMART CONSULTATION] Failed to index in Pinecone:', embeddingError);
+    }
 
     // Limpiar archivo temporal
     if (fs.existsSync(tempFilePath)) {
@@ -333,6 +354,15 @@ const deleteSmartConsultation = async (req, res) => {
       }
     }
 
+    // Eliminar del índice de Pinecone
+    console.log('🗑️ [SMART CONSULTATION] Deleting from Pinecone index...');
+    try {
+      await deleteConsultationFromIndex(id);
+    } catch (pineconeError) {
+      console.error('⚠️ [SMART CONSULTATION] Failed to delete from Pinecone:', pineconeError);
+      // Continuar con la eliminación aunque falle Pinecone
+    }
+
     // Eliminar de la base de datos (esto también elimina tags y highlights por cascade)
     await prisma.smartConsultation.delete({
       where: { id }
@@ -347,9 +377,107 @@ const deleteSmartConsultation = async (req, res) => {
   }
 };
 
+/**
+ * Búsqueda semántica de consultas
+ * GET /pets/:petId/smart-consultations/search
+ */
+const searchSmartConsultations = async (req, res) => {
+  try {
+    const { petId } = req.params;
+    const { q } = req.query; // Query de búsqueda
+
+    if (!q || q.trim().length === 0) {
+      return res.status(400).json({ error: 'Search query is required' });
+    }
+
+    console.log('🔍 [SMART CONSULTATION] Semantic search...');
+    console.log('   🐾 Pet ID:', petId);
+    console.log('   📝 Query:', q);
+    console.log('   👤 User type:', req.user.type);
+
+    // Verificar acceso a la mascota (igual que en getPetSmartConsultations)
+    let petQuery = {
+      id: petId,
+    };
+
+    if (req.user.type === 'user') {
+      petQuery.OR = [
+        { userId: req.user.id },
+        { coOwners: { some: { userId: req.user.id } } }
+      ];
+    } else if (req.user.type === 'vet') {
+      petQuery.OR = [
+        { linkedVets: { some: { vetId: req.user.id } } },
+        { createdByVetId: req.user.id }
+      ];
+    }
+
+    const pet = await prisma.pet.findFirst({
+      where: petQuery,
+      select: { id: true, nombre: true }
+    });
+
+    if (!pet) {
+      return res.status(403).json({ error: 'Access denied to this pet' });
+    }
+
+    // Búsqueda semántica en Pinecone
+    const { searchConsultations } = require('../services/embeddingService');
+    const searchResults = await searchConsultations(q, petId, 10);
+
+    console.log('   📊 Pinecone returned', searchResults.length, 'matches');
+
+    if (searchResults.length === 0) {
+      return res.json({ consultations: [], query: q });
+    }
+
+    // Obtener IDs de las consultas
+    const consultationIds = searchResults.map(r => r.consultationId);
+
+    // Buscar consultas completas en MySQL
+    const consultations = await prisma.smartConsultation.findMany({
+      where: {
+        id: { in: consultationIds },
+        petId: petId // Seguridad extra
+      },
+      include: {
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Ordenar por score de Pinecone
+    const scoreMap = new Map(searchResults.map(r => [r.consultationId, r.score]));
+    const sortedConsultations = consultations
+      .map(c => ({
+        ...c,
+        searchScore: scoreMap.get(c.id) || 0
+      }))
+      .sort((a, b) => b.searchScore - a.searchScore);
+
+    console.log('   ✅ Returning', sortedConsultations.length, 'consultations');
+
+    res.json({
+      consultations: sortedConsultations,
+      query: q,
+      resultsCount: sortedConsultations.length
+    });
+  } catch (error) {
+    console.error('❌ [SMART CONSULTATION] Search error:', error);
+    res.status(500).json({ error: 'Failed to search consultations', details: error.message });
+  }
+};
+
 module.exports = {
   createSmartConsultation,
   getPetSmartConsultations,
   getSmartConsultationById,
+  searchSmartConsultations,
   deleteSmartConsultation
 };

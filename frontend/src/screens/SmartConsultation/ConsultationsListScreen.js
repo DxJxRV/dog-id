@@ -11,6 +11,8 @@ import {
   ScrollView,
   Animated,
   Alert,
+  TextInput,
+  Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
@@ -43,6 +45,11 @@ const ConsultationsListScreen = ({ route, navigation }) => {
   const checkTimeout = useRef(null);
   const [deletingId, setDeletingId] = useState(null); // ID de consulta que se está eliminando
   const [menuVisible, setMenuVisible] = useState(null); // ID de consulta con menú visible
+
+  // Estados para búsqueda semántica
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState(null); // null = no hay búsqueda activa
+  const [isSearching, setIsSearching] = useState(false);
 
   // Animación shimmer
   const shimmerAnim = useRef(new Animated.Value(0)).current;
@@ -433,6 +440,48 @@ const ConsultationsListScreen = ({ route, navigation }) => {
     }
   };
 
+  // Búsqueda semántica
+  const performSemanticSearch = async () => {
+    if (!searchQuery.trim()) {
+      return;
+    }
+
+    try {
+      setIsSearching(true);
+      Keyboard.dismiss();
+      console.log('🔍 Performing semantic search:', searchQuery);
+
+      const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
+      const response = await axios.get(
+        `${API_URL}/pets/${petId}/smart-consultations/search`,
+        {
+          params: { q: searchQuery },
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+
+      setSearchResults(response.data.consultations);
+      console.log('✅ Search results:', response.data.consultations.length);
+
+      if (response.data.consultations.length === 0) {
+        showToast.info('No se encontraron resultados');
+      }
+    } catch (error) {
+      console.error('❌ Error in semantic search:', error);
+      showToast.error('Error al buscar consultas');
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
+    setSearchResults(null);
+    setSelectedTag(null);
+    Keyboard.dismiss();
+  };
+
   const getSeverityColor = (severity) => {
     const colors = {
       HIGH: '#DC2626',      // Rojo
@@ -732,8 +781,53 @@ const ConsultationsListScreen = ({ route, navigation }) => {
 
   return (
     <View style={styles.container}>
-      {/* TagCloud Header Compacto */}
-      {allTags.length > 0 && (
+      {/* Barra de Búsqueda Semántica */}
+      <View style={styles.searchContainer}>
+        <View style={styles.searchBar}>
+          <Ionicons name="sparkles" size={20} color="#007AFF" style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Busca síntomas, diagnósticos o notas..."
+            placeholderTextColor="#8E8E93"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={performSemanticSearch}
+            returnKeyType="search"
+            editable={!isSearching}
+          />
+          {isSearching ? (
+            <ActivityIndicator size="small" color="#007AFF" />
+          ) : searchQuery.length > 0 ? (
+            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+              <Ionicons name="close-circle" size={20} color="#8E8E93" />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity onPress={performSemanticSearch} disabled={!searchQuery.trim()}>
+              <Ionicons
+                name="search"
+                size={20}
+                color={searchQuery.trim() ? "#007AFF" : "#C7C7CC"}
+              />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Badge de búsqueda activa */}
+        {searchResults !== null && (
+          <View style={styles.searchActiveBadge}>
+            <Ionicons name="search" size={14} color="#007AFF" />
+            <Text style={styles.searchActiveBadgeText}>
+              Búsqueda: "{searchQuery}"
+            </Text>
+            <TouchableOpacity onPress={clearSearch} style={styles.clearSearchBadge}>
+              <Ionicons name="close" size={14} color="#007AFF" />
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+
+      {/* TagCloud Header Compacto (ocultar durante búsqueda) */}
+      {allTags.length > 0 && searchResults === null && (
         <View style={styles.tagCloudContainer}>
           <Text style={styles.tagCloudTitle}>Filtrar por hallazgo</Text>
           <View style={styles.tagCloud}>
@@ -780,27 +874,51 @@ const ConsultationsListScreen = ({ route, navigation }) => {
       )}
 
       <FlatList
-        data={consultations}
+        data={searchResults !== null ? searchResults : consultations}
         renderItem={renderConsultation}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={searchResults !== null ? clearSearch : onRefresh}
+          />
         }
         onScroll={() => {
           if (menuVisible) setMenuVisible(null);
         }}
         scrollEventThrottle={16}
-        ListHeaderComponent={uploadStatus ? renderUploadCard() : null}
+        ListHeaderComponent={uploadStatus && searchResults === null ? renderUploadCard() : null}
         ListEmptyComponent={
           !uploadStatus && (
-            <View style={styles.emptyContainer}>
-              <Ionicons name="mic-off-outline" size={80} color="#C7C7CC" />
-              <Text style={styles.emptyText}>No hay consultas grabadas</Text>
-              <Text style={styles.emptySubtext}>
-                Graba la primera consulta para ver el análisis con IA
-              </Text>
-            </View>
+            searchResults !== null ? (
+              // Empty state para búsqueda sin resultados
+              <View style={styles.emptyContainer}>
+                <Ionicons name="search-outline" size={80} color="#C7C7CC" />
+                <Text style={styles.emptyText}>
+                  No encontramos consultas relacionadas
+                </Text>
+                <Text style={styles.emptySubtext}>
+                  No se encontraron consultas relacionadas con "{searchQuery}" en el historial de {petName}
+                </Text>
+                <TouchableOpacity
+                  style={styles.clearSearchButton}
+                  onPress={clearSearch}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.clearSearchButtonText}>Limpiar búsqueda</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              // Empty state normal
+              <View style={styles.emptyContainer}>
+                <Ionicons name="mic-off-outline" size={80} color="#C7C7CC" />
+                <Text style={styles.emptyText}>No hay consultas grabadas</Text>
+                <Text style={styles.emptySubtext}>
+                  Graba la primera consulta para ver el análisis con IA
+                </Text>
+              </View>
+            )
           )
         }
       />
@@ -879,6 +997,69 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F2F2F7',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+    backgroundColor: '#F2F2F7',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+    gap: 8,
+  },
+  searchIcon: {
+    marginRight: 4,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#000000',
+    padding: 0,
+  },
+  clearButton: {
+    padding: 2,
+  },
+  searchActiveBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E3F2FD',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginTop: 8,
+    gap: 6,
+  },
+  searchActiveBadgeText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#007AFF',
+    fontWeight: '500',
+  },
+  clearSearchBadge: {
+    padding: 2,
+  },
+  clearSearchButton: {
+    marginTop: 16,
+    backgroundColor: '#007AFF',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  clearSearchButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,

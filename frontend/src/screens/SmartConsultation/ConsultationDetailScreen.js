@@ -49,6 +49,11 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const positionInterval = useRef(null);
 
+  // Collapse states
+  const [isTranscriptionExpanded, setIsTranscriptionExpanded] = useState(true);
+  const [isHighlightsExpanded, setIsHighlightsExpanded] = useState(true);
+  const [isVitalsExpanded, setIsVitalsExpanded] = useState(true);
+
   useEffect(() => {
     fetchConsultation();
     return () => {
@@ -231,44 +236,46 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
     seekToTime(currentTime + 5);
   };
 
-  const handleWordPress = (wordData) => {
-    seekToTime(wordData.start);
+  const handleWordPress = async (wordData) => {
+    if (!sound) return;
+
+    try {
+      // Saltar al tiempo de la palabra
+      await seekToTime(wordData.start);
+
+      // Si el audio no está reproduciendo, empezar a reproducir
+      if (!isPlaying) {
+        await sound.playAsync();
+      }
+    } catch (error) {
+      console.error('Error playing from word:', error);
+    }
   };
 
   const handleTagPress = async (highlight) => {
-    if (!consultation?.transcriptionJson || !consultation?.rawText) return;
+    if (!sound) return;
 
-    // Buscar la triggerPhrase en rawText
-    const searchText = highlight.triggerPhrase.toLowerCase();
-    const fullText = consultation.rawText.toLowerCase();
-    const phraseIndex = fullText.indexOf(searchText);
+    try {
+      // Los highlights ya tienen timestamp directo
+      if (highlight.timestamp !== undefined) {
+        // Retroceder 3 segundos para contexto
+        const seekTime = Math.max(0, highlight.timestamp - 3);
+        await seekToTime(seekTime);
 
-    if (phraseIndex === -1) {
-      showToast.info('No se encontró la frase en la transcripción');
-      return;
-    }
+        // Si no está reproduciendo, empezar a reproducir
+        if (!isPlaying) {
+          await sound.playAsync();
+        }
 
-    // Encontrar el word en transcriptionJson que corresponde a la frase
-    let charCount = 0;
-    let targetWordIndex = -1;
-
-    for (let i = 0; i < consultation.transcriptionJson.length; i++) {
-      const word = consultation.transcriptionJson[i];
-      charCount += word.word.length + 1; // +1 for space
-
-      if (charCount >= phraseIndex) {
-        targetWordIndex = i;
-        break;
+        // Abrir player expandido para mejor visualización
+        setIsExpanded(true);
+        showToast.success(`Reproduciendo: ${highlight.tag}`);
+      } else {
+        showToast.info('No se encontró el momento en el audio');
       }
-    }
-
-    if (targetWordIndex !== -1) {
-      const targetWord = consultation.transcriptionJson[targetWordIndex];
-      // Retroceder 5 segundos para contexto
-      const seekTime = Math.max(0, targetWord.start - 5);
-      await seekToTime(seekTime);
-      setIsExpanded(true);
-      showToast.success(`Saltando a: ${highlight.tag}`);
+    } catch (error) {
+      console.error('Error playing from highlight:', error);
+      showToast.error('Error al reproducir');
     }
   };
 
@@ -379,10 +386,71 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
           </View>
         </View>
 
+        {/* Transcripción Completa */}
+        {consultation.transcriptionJson && consultation.transcriptionJson.length > 0 && (
+          <View style={styles.section}>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setIsTranscriptionExpanded(!isTranscriptionExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Transcripción Completa</Text>
+              <Ionicons
+                name={isTranscriptionExpanded ? 'chevron-up' : 'chevron-down'}
+                size={24}
+                color="#8E8E93"
+              />
+            </TouchableOpacity>
+
+            {isTranscriptionExpanded && (
+              <View style={styles.transcriptionContainer}>
+                <Text style={styles.transcriptionHint}>
+                  Toca cualquier palabra para saltar a ese momento
+                </Text>
+                <View style={styles.transcriptionText}>
+                  {consultation.transcriptionJson.map((wordData, index) => {
+                    const isCurrentWord = index === currentWordIndex;
+                    return (
+                      <TouchableOpacity
+                        key={index}
+                        onPress={() => handleWordPress(wordData)}
+                        activeOpacity={0.7}
+                      >
+                        <Text
+                          style={[
+                            styles.transcriptionWord,
+                            isCurrentWord && styles.transcriptionWordActive,
+                          ]}
+                        >
+                          {wordData.word}{' '}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
+          </View>
+        )}
+
         {/* Medical Highlights */}
         {consultation.medicalHighlights && consultation.medicalHighlights.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Hallazgos Clínicos</Text>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setIsHighlightsExpanded(!isHighlightsExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Hallazgos Clínicos</Text>
+              <Ionicons
+                name={isHighlightsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={24}
+                color="#8E8E93"
+              />
+            </TouchableOpacity>
+
+            {isHighlightsExpanded && (
+              <View>
             {consultation.medicalHighlights.map((highlight, index) => (
               <TouchableOpacity
                 key={index}
@@ -419,20 +487,35 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.highlightPhrase}>"{highlight.triggerPhrase}"</Text>
+                <Text style={styles.highlightPhrase}>"{highlight.snippet}"</Text>
                 <View style={styles.highlightFooter}>
                   <Ionicons name="play-circle" size={16} color="#007AFF" />
                   <Text style={styles.highlightAction}>Tocar para escuchar</Text>
                 </View>
               </TouchableOpacity>
             ))}
+              </View>
+            )}
           </View>
         )}
 
         {/* Signos Vitales */}
         {consultation.extractedVitals && Object.keys(consultation.extractedVitals).length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Signos Vitales</Text>
+            <TouchableOpacity
+              style={styles.sectionHeader}
+              onPress={() => setIsVitalsExpanded(!isVitalsExpanded)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.sectionTitle}>Signos Vitales</Text>
+              <Ionicons
+                name={isVitalsExpanded ? 'chevron-up' : 'chevron-down'}
+                size={24}
+                color="#8E8E93"
+              />
+            </TouchableOpacity>
+
+            {isVitalsExpanded && (
             <View style={styles.vitalsGrid}>
               {consultation.extractedVitals.peso && (
                 <View style={styles.vitalCard}>
@@ -456,6 +539,7 @@ const ConsultationDetailScreen = ({ route, navigation }) => {
                 </View>
               )}
             </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -693,11 +777,45 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 24,
   },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '700',
     color: '#1C1C1E',
-    marginBottom: 16,
+  },
+  transcriptionContainer: {
+    backgroundColor: '#F9F9F9',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  transcriptionHint: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: 12,
+    fontStyle: 'italic',
+  },
+  transcriptionText: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'flex-start',
+  },
+  transcriptionWord: {
+    fontSize: 15,
+    color: '#1C1C1E',
+    lineHeight: 24,
+  },
+  transcriptionWordActive: {
+    backgroundColor: '#007AFF',
+    color: '#FFFFFF',
+    fontWeight: '600',
+    borderRadius: 4,
+    paddingHorizontal: 2,
   },
   highlightCard: {
     backgroundColor: '#FFFFFF',

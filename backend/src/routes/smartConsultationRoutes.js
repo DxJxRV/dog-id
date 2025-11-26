@@ -7,6 +7,7 @@ const {
   createSmartConsultation,
   getPetSmartConsultations,
   getSmartConsultationById,
+  searchSmartConsultations,
   deleteSmartConsultation
 } = require('../controllers/smartConsultationController');
 
@@ -58,6 +59,13 @@ router.post(
   authenticateVet,
   upload.single('audio'),
   createSmartConsultation
+);
+
+// Búsqueda semántica (DEBE IR ANTES de la ruta GET general para evitar conflictos)
+router.get(
+  '/pets/:petId/smart-consultations/search',
+  authenticateUserOrVet,
+  searchSmartConsultations
 );
 
 router.get(
