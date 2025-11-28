@@ -1,7 +1,9 @@
 const prisma = require('../utils/prisma');
 const { startOfDay, endOfDay, addMinutes, format, isSameDay } = require('date-fns');
 
-// ... (createAppointment, requestAppointment, getSchedule, updateStatus, getAppointmentDetail, getPendingRequests, manageRequest existing functions)
+// ... existing imports ...
+
+// ... existing createAppointment, requestAppointment, getSchedule, updateStatus, getAppointmentDetail, getPendingRequests, manageRequest ...
 
 /**
  * Crear una nueva cita (Vet)
@@ -9,14 +11,12 @@ const { startOfDay, endOfDay, addMinutes, format, isSameDay } = require('date-fn
 const createAppointment = async (req, res) => {
   try {
     let { clinicId, petId, startDateTime, endDateTime, reason, notes } = req.body;
-    const vetId = req.user.id; // El vet logueado crea la cita para sí mismo (por ahora)
+    const vetId = req.user.id;
 
-    // Validaciones básicas
     if (!petId || !startDateTime || !endDateTime) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    // Si clinicId es 'default' o no se envía, buscar la primera clínica del vet
     if (!clinicId || clinicId === 'default') {
       const membership = await prisma.clinicMember.findFirst({
         where: { vetId: vetId, isActive: true },
@@ -26,7 +26,6 @@ const createAppointment = async (req, res) => {
       if (membership) {
         clinicId = membership.clinicId;
       } else {
-        // Si no tiene clínica, crear una por defecto "Consultorio Personal"
         console.log('⚠️ No clinic found for vet, creating default personal clinic...');
         const vet = await prisma.vet.findUnique({ where: { id: vetId } });
         
@@ -42,7 +41,8 @@ const createAppointment = async (req, res) => {
           data: {
             clinicId: newClinic.id,
             vetId: vetId,
-            role: 'OWNER'
+            role: 'OWNER',
+            isAvailable: true
           }
         });
 
@@ -57,7 +57,6 @@ const createAppointment = async (req, res) => {
       return res.status(400).json({ error: 'End time must be after start time' });
     }
 
-    // Verificar conflictos de horario para este Vet en esta Clínica
     const conflict = await prisma.appointment.findFirst({
       where: {
         vetId: vetId,
@@ -79,7 +78,6 @@ const createAppointment = async (req, res) => {
       });
     }
 
-    // Crear la cita
     const appointment = await prisma.appointment.create({
       data: {
         clinicId,
@@ -89,7 +87,7 @@ const createAppointment = async (req, res) => {
         endDateTime: end,
         reason,
         notes,
-        status: 'CONFIRMED' // Por defecto confirmada si la crea el vet
+        status: 'CONFIRMED'
       }
     });
 
@@ -100,15 +98,13 @@ const createAppointment = async (req, res) => {
   }
 };
 
-/**
- * Solicitar una cita (User)
- */
+// ... requestAppointment, getSchedule, updateStatus, getAppointmentDetail, getPendingRequests, manageRequest ...
+
 const requestAppointment = async (req, res) => {
   try {
     const { clinicId, vetId, petId, startDateTime, reason } = req.body;
     const userId = req.user.id;
 
-    // Validar que la mascota pertenece al usuario
     const pet = await prisma.pet.findFirst({
       where: { id: petId, userId: userId }
     });
@@ -121,7 +117,6 @@ const requestAppointment = async (req, res) => {
       return res.status(400).json({ error: 'Must provide clinicId or vetId' });
     }
 
-    // Si se proporciona vetId pero no clinicId, buscar la clínica del vet
     let targetClinicId = clinicId;
     if (vetId && !clinicId) {
       const membership = await prisma.clinicMember.findFirst({
@@ -136,13 +131,12 @@ const requestAppointment = async (req, res) => {
     }
 
     const start = new Date(startDateTime);
-    const end = new Date(start.getTime() + 30 * 60000); // Default 30 min duration
+    const end = new Date(start.getTime() + 30 * 60000);
 
-    // Crear solicitud
     const appointment = await prisma.appointment.create({
       data: {
         clinicId: targetClinicId,
-        vetId: vetId || null, // Puede ser null si es cita general a la clínica
+        vetId: vetId || null,
         petId,
         startDateTime: start,
         endDateTime: end,
@@ -158,10 +152,6 @@ const requestAppointment = async (req, res) => {
   }
 };
 
-/**
- * Obtener citas (Schedule)
- * Filtros: startDate, endDate, clinicId
- */
 const getSchedule = async (req, res) => {
   try {
     const { start, end, clinicId } = req.query;
@@ -173,7 +163,6 @@ const getSchedule = async (req, res) => {
 
     if (clinicId) whereClause.clinicId = clinicId;
     
-    // Filtro por rango de fechas
     if (start && end) {
       whereClause.startDateTime = {
         gte: new Date(start),
@@ -211,9 +200,6 @@ const getSchedule = async (req, res) => {
   }
 };
 
-/**
- * Actualizar estado de la cita
- */
 const updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -228,9 +214,7 @@ const updateStatus = async (req, res) => {
       return res.status(404).json({ error: 'Appointment not found' });
     }
 
-    // Verificar permisos: El vet asignado o un miembro de la clínica con permisos
     if (appointment.vetId && appointment.vetId !== vetId) {
-        // Check if requester is admin/owner of the clinic
         const membership = await prisma.clinicMember.findUnique({
             where: {
                 clinicId_vetId: {
@@ -257,9 +241,6 @@ const updateStatus = async (req, res) => {
   }
 };
 
-/**
- * Obtener detalle de cita
- */
 const getAppointmentDetail = async (req, res) => {
   try {
     const { id } = req.params;
@@ -284,14 +265,10 @@ const getAppointmentDetail = async (req, res) => {
   }
 };
 
-/**
- * Obtener solicitudes pendientes (Clinic Dashboard)
- */
 const getPendingRequests = async (req, res) => {
     try {
         const vetId = req.user.id;
         
-        // Buscar las clínicas donde trabaja el vet
         const memberships = await prisma.clinicMember.findMany({
             where: { vetId, isActive: true },
             include: { clinic: true }
@@ -299,14 +276,13 @@ const getPendingRequests = async (req, res) => {
 
         const clinicIds = memberships.map(m => m.clinicId);
 
-        // Buscar citas PENDING_APPROVAL en esas clínicas
         const requests = await prisma.appointment.findMany({
             where: {
                 clinicId: { in: clinicIds },
                 status: 'PENDING_APPROVAL',
                 OR: [
-                    { vetId: vetId }, // Asignadas a mí
-                    { vetId: null }   // Generales (para dueños/admins)
+                    { vetId: vetId },
+                    { vetId: null }
                 ]
             },
             include: {
@@ -334,19 +310,15 @@ const getPendingRequests = async (req, res) => {
     }
 };
 
-/**
- * Gestionar solicitud (Aceptar/Rechazar/Asignar)
- */
 const manageRequest = async (req, res) => {
     try {
         const { id } = req.params;
-        const { action, vetId: assignedVetId } = req.body; // action: 'APPROVE', 'REJECT', 'ASSIGN'
+        const { action, vetId: assignedVetId } = req.body;
         const requesterId = req.user.id;
 
         const appointment = await prisma.appointment.findUnique({ where: { id } });
         if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
 
-        // Validar permisos básicos (pertenecer a la clínica)
         const membership = await prisma.clinicMember.findUnique({
             where: { clinicId_vetId: { clinicId: appointment.clinicId, vetId: requesterId } }
         });
@@ -357,12 +329,10 @@ const manageRequest = async (req, res) => {
 
         if (action === 'APPROVE') {
             updateData.status = 'CONFIRMED';
-            // Si no tenía vet asignado, se asigna al que aprueba (opcional, o validar que ya tenga)
             if (!appointment.vetId) updateData.vetId = requesterId;
         } else if (action === 'REJECT') {
             updateData.status = 'CANCELLED';
         } else if (action === 'ASSIGN') {
-            // Solo admins/owners pueden asignar
             if (!['OWNER', 'ADMIN'].includes(membership.role)) {
                 return res.status(403).json({ error: 'Only admins can assign appointments' });
             }
@@ -384,28 +354,21 @@ const manageRequest = async (req, res) => {
     }
 };
 
-/**
- * Obtener horarios disponibles para un día
- * GET /api/vets/:id/slots?date=YYYY-MM-DD
- */
 const getAvailableSlots = async (req, res) => {
   try {
-    const { id } = req.params; // Puede ser vetId o clinicId (lógica simplificada: id = vetId)
+    const { id } = req.params;
     const { date } = req.query;
 
     if (!date) return res.status(400).json({ error: 'Date is required' });
 
-    // Definir horario de trabajo (Hardcoded por ahora: 9am - 6pm)
-    // TODO: Obtener de clinic.settings
     const workStartHour = 9;
     const workEndHour = 18;
-    const slotDuration = 30; // minutos
+    const slotDuration = 30; 
 
     const queryDate = new Date(date);
     const startOfDayDate = new Date(queryDate.setHours(0, 0, 0, 0));
     const endOfDayDate = new Date(queryDate.setHours(23, 59, 59, 999));
 
-    // Buscar citas existentes para ese día y ese veterinario
     const appointments = await prisma.appointment.findMany({
       where: {
         vetId: id,
@@ -419,7 +382,6 @@ const getAvailableSlots = async (req, res) => {
       }
     });
 
-    // Generar todos los slots posibles
     const slots = [];
     let currentSlot = new Date(startOfDayDate);
     currentSlot.setHours(workStartHour, 0, 0, 0);
@@ -430,17 +392,13 @@ const getAvailableSlots = async (req, res) => {
     while (currentSlot < workEndTime) {
       const slotEnd = new Date(currentSlot.getTime() + slotDuration * 60000);
       
-      // Verificar colisión
       const isOccupied = appointments.some(appt => {
         const apptStart = new Date(appt.startDateTime);
         const apptEnd = new Date(appt.endDateTime);
-        
-        // Lógica de superposición de rangos: (StartA < EndB) and (EndA > StartB)
         return (currentSlot < apptEnd && slotEnd > apptStart);
       });
 
       if (!isOccupied) {
-        // Verificar que no sea en el pasado (si es hoy)
         if (new Date().toDateString() !== startOfDayDate.toDateString() || currentSlot > new Date()) {
            slots.push(format(currentSlot, 'HH:mm'));
         }
@@ -457,6 +415,51 @@ const getAvailableSlots = async (req, res) => {
   }
 };
 
+/**
+ * Asignar y confirmar solicitud
+ * POST /appointments/:id/assign-confirm
+ */
+const assignAndConfirm = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { vetId, durationMinutes } = req.body;
+    const requesterId = req.user.id;
+
+    if (!vetId || !durationMinutes) {
+      return res.status(400).json({ error: 'Vet ID and duration are required' });
+    }
+
+    const appointment = await prisma.appointment.findUnique({ where: { id } });
+    if (!appointment) return res.status(404).json({ error: 'Appointment not found' });
+
+    // Verificar permisos (debe ser miembro de la clínica)
+    const membership = await prisma.clinicMember.findUnique({
+        where: { clinicId_vetId: { clinicId: appointment.clinicId, vetId: requesterId } }
+    });
+
+    if (!membership) return res.status(403).json({ error: 'Access denied' });
+
+    // Calcular nuevo endDateTime
+    const start = new Date(appointment.startDateTime);
+    const end = new Date(start.getTime() + durationMinutes * 60000);
+
+    const updated = await prisma.appointment.update({
+      where: { id },
+      data: {
+        vetId: vetId,
+        endDateTime: end,
+        status: 'CONFIRMED'
+      }
+    });
+
+    res.json({ message: 'Appointment assigned and confirmed', appointment: updated });
+
+  } catch (error) {
+    console.error('Error assigning and confirming:', error);
+    res.status(500).json({ error: 'Failed to process request' });
+  }
+};
+
 module.exports = {
   createAppointment,
   getSchedule,
@@ -465,5 +468,6 @@ module.exports = {
   requestAppointment,
   getPendingRequests,
   manageRequest,
-  getAvailableSlots
+  getAvailableSlots,
+  assignAndConfirm
 };

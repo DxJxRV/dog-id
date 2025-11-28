@@ -187,7 +187,11 @@ export const clinicAPI = {
   addMember: (data) => api.post('/clinics/members', data),
   update: (id, data) => api.put(`/clinics/${id}`, data),
   getStaff: (id) => api.get(`/clinics/${id}/staff`),
-  addStaffMember: (id, data) => api.post(`/clinics/${id}/staff`, data),
+  addStaffMember: (id, data) => api.post(`/clinics/${id}/staff`, data), // Legacy
+  inviteMember: (id, data) => api.post(`/clinics/${id}/invite`, data), // New
+  toggleAvailability: (id, data) => api.post(`/clinics/${id}/availability`, data),
+  getMyInvitations: () => api.get('/vets/invitations'),
+  manageInvitation: (id, action) => api.post(`/clinics/invitations/${id}/manage`, { action }),
 };
 
 // Appointment API (SaaS)
@@ -200,6 +204,7 @@ export const appointmentAPI = {
   getPendingRequests: () => api.get('/appointments/requests'),
   manageRequest: (id, action, vetId) => api.post(`/appointments/${id}/manage`, { action, vetId }),
   getSlots: (vetId, date) => api.get(`/vets/${vetId}/slots?date=${date}`),
+  assignAndConfirm: (id, data) => api.post(`/appointments/${id}/assign-confirm`, data),
 };
 
 export default api;

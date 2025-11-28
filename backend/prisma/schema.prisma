@@ -66,6 +66,12 @@ enum AppointmentStatus {
   PENDING_APPROVAL
 }
 
+enum ClinicMemberStatus {
+  ACTIVE
+  INVITED
+  INACTIVE
+}
+
 // ==================== MODELOS DE USUARIOS ====================
 
 model User {
@@ -124,6 +130,8 @@ model Clinic {
   phone       String?
   logoUrl     String?  @map("logo_url")
   settings    Json?    // Horarios, configuración
+  latitude    Float?   // Ubicación
+  longitude   Float?   // Ubicación
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
@@ -135,12 +143,14 @@ model Clinic {
 }
 
 model ClinicMember {
-  id        String     @id @default(uuid())
-  clinicId  String     @map("clinic_id")
-  vetId     String     @map("vet_id")
-  role      ClinicRole @default(VET)
-  isActive  Boolean    @default(true) @map("is_active")
-  createdAt DateTime   @default(now()) @map("created_at")
+  id        String             @id @default(uuid())
+  clinicId  String             @map("clinic_id")
+  vetId     String             @map("vet_id")
+  role      ClinicRole         @default(VET)
+  status    ClinicMemberStatus @default(ACTIVE)
+  isActive  Boolean            @default(true) @map("is_active")
+  isAvailable Boolean          @default(true) @map("is_available")
+  createdAt DateTime           @default(now()) @map("created_at")
 
   clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   vet       Vet        @relation(fields: [vetId], references: [id], onDelete: Cascade)
@@ -154,13 +164,13 @@ model ClinicMember {
 model Appointment {
   id                  String            @id @default(uuid())
   clinicId            String            @map("clinic_id")
-  vetId               String?           @map("vet_id") // Make vetId optional
+  vetId               String?           @map("vet_id")
   petId               String            @map("pet_id")
   startDateTime       DateTime          @map("start_date_time")
   endDateTime         DateTime          @map("end_date_time")
   status              AppointmentStatus @default(PENDING)
   reason              String?           @db.Text
-  notes               String?           @db.Text // Notas internas
+  notes               String?           @db.Text
   createdAt           DateTime          @default(now()) @map("created_at")
   updatedAt           DateTime          @updatedAt @map("updated_at")
 
@@ -183,7 +193,7 @@ model Favorite {
   vet       Vet?     @relation(fields: [vetId], references: [id], onDelete: Cascade)
   clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, vetId, clinicId]) // Ensure unique favorite per entity type
+  @@unique([userId, vetId, clinicId])
   @@map("favorites")
 }
 
