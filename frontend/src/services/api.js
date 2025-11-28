@@ -103,6 +103,7 @@ export const userAPI = {
   getBookingHome: () => api.get('/users/booking-home'),
   toggleFavorite: (data) => api.post('/users/favorites', data),
   checkFavorite: (params) => api.get('/users/favorites/check', { params }),
+  getNotifications: () => api.get('/user/notifications'),
 };
 
 // Vaccines API

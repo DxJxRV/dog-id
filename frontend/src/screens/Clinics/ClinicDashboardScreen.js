@@ -15,60 +15,61 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import { appointmentAPI, clinicAPI } from '../../services/api';
+import { appointmentAPI, clinicAPI, userAPI } from '../../services/api';
 import { Loading, Input, Button } from '../../components';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
 import { getImageUrl } from '../../utils/imageHelper';
-// import MapView, { Marker } from 'react-native-maps'; // Removed to fix crash
+import ClinicSwitcherModal from '../../components/ClinicSwitcherModal';
 
 const ClinicDashboardScreen = () => {
   const navigation = useNavigation();
-  const { user } = useAuth();
+  const { user, currentClinic, selectClinic } = useAuth();
   const [activeTab, setActiveTab] = useState(0); // 0: Dashboard, 1: Equipo, 2: Config
   const [requests, setRequests] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [clinicData, setClinicData] = useState(null);
   
-  // Assign Modal State
+  // Clinic Data (Managed via Context + Local refresh)
+  const [clinicData, setClinicData] = useState(currentClinic);
+  const [myClinics, setMyClinics] = useState([]);
+  
+  // Modals
   const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [showSwitcherModal, setShowSwitcherModal] = useState(false);
+  
+  // Assign State
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedVetId, setSelectedVetId] = useState(null);
   const [selectedDuration, setSelectedDuration] = useState(30);
 
-  // Map State
-  const [mapRegion, setMapRegion] = useState(null);
-  const [markerCoords, setMarkerCoords] = useState(null);
-
-  // Constants
-  const DURATION_OPTIONS = [30, 60, 90, 120];
-
-  // Invite Modal State
-  const [showInviteModal, setShowInviteModal] = useState(false);
+  // Invite State
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('VET');
 
-  // Fetch Data
+  // Notifications
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const DURATION_OPTIONS = [30, 60, 90, 120];
+
+  // --- Data Loading ---
+
   const loadData = async () => {
+    if (!currentClinic) return;
     setLoading(true);
     try {
-      // Always fetch basic clinic data first if not present
-      if (!clinicData) {
-          const clinicsRes = await clinicAPI.getMyClinics();
-          if(clinicsRes.data.clinics.length > 0) {
-              const clinic = clinicsRes.data.clinics[0];
-              setClinicData(clinic);
-              // Initialize map placeholder logic if needed
-          }
-      }
-
+      // Refresh Clinic Data details if needed
+      // For now using context data, but let's fetch staff and requests
       if (activeTab === 0) {
         const res = await appointmentAPI.getPendingRequests();
         setRequests(res.data.requests);
-      } else if (activeTab === 1 && clinicData) {
-        const staffRes = await clinicAPI.getStaff(clinicData.id);
+        // Check notifications count
+        const notifRes = await userAPI.getNotifications();
+        setUnreadCount(notifRes.data.notifications.length);
+      } else if (activeTab === 1) {
+        const staffRes = await clinicAPI.getStaff(currentClinic.id);
         setStaff(staffRes.data.staff);
       }
     } catch (error) {
@@ -79,14 +80,41 @@ const ClinicDashboardScreen = () => {
   };
 
   useEffect(() => {
+    setClinicData(currentClinic);
     loadData();
-  }, [activeTab, clinicData?.id]);
+  }, [activeTab, currentClinic]);
 
-  // --- Logic Handlers ---
+  // Fetch clinics for switcher when opening modal
+  const loadMyClinics = async () => {
+      try {
+          const res = await clinicAPI.getMyClinics();
+          setMyClinics(res.data.clinics);
+      } catch(e) { console.error(e); }
+  };
 
-  const openAssignModal = (request) => {
+  // --- Handlers ---
+
+  const handleSwitchClinic = (clinic) => {
+      selectClinic(clinic); // Updates context
+      setClinicData(clinic);
+      setShowSwitcherModal(false);
+      // Data will reload due to useEffect dependency on currentClinic
+  };
+
+  const openAssignModal = async (request) => {
       setSelectedRequest(request);
       setSelectedVetId(null); 
+      
+      // Ensure staff is loaded for the modal
+      if (staff.length === 0 && clinicData) {
+          try {
+              const staffRes = await clinicAPI.getStaff(clinicData.id);
+              setStaff(staffRes.data.staff);
+          } catch (error) {
+              console.error('Error loading staff for modal:', error);
+          }
+      }
+      
       setShowAssignModal(true);
   };
 
@@ -145,8 +173,6 @@ const ClinicDashboardScreen = () => {
           await clinicAPI.update(clinicData.id, {
               name: clinicData.name,
               address: clinicData.address,
-              // latitude: markerCoords?.latitude, // Map removed
-              // longitude: markerCoords?.longitude
           });
           Alert.alert('Éxito', 'Configuración guardada');
       } catch (error) {
@@ -154,43 +180,32 @@ const ClinicDashboardScreen = () => {
       }
   };
 
-  // --- Renderers ---
+  // --- Components ---
 
-  const renderDashboardHeader = () => (
-    <View style={styles.dashboardHeader}>
-        <View style={styles.welcomeRow}>
-            <View>
-                <Text style={styles.welcomeText}>Hola, Dr. {user?.nombre}</Text>
-                <Text style={styles.dateText}>{format(new Date(), 'EEEE, d MMMM', { locale: es })}</Text>
-            </View>
-            <TouchableOpacity 
-                style={styles.agendaBtn}
-                onPress={() => navigation.navigate('Appointments')} 
-            >
-                <Ionicons name="calendar" size={20} color="#FFF" />
-            </TouchableOpacity>
-        </View>
+  const DashboardHeader = () => (
+      <View style={styles.headerContainer}>
+          {/* Clinic Switcher Trigger */}
+          <TouchableOpacity 
+            style={styles.clinicSwitcher} 
+            onPress={() => { loadMyClinics(); setShowSwitcherModal(true); }}
+          >
+              <View style={styles.clinicAvatarSmall}>
+                  {clinicData?.logoUrl ? (
+                      <Image source={{ uri: getImageUrl(clinicData.logoUrl) }} style={styles.clinicLogo} />
+                  ) : (
+                      <Text style={styles.clinicInitials}>{clinicData?.name?.charAt(0)}</Text>
+                  )}
+              </View>
+              <Text style={styles.headerClinicName} numberOfLines={1}>{clinicData?.name}</Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+          </TouchableOpacity>
 
-        <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-                <View style={[styles.statIcon, { backgroundColor: '#FFF3E0' }]}>
-                    <Ionicons name="alert-circle" size={24} color="#E65100" />
-                </View>
-                <Text style={styles.statNumber}>{requests.length}</Text>
-                <Text style={styles.statLabel}>Pendientes</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.statCard} onPress={() => setActiveTab(1)}>
-                <View style={[styles.statIcon, { backgroundColor: '#E8F5E9' }]}>
-                    <Ionicons name="people" size={24} color="#2E7D32" />
-                </View>
-                <Text style={styles.statNumber}>{staff.length || '-'}</Text>
-                <Text style={styles.statLabel}>Miembros</Text>
-            </TouchableOpacity>
-        </View>
-
-        {activeTab === 0 && <Text style={styles.sectionTitle}>Bandeja de Entrada</Text>}
-    </View>
+          {/* Notification Bell */}
+          <TouchableOpacity style={styles.notifButton} onPress={() => navigation.navigate('Notifications')}>
+              <Ionicons name="notifications-outline" size={26} color="#333" />
+              {unreadCount > 0 && <View style={styles.badge} />}
+          </TouchableOpacity>
+      </View>
   );
 
   const renderRequestItem = ({ item }) => (
@@ -262,7 +277,10 @@ const ClinicDashboardScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* Top Tabs */}
+      {/* New Interactive Header */}
+      <DashboardHeader />
+
+      {/* Tabs */}
       <View style={styles.tabs}>
           {['Dashboard', 'Equipo', 'Config'].map((tab, index) => (
               <TouchableOpacity 
@@ -279,11 +297,10 @@ const ClinicDashboardScreen = () => {
       <View style={styles.content}>
           {activeTab === 0 ? (
               <FlatList 
-                data={requests}
+                data={requests.filter(req => req.clinicId === clinicData?.id)}
                 renderItem={renderRequestItem}
                 keyExtractor={item => item.id}
                 refreshControl={<RefreshControl refreshing={loading} onRefresh={loadData} />}
-                ListHeaderComponent={renderDashboardHeader}
                 ListEmptyComponent={
                     <View style={styles.emptyContainer}>
                         <Ionicons name="checkmark-circle-outline" size={48} color="#CCC" />
@@ -320,7 +337,7 @@ const ClinicDashboardScreen = () => {
                         <View style={styles.mapContainer}>
                             <View style={styles.mapPlaceholder}>
                                 <Ionicons name="map" size={48} color="#ccc" />
-                                <Text style={styles.mapHint}>Mapa no disponible</Text>
+                                <Text style={styles.mapHint}>Mapa no disponible en esta versión</Text>
                             </View>
                         </View>
 
@@ -331,15 +348,18 @@ const ClinicDashboardScreen = () => {
           )}
       </View>
 
-      {/* Assign Modal */}
+      {/* Modals */}
       <Modal visible={showAssignModal} transparent animationType="slide">
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
                   <Text style={styles.modalTitle}>Asignar Cita</Text>
-                  
+                  {/* Logic for fetching staff for dropdown needed if staff state is empty when in Tab 0. 
+                      Ideally fetch staff when opening modal if empty. 
+                      For MVP, assuming staff fetched or available. */}
                   <Text style={styles.label}>Seleccionar Veterinario:</Text>
+                  {/* Placeholder if staff empty, should call getStaff */}
                   <ScrollView style={{maxHeight: 150}}>
-                      {staff.map(member => (
+                      {staff.length > 0 ? staff.map(member => (
                           <TouchableOpacity 
                             key={member.id} 
                             style={[styles.modalOption, selectedVetId === member.vetId && styles.modalOptionSelected]}
@@ -348,7 +368,7 @@ const ClinicDashboardScreen = () => {
                               <Text style={styles.modalOptionText}>{member.vet.nombre}</Text>
                               {selectedVetId === member.vetId && <Ionicons name="checkmark" size={20} color="#007AFF" />}
                           </TouchableOpacity>
-                      ))}
+                      )) : <Text style={{padding: 10, color: '#999'}}>Cargando personal...</Text>}
                   </ScrollView>
 
                   <Text style={styles.label}>Duración Estimada:</Text>
@@ -365,14 +385,22 @@ const ClinicDashboardScreen = () => {
                   </View>
 
                   <View style={styles.modalActions}>
-                      <Button title="Cancelar" onPress={() => setShowAssignModal(false)} outline style={{flex: 1, marginRight: 10}} />
-                      <Button title="Confirmar" onPress={handleAssignAndConfirm} style={{flex: 1}} />
+                      <Button 
+                        title="Cancelar" 
+                        onPress={() => setShowAssignModal(false)} 
+                        style={{flex: 1, marginRight: 10, backgroundColor: '#F5F5F5', borderWidth: 0}} 
+                        textStyle={{color: '#666'}}
+                      />
+                      <Button 
+                        title="Confirmar" 
+                        onPress={handleAssignAndConfirm} 
+                        style={{flex: 1}} 
+                      />
                   </View>
               </View>
           </View>
       </Modal>
 
-      {/* Invitation Modal */}
       <Modal visible={showInviteModal} transparent animationType="fade">
           <View style={styles.modalOverlay}>
               <View style={styles.modalContent}>
@@ -406,36 +434,61 @@ const ClinicDashboardScreen = () => {
               </View>
           </View>
       </Modal>
+
+      <ClinicSwitcherModal 
+        visible={showSwitcherModal}
+        onClose={() => setShowSwitcherModal(false)}
+        clinics={myClinics}
+        currentClinic={currentClinic}
+        onSelect={handleSwitchClinic}
+      />
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5' },
+  
+  // Header
+  headerContainer: { 
+    flexDirection: 'row', 
+    justifyContent: 'space-between', 
+    alignItems: 'center', 
+    paddingHorizontal: 20, 
+    paddingVertical: 15, 
+    backgroundColor: '#FFF', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#F0F0F0',
+    marginTop: 0 // Adjust based on Safe Area if needed, handled by parent usually
+  },
+  clinicSwitcher: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', padding: 8, paddingRight: 12, borderRadius: 20 },
+  clinicAvatarSmall: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#007AFF', justifyContent: 'center', alignItems: 'center', marginRight: 8, overflow: 'hidden' },
+  clinicLogo: { width: '100%', height: '100%' },
+  clinicInitials: { color: '#FFF', fontWeight: 'bold', fontSize: 14 },
+  headerClinicName: { fontSize: 16, fontWeight: '700', color: '#333', marginRight: 6, maxWidth: 200 },
+  notifButton: { padding: 8, position: 'relative' },
+  badge: { position: 'absolute', top: 8, right: 8, width: 8, height: 8, borderRadius: 4, backgroundColor: '#FF3B30' },
+
   tabs: { flexDirection: 'row', backgroundColor: '#FFF', padding: 10, gap: 10 },
   tab: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 8 },
   tabActive: { backgroundColor: '#E8F4FD' },
   tabText: { color: '#666', fontWeight: '600' },
   tabTextActive: { color: '#007AFF' },
-  content: { flex: 1 }, // Removed padding to handle lists better
+  content: { flex: 1 },
   
-  // Dashboard Header
-  dashboardHeader: { paddingHorizontal: 20, paddingTop: 10 },
-  welcomeRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
-  welcomeText: { fontSize: 22, fontWeight: 'bold', color: '#333' },
-  dateText: { fontSize: 14, color: '#666', textTransform: 'capitalize' },
-  agendaBtn: { backgroundColor: '#007AFF', padding: 10, borderRadius: 12, shadowColor: '#007AFF', shadowOpacity: 0.3, shadowOffset: {width:0, height:4}, elevation: 4 },
-  
-  statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
-  statCard: { flex: 1, backgroundColor: '#FFF', padding: 15, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}, elevation: 2 },
-  statIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  statNumber: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  statLabel: { fontSize: 12, color: '#888' },
-
-  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
-
-  // Ticket Card
-  ticketCard: { flexDirection: 'row', backgroundColor: '#FFF', borderRadius: 12, padding: 12, marginBottom: 12, marginHorizontal: 20, shadowColor: '#000', shadowOpacity: 0.05, elevation: 2 },
+  // ... (Previous Card, Ticket, Staff styles remain mostly same) ...
+  ticketCard: { 
+    flexDirection: 'row', 
+    backgroundColor: '#FFF', 
+    borderRadius: 12, 
+    padding: 12, 
+    marginBottom: 12, 
+    marginHorizontal: 20, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.05, 
+    elevation: 2,
+    marginTop: 10 // Added margin top
+  },
   ticketLeft: { alignItems: 'center', borderRightWidth: 1, borderRightColor: '#F0F0F0', paddingRight: 12, marginRight: 12, justifyContent: 'center' },
   dateBadge: { backgroundColor: '#E8F4FD', borderRadius: 8, padding: 6, alignItems: 'center', minWidth: 50, marginBottom: 4 },
   dateDay: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
@@ -451,7 +504,6 @@ const styles = StyleSheet.create({
   actionBtnAccept: { paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, backgroundColor: '#007AFF' },
   actionTextAccept: { color: '#FFF', fontSize: 12, fontWeight: '600' },
 
-  // Staff Card
   staffCard: { backgroundColor: '#FFF', borderRadius: 12, padding: 16, marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.03, elevation: 1 },
   staffInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   staffAvatarImg: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
@@ -468,13 +520,12 @@ const styles = StyleSheet.create({
   availabilityRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: '#F5F5F5', paddingTop: 12 },
   availLabel: { fontSize: 13, fontWeight: '500' },
 
-  // Config & Map
+  sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
   label: { fontWeight: '600', marginTop: 15, marginBottom: 5 },
   mapContainer: { height: 200, borderRadius: 12, overflow: 'hidden', marginTop: 10, backgroundColor: '#E0E0E0' },
   mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  map: { flex: 1 },
   mapHint: { textAlign: 'center', marginTop: 10, color: '#666' },
-
-  // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
   modalContent: { backgroundColor: '#FFF', borderRadius: 16, padding: 20 },
   modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 20, textAlign: 'center' },

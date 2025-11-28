@@ -58,6 +58,8 @@ import RequestAppointmentScreen from '../screens/Booking/RequestAppointmentScree
 import BookingHubScreen from '../screens/Booking/BookingHubScreen';
 import ServiceProfileScreen from '../screens/Booking/ServiceProfileScreen';
 import ClinicDashboardScreen from '../screens/Clinics/ClinicDashboardScreen';
+import ClinicSelectorScreen from '../screens/Auth/ClinicSelectorScreen';
+import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
 import AddPetModal from '../components/AddPetModal';
 
 const Stack = createStackNavigator();
@@ -512,19 +514,30 @@ const MainTabs = () => {
   return userType === 'vet' ? <VetTabs /> : <OwnerTabs />;
 };
 
-const AuthenticatedNavigator = ({ navigationRef }) => (
-  <RootStack.Navigator screenOptions={{ headerShown: false }}>
-    <RootStack.Screen name="Main">
-      {props => <MainTabs {...props} navigationRef={navigationRef} />}
-    </RootStack.Screen>
-    <RootStack.Group screenOptions={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}>
-      <RootStack.Screen 
-        name="CreateAppointment" 
-        component={CreateAppointmentScreen} 
-      />
-    </RootStack.Group>
-  </RootStack.Navigator>
-);
+const AuthenticatedNavigator = ({ navigationRef }) => {
+  const { userType, currentClinic } = useAuth();
+  
+  // Determine initial route
+  // If Vet and no clinic selected, go to Selector
+  // If User or Vet with clinic, go to Main
+  const initialRouteName = (userType === 'vet' && !currentClinic) ? 'ClinicSelector' : 'Main';
+
+  return (
+    <RootStack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="Main">
+        {props => <MainTabs {...props} navigationRef={navigationRef} />}
+      </RootStack.Screen>
+      <RootStack.Screen name="ClinicSelector" component={ClinicSelectorScreen} />
+      <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificaciones', headerShown: true }} />
+      <RootStack.Group screenOptions={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}>
+        <RootStack.Screen 
+          name="CreateAppointment" 
+          component={CreateAppointmentScreen} 
+        />
+      </RootStack.Group>
+    </RootStack.Navigator>
+  );
+};
 
 const AppNavigator = () => {
   const { isAuthenticated, loading } = useAuth();

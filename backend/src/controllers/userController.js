@@ -216,8 +216,57 @@ const checkIsFavorite = async (req, res) => {
     }
 };
 
+/**
+ * Obtener notificaciones del usuario (invitaciones a clínicas)
+ * GET /api/user/notifications
+ */
+const getUserNotifications = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Buscar invitaciones en ClinicMember donde el vetId coincida con el usuario
+    const invitations = await prisma.clinicMember.findMany({
+      where: {
+        vetId: userId,
+        status: 'INVITED'
+      },
+      include: {
+        clinic: {
+          select: {
+            id: true,
+            name: true,
+            logoUrl: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Mapear a formato genérico de notificación
+    const notifications = invitations.map(inv => ({
+      id: inv.id,
+      type: 'INVITATION',
+      title: 'Invitación a Clínica',
+      subtitle: `Te han invitado a unirte a ${inv.clinic.name} como ${inv.role}`,
+      data: {
+        clinicId: inv.clinicId,
+        clinicName: inv.clinic.name,
+        role: inv.role
+      },
+      createdAt: inv.createdAt
+    }));
+
+    res.json({ notifications });
+
+  } catch (error) {
+    console.error('Get notifications error:', error);
+    res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+};
+
 module.exports = {
   getBookingHomeData,
   toggleFavorite,
-  checkIsFavorite
+  checkIsFavorite,
+  getUserNotifications
 };

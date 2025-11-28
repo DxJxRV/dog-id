@@ -15,6 +15,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
+import { useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../contexts/AuthContext';
 import { authAPI } from '../../services/api';
 import { getImageUrl } from '../../utils/imageHelper';
@@ -22,6 +23,7 @@ import { showToast } from '../../utils/toast';
 import { isNetworkError } from '../../utils/networkUtils';
 
 const ProfileScreen = () => {
+  const navigation = useNavigation();
   const { user, userType, logout, updateUser } = useAuth();
 
   const [isEditing, setIsEditing] = useState(false);
@@ -401,6 +403,20 @@ const ProfileScreen = () => {
               <Text style={styles.infoValue}>{user.cedulaProfesional}</Text>
             </View>
           )}
+
+          {userType === 'vet' && (
+            <TouchableOpacity
+              style={styles.changeClinicButton}
+              onPress={() => {
+                // We can clear current clinic here or just navigate
+                // If we just navigate, the Selector will overwrite it on select.
+                navigation.navigate('ClinicSelector'); 
+              }}
+            >
+              <Ionicons name="business-outline" size={20} color="#007AFF" />
+              <Text style={styles.changeClinicText}>Cambiar de Clínica</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
 
@@ -619,6 +635,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#000',
     fontWeight: '500',
+  },
+  changeClinicButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+    paddingVertical: 12,
+    backgroundColor: '#E8F4FD',
+    borderRadius: 10,
+  },
+  changeClinicText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
   saveButton: {
     backgroundColor: '#007AFF',

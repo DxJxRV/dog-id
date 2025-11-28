@@ -8,6 +8,7 @@ const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null); // 'user' or 'vet'
+  const [currentClinic, setCurrentClinic] = useState(null); // For Vet context
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -21,10 +22,12 @@ export const AuthProvider = ({ children }) => {
       const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
       const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
       const storedUserType = await SecureStore.getItemAsync(STORAGE_KEYS.USER_TYPE);
+      const storedClinic = await SecureStore.getItemAsync('current_clinic'); // Retrieve stored clinic
 
       if (token && userData) {
         setUser(JSON.parse(userData));
         setUserType(storedUserType);
+        if (storedClinic) setCurrentClinic(JSON.parse(storedClinic));
         setIsAuthenticated(true);
       }
     } catch (error) {
@@ -33,6 +36,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+
+  const selectClinic = async (clinic) => {
+    try {
+      await SecureStore.setItemAsync('current_clinic', JSON.stringify(clinic));
+      setCurrentClinic(clinic);
+    } catch (error) {
+      console.error('Error selecting clinic:', error);
+    }
+  };
+
+  // ... rest of saveAuthData (no changes needed there unless we want to clear clinic on login, which might be safer)
 
   const saveAuthData = async (token, userData, type) => {
     try {
@@ -157,6 +171,8 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
+    await SecureStore.deleteItemAsync('current_clinic');
+    setCurrentClinic(null);
     await clearAuthData();
   };
 
@@ -175,6 +191,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         userType,
+        currentClinic, // Expose
         isAuthenticated,
         loading,
         login,
@@ -185,6 +202,7 @@ export const AuthProvider = ({ children }) => {
         loginWithGoogle,
         logout,
         updateUser,
+        selectClinic, // Expose
       }}
     >
       {children}

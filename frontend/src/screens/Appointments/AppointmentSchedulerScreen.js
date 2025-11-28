@@ -3,15 +3,17 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, RefreshContr
 import CalendarStrip from 'react-native-calendar-strip';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { appointmentAPI } from '../../services/api';
-import { Loading } from '../../components';
+import { appointmentAPI, petsAPI } from '../../services/api';
+import { Loading, Button } from '../../components';
 import { format, parseISO, startOfDay, endOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import moment from 'moment';
 import 'moment/locale/es';
+import { useAuth } from '../../contexts/AuthContext';
 
 const AppointmentSchedulerScreen = () => {
   const navigation = useNavigation();
+  const { currentClinic } = useAuth();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -76,17 +78,24 @@ const AppointmentSchedulerScreen = () => {
   };
 
   const renderItem = ({ item }) => {
-    const statusColor = getStatusColor(item.status);
+    const isOtherClinic = currentClinic && item.clinic && item.clinic.id !== currentClinic.id;
+    const statusColor = isOtherClinic ? '#CCC' : getStatusColor(item.status);
     const startTime = format(parseISO(item.startDateTime), 'HH:mm');
     const endTime = format(parseISO(item.endDateTime), 'HH:mm');
 
     return (
       <TouchableOpacity 
-        style={[styles.card, { borderLeftColor: statusColor }]}
-        onPress={() => handleAppointmentPress(item)}
+        style={[styles.card, { borderLeftColor: statusColor }, isOtherClinic && styles.cardDisabled]}
+        onPress={() => {
+            if (isOtherClinic) {
+                Alert.alert('Otra Clínica', `Esta cita pertenece a ${item.clinic?.name || 'otra clínica'}. Cambia de clínica para gestionarla.`);
+                return;
+            }
+            handleAppointmentPress(item);
+        }}
         activeOpacity={0.7}
       >
-        <View style={styles.cardContent}>
+        <View style={[styles.cardContent, isOtherClinic && { opacity: 0.5 }]}>
           <View style={styles.timeContainer}>
             <Text style={styles.timeText}>{startTime}</Text>
             <Text style={styles.timeTextSmall}>{endTime}</Text>
@@ -95,6 +104,7 @@ const AppointmentSchedulerScreen = () => {
           <View style={styles.infoContainer}>
             <Text style={styles.petName}>🐾 {item.pet.nombre}</Text>
             <Text style={styles.detailsText}>{item.reason || 'Visita general'}</Text>
+            {isOtherClinic && <Text style={styles.clinicLabel}>{item.clinic?.name}</Text>}
           </View>
 
           <View style={[styles.badge, { backgroundColor: statusColor }]}>
@@ -200,6 +210,16 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 4,
     elevation: 3,
+  },
+  cardDisabled: {
+    backgroundColor: '#F9F9F9',
+    borderColor: '#EEE',
+  },
+  clinicLabel: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   cardContent: {
     flexDirection: 'row',
