@@ -19,7 +19,8 @@ const globalSearch = async (req, res) => {
           nombre: true,
           cedulaProfesional: true,
           fotoUrl: true,
-          coverPhotoUrl: true, // Add this
+          coverPhotoUrl: true,
+          _count: { select: { favoritedBy: true } }, // Para ranking implícito si se necesitara
           clinicMemberships: {
             where: { isActive: true },
             include: { clinic: { select: { name: true } } }
@@ -35,7 +36,8 @@ const globalSearch = async (req, res) => {
           id: true,
           name: true,
           address: true,
-          logoUrl: true
+          logoUrl: true,
+          _count: { select: { favoritedBy: true } }
         },
         take: 5
       })
@@ -48,8 +50,9 @@ const globalSearch = async (req, res) => {
       title: v.nombre,
       subtitle: v.clinicMemberships[0]?.clinic.name || 'Veterinario Independiente',
       image: v.fotoUrl,
-      coverPhoto: v.coverPhotoUrl, // Add this
-      details: `Cédula: ${v.cedulaProfesional}`
+      coverPhoto: v.coverPhotoUrl,
+      details: `Cédula: ${v.cedulaProfesional}`,
+      likes: v._count.favoritedBy
     }));
 
     const formattedClinics = clinics.map(c => ({
@@ -58,7 +61,8 @@ const globalSearch = async (req, res) => {
       title: c.name,
       subtitle: c.address || 'Sin dirección registrada',
       image: c.logoUrl,
-      details: 'Clínica Veterinaria'
+      details: 'Clínica Veterinaria',
+      likes: c._count.favoritedBy
     }));
 
     res.json({ results: [...formattedVets, ...formattedClinics] });
@@ -69,6 +73,79 @@ const globalSearch = async (req, res) => {
   }
 };
 
+/**
+ * Obtener datos de descubrimiento (Top Vets & Clínicas)
+ * GET /search/discovery
+ */
+const getDiscoveryData = async (req, res) => {
+  try {
+    // 1. Top Veterinarios (por número de favoritos)
+    const topVets = await prisma.vet.findMany({
+      orderBy: {
+        favoritedBy: { _count: 'desc' }
+      },
+      take: 5,
+      select: {
+        id: true,
+        nombre: true,
+        fotoUrl: true,
+        coverPhotoUrl: true,
+        _count: { select: { favoritedBy: true } },
+        clinicMemberships: {
+          where: { isActive: true },
+          select: { clinic: { select: { name: true } } },
+          take: 1
+        }
+      }
+    });
+
+    // 2. Clínicas Destacadas (por número de favoritos)
+    const featuredClinics = await prisma.clinic.findMany({
+      orderBy: {
+        favoritedBy: { _count: 'desc' }
+      },
+      take: 5,
+      select: {
+        id: true,
+        name: true,
+        logoUrl: true,
+        address: true,
+        _count: { select: { favoritedBy: true } }
+      }
+    });
+
+    const formattedTopVets = topVets.map(v => ({
+      id: v.id,
+      type: 'VET',
+      title: v.nombre,
+      subtitle: v.clinicMemberships[0]?.clinic.name || 'Veterinario Independiente',
+      image: v.fotoUrl,
+      coverPhoto: v.coverPhotoUrl,
+      rating: 4.9, // Mock rating por ahora, o usar likes
+      likes: v._count.favoritedBy
+    }));
+
+    const formattedClinics = featuredClinics.map(c => ({
+      id: c.id,
+      type: 'CLINIC',
+      title: c.name,
+      subtitle: c.address || 'Ubicación no disponible',
+      image: c.logoUrl,
+      likes: c._count.favoritedBy
+    }));
+
+    res.json({
+      topVets: formattedTopVets,
+      featuredClinics: formattedClinics
+    });
+
+  } catch (error) {
+    console.error('Discovery data error:', error);
+    res.status(500).json({ error: 'Failed to fetch discovery data' });
+  }
+};
+
 module.exports = {
-  globalSearch
+  globalSearch,
+  getDiscoveryData
 };

@@ -44,14 +44,28 @@ const BookingHubScreen = () => {
   const [showSearchModal, setShowSearchModal] = useState(false);
 
   // Mock Discovery Data (For empty search state)
-  const TOP_VETS_MOCK = [
-    { id: '101', title: 'Dr. Simi', subtitle: 'Cardiología', image: null, type: 'VET', rating: 4.9 },
-    { id: '102', title: 'Dra. Ana', subtitle: 'Dermatología', image: null, type: 'VET', rating: 4.8 },
-  ];
-  const FEATURED_CLINICS_MOCK = [
-    { id: '201', title: 'Vet Santa Fe', subtitle: '24 Horas', image: null, type: 'CLINIC' },
-    { id: '202', title: 'Pet Hospital', subtitle: 'Urgencias', image: null, type: 'CLINIC' },
-  ];
+  const [topVets, setTopVets] = useState([]);
+  const [featuredClinics, setFeaturedClinics] = useState([]);
+  const [discoveryLoading, setDiscoveryLoading] = useState(false);
+
+  const fetchDiscoveryData = async () => {
+    setDiscoveryLoading(true);
+    try {
+      const response = await searchAPI.getDiscovery();
+      setTopVets(response.data.topVets);
+      setFeaturedClinics(response.data.featuredClinics);
+    } catch (error) {
+      console.error('Error fetching discovery data:', error);
+    } finally {
+      setDiscoveryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showSearchModal && topVets.length === 0) {
+      fetchDiscoveryData();
+    }
+  }, [showSearchModal]);
 
   const fetchDashboardData = async () => {
     try {
@@ -134,13 +148,23 @@ const BookingHubScreen = () => {
         <Text style={styles.vetName} numberOfLines={1}>{item.name}</Text>
         <Text style={styles.vetSpecialty} numberOfLines={1}>{item.clinic}</Text>
         
-        <TouchableOpacity 
-          style={styles.cardActionRow}
-          onPress={() => navigation.navigate('RequestAppointment', { vetId: item.id, vetName: item.name })}
-        >
-          <Text style={styles.cardActionText}>Agendar</Text>
-          <Ionicons name="arrow-forward" size={14} color="#FFF" />
-        </TouchableOpacity>
+        {/* Likes & Action Row */}
+        <View style={styles.cardFooterRow}>
+          {item.likes > 0 && (
+            <View style={styles.likesBadge}>
+              <Ionicons name="heart" size={10} color="#FF3B30" />
+              <Text style={styles.likesText}>{item.likes}</Text>
+            </View>
+          )}
+          
+          <TouchableOpacity 
+            style={styles.cardActionRow}
+            onPress={() => navigation.navigate('RequestAppointment', { vetId: item.id, vetName: item.name })}
+          >
+            <Text style={styles.cardActionText}>Agendar</Text>
+            <Ionicons name="arrow-forward" size={12} color="#FFF" />
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
     </TouchableOpacity>
   );
@@ -186,18 +210,41 @@ const BookingHubScreen = () => {
     <TouchableOpacity 
       style={styles.discoveryCard}
       onPress={() => handleResultPress(item)}
+      activeOpacity={0.9}
     >
-      <View style={[styles.discoveryImage, styles.placeholderBg]}>
-         <Ionicons name={item.type === 'VET' ? 'person' : 'medkit'} size={24} color="#FFF" />
-      </View>
-      <Text style={styles.discoveryTitle} numberOfLines={1}>{item.title}</Text>
-      <Text style={styles.discoverySubtitle} numberOfLines={1}>{item.subtitle}</Text>
-      {item.rating && (
-        <View style={styles.ratingContainer}>
-          <Ionicons name="star" size={12} color="#FFD700" />
-          <Text style={styles.ratingText}>{item.rating}</Text>
-        </View>
+      {/* Background Image */}
+      {item.image ? (
+          <Image source={{ uri: getImageUrl(item.image) }} style={styles.discoveryImage} />
+      ) : (
+          <View style={styles.discoveryPlaceholder}>
+             <Ionicons name={item.type === 'VET' ? 'person' : 'medkit'} size={40} color="rgba(255,255,255,0.5)" />
+          </View>
       )}
+
+      {/* Gradient Overlay & Content */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.8)']}
+        style={styles.discoveryOverlay}
+      >
+        <Text style={styles.discoveryTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.discoverySubtitle} numberOfLines={1}>{item.subtitle}</Text>
+        
+        <View style={styles.discoveryFooterRow}>
+          {item.rating && (
+            <View style={styles.ratingContainer}>
+              <Ionicons name="star" size={10} color="#FFD700" />
+              <Text style={styles.ratingText}>{item.rating}</Text>
+            </View>
+          )}
+          
+          {item.likes > 0 && (
+            <View style={styles.likesBadge}>
+              <Ionicons name="heart" size={10} color="#FF3B30" />
+              <Text style={styles.likesText}>{item.likes}</Text>
+            </View>
+          )}
+        </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 
@@ -340,25 +387,41 @@ const BookingHubScreen = () => {
           {searchQuery.length === 0 ? (
             /* Discovery State */
             <ScrollView style={styles.discoveryContainer}>
-              <Text style={styles.discoveryHeader}>Veterinarios Top ⭐</Text>
-              <FlatList 
-                data={TOP_VETS_MOCK}
-                renderItem={renderDiscoveryItem}
-                keyExtractor={item => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-              />
+              {discoveryLoading ? (
+                <View style={{ marginTop: 20 }}>
+                  <ActivityIndicator size="large" color="#007AFF" />
+                </View>
+              ) : (
+                <>
+                  <Text style={styles.discoveryHeader}>Veterinarios Top ⭐</Text>
+                  {topVets.length > 0 ? (
+                    <FlatList 
+                      data={topVets}
+                      renderItem={renderDiscoveryItem}
+                      keyExtractor={item => item.id}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.horizontalList}
+                    />
+                  ) : (
+                    <Text style={styles.emptyDiscoveryText}>No hay veterinarios destacados aún.</Text>
+                  )}
 
-              <Text style={[styles.discoveryHeader, { marginTop: 20 }]}>Clínicas Destacadas 🏥</Text>
-              <FlatList 
-                data={FEATURED_CLINICS_MOCK}
-                renderItem={renderDiscoveryItem}
-                keyExtractor={item => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.horizontalList}
-              />
+                  <Text style={[styles.discoveryHeader, { marginTop: 20 }]}>Clínicas Destacadas 🏥</Text>
+                  {featuredClinics.length > 0 ? (
+                    <FlatList 
+                      data={featuredClinics}
+                      renderItem={renderDiscoveryItem}
+                      keyExtractor={item => item.id}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.horizontalList}
+                    />
+                  ) : (
+                    <Text style={styles.emptyDiscoveryText}>No hay clínicas destacadas aún.</Text>
+                  )}
+                </>
+              )}
             </ScrollView>
           ) : (
             /* Search Results */
@@ -455,13 +518,33 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 3,
   },
+  cardFooterRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  likesBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+    gap: 4,
+  },
+  likesText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: '600',
+  },
   cardActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: 'auto', // Push to right if likes badge exists
   },
   cardActionText: { 
     color: '#FFF', 
-    fontSize: 14, 
+    fontSize: 13, 
     fontWeight: '600', 
     marginRight: 4 
   },
@@ -524,12 +607,69 @@ const styles = StyleSheet.create({
   // Discovery & Results
   discoveryContainer: { padding: 20 },
   discoveryHeader: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 15 },
-  discoveryCard: { width: 140, marginRight: 15 },
-  discoveryImage: { width: 140, height: 100, borderRadius: 12, marginBottom: 8 },
-  discoveryTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
-  discoverySubtitle: { fontSize: 12, color: '#666' },
-  ratingContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  ratingText: { fontSize: 12, color: '#666', marginLeft: 4, fontWeight: '600' },
+  
+  // Redesigned Discovery Card
+  discoveryCard: { 
+    width: 140, 
+    height: 180, 
+    marginRight: 15,
+    borderRadius: 8,
+    backgroundColor: '#333',
+    overflow: 'hidden',
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.15, 
+    shadowRadius: 4, 
+    elevation: 3,
+  },
+  discoveryImage: { 
+    ...StyleSheet.absoluteFillObject,
+    width: '100%', 
+    height: '100%', 
+    resizeMode: 'cover' 
+  },
+  discoveryPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  discoveryOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 10,
+  },
+  discoveryTitle: { 
+    fontSize: 14, 
+    fontWeight: '700', 
+    color: '#FFF',
+    marginBottom: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  discoverySubtitle: { 
+    fontSize: 11, 
+    color: '#EEE',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  discoveryFooterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 8,
+  },
+  ratingContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  ratingText: { fontSize: 11, color: '#EEE', marginLeft: 4, fontWeight: '600' },
   
   resultItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   resultImage: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
@@ -540,6 +680,7 @@ const styles = StyleSheet.create({
   resultsList: { padding: 20 },
   emptyResultContainer: { alignItems: 'center', marginTop: 40 },
   emptyResultText: { color: '#999', fontSize: 16 },
+  emptyDiscoveryText: { color: '#999', fontSize: 14, fontStyle: 'italic' },
 });
 
 export default BookingHubScreen;

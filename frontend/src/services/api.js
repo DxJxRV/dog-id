@@ -95,6 +95,7 @@ export const petsAPI = {
 // Search API (Global)
 export const searchAPI = {
   globalSearch: (query) => api.get(`/search?q=${encodeURIComponent(query)}`),
+  getDiscovery: () => api.get('/search/discovery'),
 };
 
 // User API (Booking & Favorites)
