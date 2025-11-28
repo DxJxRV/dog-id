@@ -117,16 +117,43 @@ const requestAppointment = async (req, res) => {
       return res.status(400).json({ error: 'Must provide clinicId or vetId' });
     }
 
+    // Si se proporciona vetId pero no clinicId, buscar la clínica del vet
     let targetClinicId = clinicId;
     if (vetId && !clinicId) {
       const membership = await prisma.clinicMember.findFirst({
         where: { vetId: vetId, isActive: true },
         select: { clinicId: true }
       });
+      
       if (membership) {
         targetClinicId = membership.clinicId;
       } else {
-        return res.status(404).json({ error: 'Veterinarian is not associated with any clinic' });
+        // Si el veterinario no tiene clínica, crear una por defecto
+        console.log('⚠️ Vet has no clinic, creating default personal clinic for request...');
+        const vet = await prisma.vet.findUnique({ where: { id: vetId } });
+        
+        if (!vet) return res.status(404).json({ error: 'Veterinarian not found' });
+
+        const newClinic = await prisma.clinic.create({
+          data: {
+            name: `Consultorio de Dr. ${vet.nombre}`,
+            address: 'Dirección por definir',
+            phone: vet.telefono
+          }
+        });
+
+        await prisma.clinicMember.create({
+          data: {
+            clinicId: newClinic.id,
+            vetId: vet.id,
+            role: 'OWNER',
+            status: 'ACTIVE',
+            isActive: true,
+            isAvailable: true
+          }
+        });
+
+        targetClinicId = newClinic.id;
       }
     }
 
@@ -269,20 +296,26 @@ const getPendingRequests = async (req, res) => {
     try {
         const vetId = req.user.id;
         
+        // Buscar las clínicas donde trabaja el vet
         const memberships = await prisma.clinicMember.findMany({
-            where: { vetId, isActive: true },
+            where: { vetId, status: 'ACTIVE' },
             include: { clinic: true }
         });
 
         const clinicIds = memberships.map(m => m.clinicId);
 
+        if (clinicIds.length === 0) {
+            return res.json({ requests: [] });
+        }
+
+        // Buscar citas PENDING_APPROVAL en esas clínicas
         const requests = await prisma.appointment.findMany({
             where: {
                 clinicId: { in: clinicIds },
                 status: 'PENDING_APPROVAL',
                 OR: [
-                    { vetId: vetId },
-                    { vetId: null }
+                    { vetId: vetId }, // Asignadas a mí
+                    { vetId: null }   // Generales (para dueños/admins)
                 ]
             },
             include: {
