@@ -92,6 +92,18 @@ export const petsAPI = {
   search: (query) => api.get(`/pets/search?q=${encodeURIComponent(query)}`),
 };
 
+// Search API (Global)
+export const searchAPI = {
+  globalSearch: (query) => api.get(`/search?q=${encodeURIComponent(query)}`),
+};
+
+// User API (Booking & Favorites)
+export const userAPI = {
+  getBookingHome: () => api.get('/users/booking-home'),
+  toggleFavorite: (data) => api.post('/users/favorites', data),
+  checkFavorite: (params) => api.get('/users/favorites/check', { params }),
+};
+
 // Vaccines API
 export const vaccinesAPI = {
   getByPetId: (petId) => api.get(`/pets/${petId}/vaccines`),
@@ -172,6 +184,9 @@ export const clinicAPI = {
   create: (data) => api.post('/clinics', data),
   getMyClinics: () => api.get('/clinics/my'),
   addMember: (data) => api.post('/clinics/members', data),
+  update: (id, data) => api.put(`/clinics/${id}`, data),
+  getStaff: (id) => api.get(`/clinics/${id}/staff`),
+  addStaffMember: (id, data) => api.post(`/clinics/${id}/staff`, data),
 };
 
 // Appointment API (SaaS)
@@ -180,6 +195,10 @@ export const appointmentAPI = {
   getSchedule: (params) => api.get('/appointments', { params }),
   updateStatus: (id, status) => api.put(`/appointments/${id}/status`, { status }),
   getDetail: (id) => api.get(`/appointments/${id}`),
+  request: (data) => api.post('/appointments/request', data),
+  getPendingRequests: () => api.get('/appointments/requests'),
+  manageRequest: (id, action, vetId) => api.post(`/appointments/${id}/manage`, { action, vetId }),
+  getSlots: (vetId, date) => api.get(`/vets/${vetId}/slots?date=${date}`),
 };
 
 export default api;

@@ -38,6 +38,8 @@ const presignedUrlRoutes = require('./routes/presignedUrlRoutes');
 const smartConsultationRoutes = require('./routes/smartConsultationRoutes');
 const clinicRoutes = require('./routes/clinicRoutes');
 const appointmentRoutes = require('./routes/appointmentRoutes');
+const searchRoutes = require('./routes/searchRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -73,6 +75,8 @@ app.use('/api', presignedUrlRoutes);
 app.use('/', smartConsultationRoutes);
 app.use('/', clinicRoutes);
 app.use('/', appointmentRoutes);
+app.use('/', searchRoutes);
+app.use('/', userRoutes);
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {

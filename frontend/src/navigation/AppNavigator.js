@@ -54,6 +54,10 @@ import ProfileScreen from '../screens/Profile/ProfileScreen';
 import ClinicSetupScreen from '../screens/Clinics/ClinicSetupScreen';
 import AppointmentSchedulerScreen from '../screens/Appointments/AppointmentSchedulerScreen';
 import CreateAppointmentScreen from '../screens/Appointments/CreateAppointmentScreen';
+import RequestAppointmentScreen from '../screens/Booking/RequestAppointmentScreen';
+import BookingHubScreen from '../screens/Booking/BookingHubScreen';
+import ServiceProfileScreen from '../screens/Booking/ServiceProfileScreen';
+import ClinicDashboardScreen from '../screens/Clinics/ClinicDashboardScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -508,203 +512,165 @@ const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet
   );
 };
 
-const MainTabs = ({ navigationRef }) => {
-  const { userType } = useAuth();
+const BookingStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="BookingHub"
+      component={BookingHubScreen}
+      options={{ title: 'Citas' }}
+    />
+    <Stack.Screen
+      name="ServiceProfile"
+      component={ServiceProfileScreen}
+      options={{ title: 'Perfil' }}
+    />
+    <Stack.Screen
+      name="RequestAppointment"
+      component={RequestAppointmentScreen}
+      options={{ title: 'Solicitar Cita' }}
+    />
+  </Stack.Navigator>
+);
+
+const ClinicStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="ClinicDashboard"
+      component={ClinicDashboardScreen}
+      options={{ title: 'Mi Clínica' }}
+    />
+  </Stack.Navigator>
+);
+
+// --- Role-Based Tabs ---
+
+const OwnerTabs = () => {
   const insets = useSafeAreaInsets();
-  const isVet = userType === 'vet';
-  const [showAddButton, setShowAddButton] = useState(true);
-  const [showAddPetModal, setShowAddPetModal] = useState(false);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
-
-  const fetchPendingCount = async () => {
-    // Los veterinarios no tienen funcionalidad de amigos
-    if (isVet) return;
-
-    try {
-      const [pendingResponse, newPetsResponse] = await Promise.all([
-        friendshipsAPI.getPending(),
-        friendshipsAPI.getNewPetsCount()
-      ]);
-      const pendingCount = pendingResponse.data.requests?.length || 0;
-      const newPetsCount = newPetsResponse.data.newPetsCount || 0;
-      setPendingRequestsCount(pendingCount + newPetsCount);
-    } catch (err) {
-      // Silently fail - this is just for badge display
-    }
-  };
-
-  useEffect(() => {
-    // Solo cargar el contador si NO es veterinario
-    if (!isVet) {
-      fetchPendingCount();
-      // Set up an interval to refresh the count every 30 seconds
-      const interval = setInterval(fetchPendingCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isVet]);
-
   return (
-    <>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: '#999',
-          tabBarStyle: {
-            height: 60 + insets.bottom,
-            paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
-            paddingTop: 8,
-          },
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-          headerTitleStyle: {
-            fontSize: 17,
-            fontWeight: '600',
-            color: '#000',
-          },
-          headerTintColor: '#007AFF',
-          headerShadowVisible: false,
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#999',
+        tabBarStyle: {
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          paddingTop: 10,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5EA',
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Feed"
+        component={FriendsMainScreen}
+        options={{
+          tabBarLabel: 'Inicio',
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
         }}
-        screenListeners={{
-          state: (e) => {
-            const state = e.data.state;
-            const currentRoute = state.routes[state.index];
-            // Mostrar el botón + siempre
-            setShowAddButton(true);
-          },
-        }}
-      >
-        <Tab.Screen
-          name="Pets"
-          component={PetsStack}
-          options={{
-            tabBarLabel: () => null,
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons
-                name={focused ? 'paw' : 'paw-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        {/* Mostrar Agenda solo para Veterinarios */}
-        {isVet && (
-          <Tab.Screen
-            name="Appointments"
-            component={AppointmentsStack}
-            options={{
-              tabBarLabel: () => null,
-              tabBarIcon: ({ focused, color, size }) => (
-                <Ionicons
-                  name={focused ? 'calendar' : 'calendar-outline'}
-                  size={size}
-                  color={color}
-                />
-              ),
-            }}
-          />
-        )}
-        {/* Solo mostrar tab de amigos para usuarios normales, no para veterinarios */}
-        {!isVet && (
-          <Tab.Screen
-            name="Friends"
-            component={FriendsStack}
-            listeners={{
-              focus: () => {
-                fetchPendingCount();
-              },
-              blur: () => {
-                fetchPendingCount();
-              },
-            }}
-            options={{
-              tabBarLabel: () => null,
-              tabBarBadge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
-              tabBarBadgeStyle: {
-                backgroundColor: '#FF3B30',
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: '700',
-                minWidth: 20,
-                height: 20,
-                borderRadius: 10,
-                lineHeight: 20,
-              },
-              tabBarIcon: ({ focused, color, size }) => (
-                <Ionicons
-                  name={focused ? 'people' : 'people-outline'}
-                  size={size}
-                  color={color}
-                />
-              ),
-            }}
-          />
-        )}
-        <Tab.Screen
-          name="Add"
-          component={View}
-          listeners={({ navigation }) => ({
-            tabPress: (e) => {
-              e.preventDefault();
-              setShowAddPetModal(true);
-            },
-          })}
-          options={{
-            tabBarLabel: '',
-            tabBarIcon: () => null,
-            tabBarButton: (props) => (
-              <AddButton
-                {...props}
-                onPress={() => {
-                  setShowAddPetModal(true);
-                }}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="Profile"
-          component={ProfileStack}
-          options={{
-            tabBarLabel: () => null,
-            tabBarIcon: ({ focused }) => (
-              <UserAvatar
-                size={32}
-                focused={focused}
-              />
-            ),
-          }}
-        />
-      </Tab.Navigator>
-      <AddPetModal
-        visible={showAddPetModal}
-        onClose={() => setShowAddPetModal(false)}
-        onNavigateToAddPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'AddPet' });
-          }
-        }}
-        onNavigateToLinkPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'LinkPet' });
-          }
-        }}
-        onNavigateToQuickPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'QuickPet' });
-          }
-        }}
-        onNavigateToClaimPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'ClaimPet' });
-          }
-        }}
-        isVet={isVet}
       />
-    </>
+      <Tab.Screen
+        name="Pets"
+        component={PetsStack}
+        options={{
+          tabBarLabel: 'Mascotas',
+          tabBarIcon: ({ color, size }) => <Ionicons name="paw-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Booking"
+        component={BookingStack}
+        options={{
+          tabBarLabel: 'Citas',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused }) => <UserAvatar size={24} focused={focused} />,
+        }}
+      />
+    </Tab.Navigator>
   );
+};
+
+const VetTabs = () => {
+  const insets = useSafeAreaInsets();
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#999',
+        tabBarStyle: {
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          paddingTop: 10,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5EA',
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Appointments"
+        component={AppointmentsStack}
+        options={{
+          tabBarLabel: 'Agenda',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Patients"
+        component={PetsStack}
+        options={{
+          tabBarLabel: 'Pacientes',
+          tabBarIcon: ({ color, size }) => <Ionicons name="paw-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Clinic"
+        component={ClinicStack}
+        options={{
+          tabBarLabel: 'Clínica',
+          tabBarIcon: ({ color, size }) => <Ionicons name="medkit-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused }) => <UserAvatar size={24} focused={focused} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+const MainTabs = () => {
+  const { userType } = useAuth();
+  return userType === 'vet' ? <VetTabs /> : <OwnerTabs />;
 };
 
 const AuthenticatedNavigator = ({ navigationRef }) => (
