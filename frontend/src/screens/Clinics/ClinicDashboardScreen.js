@@ -248,24 +248,6 @@ const ClinicDashboardScreen = () => {
             </View>
         </View>
 
-        <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-                <View style={[styles.statIcon, { backgroundColor: '#FFF3E0' }]}>
-                    <Ionicons name="alert-circle" size={24} color="#E65100" />
-                </View>
-                <Text style={styles.statNumber}>{requests.filter(req => req.clinicId === clinicData?.id).length}</Text>
-                <Text style={styles.statLabel}>Pendientes</Text>
-            </View>
-            
-            <TouchableOpacity style={styles.statCard} onPress={() => setActiveTab(1)}>
-                <View style={[styles.statIcon, { backgroundColor: '#E8F5E9' }]}>
-                    <Ionicons name="people" size={24} color="#2E7D32" />
-                </View>
-                <Text style={styles.statNumber}>{staff.length || '-'}</Text>
-                <Text style={styles.statLabel}>Miembros</Text>
-            </TouchableOpacity>
-        </View>
-
         <Text style={styles.sectionTitle}>Bandeja de Entrada</Text>
     </View>
     );
@@ -576,12 +558,6 @@ const styles = StyleSheet.create({
   smallBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#F5F5F5' },
   smallBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
   agendaBtn: { backgroundColor: '#007AFF', padding: 10, borderRadius: 12, shadowColor: '#007AFF', shadowOpacity: 0.3, shadowOffset: {width:0, height:4}, elevation: 4 },
-
-  statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
-  statCard: { flex: 1, backgroundColor: '#FFF', padding: 15, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}, elevation: 2 },
-  statIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
-  statNumber: { fontSize: 24, fontWeight: 'bold', color: '#333' },
-  statLabel: { fontSize: 12, color: '#888' },
 
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
 
