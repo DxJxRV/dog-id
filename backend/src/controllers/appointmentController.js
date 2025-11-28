@@ -296,28 +296,51 @@ const getPendingRequests = async (req, res) => {
     try {
         const vetId = req.user.id;
         
-        // Buscar las clínicas donde trabaja el vet
+        // Buscar las clínicas donde trabaja el vet y sus roles
         const memberships = await prisma.clinicMember.findMany({
             where: { vetId, status: 'ACTIVE' },
             include: { clinic: true }
         });
 
-        const clinicIds = memberships.map(m => m.clinicId);
-
-        if (clinicIds.length === 0) {
+        if (memberships.length === 0) {
             return res.json({ requests: [] });
         }
 
-        // Buscar citas PENDING_APPROVAL en esas clínicas
+        // Clasificar clínicas por rol del usuario
+        const adminClinicIds = memberships
+            .filter(m => ['OWNER', 'ADMIN'].includes(m.role))
+            .map(m => m.clinicId);
+        
+        const staffClinicIds = memberships
+            .filter(m => !['OWNER', 'ADMIN'].includes(m.role))
+            .map(m => m.clinicId);
+
+        // Construir query
+        const whereConditions = {
+            status: 'PENDING_APPROVAL',
+            OR: []
+        };
+
+        // Si es Admin/Owner, ve todas las de esas clínicas
+        if (adminClinicIds.length > 0) {
+            whereConditions.OR.push({ clinicId: { in: adminClinicIds } });
+        }
+
+        // Si es Staff, ve solo las asignadas a él en esas clínicas
+        if (staffClinicIds.length > 0) {
+            whereConditions.OR.push({ 
+                clinicId: { in: staffClinicIds },
+                vetId: vetId 
+            });
+        }
+
+        // Si no tiene roles válidos (raro), retornar vacío
+        if (whereConditions.OR.length === 0) {
+             return res.json({ requests: [] });
+        }
+
         const requests = await prisma.appointment.findMany({
-            where: {
-                clinicId: { in: clinicIds },
-                status: 'PENDING_APPROVAL',
-                OR: [
-                    { vetId: vetId }, // Asignadas a mí
-                    { vetId: null }   // Generales (para dueños/admins)
-                ]
-            },
+            where: whereConditions,
             include: {
                 pet: {
                     select: {
@@ -331,7 +354,8 @@ const getPendingRequests = async (req, res) => {
                         }
                     }
                 },
-                clinic: { select: { name: true } }
+                clinic: { select: { name: true } },
+                vet: { select: { id: true, nombre: true, fotoUrl: true } } // Include vet info for direct requests
             },
             orderBy: { startDateTime: 'asc' }
         });
