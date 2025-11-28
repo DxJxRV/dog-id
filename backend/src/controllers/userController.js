@@ -24,6 +24,8 @@ const getBookingHomeData = async (req, res) => {
             id: true,
             nombre: true,
             fotoUrl: true,
+            coverPhotoUrl: true, // Add this
+            _count: { select: { favoritedBy: true } }, // Add count
             clinicMemberships: {
               where: { isActive: true },
               select: { clinic: { select: { name: true } } },
@@ -42,6 +44,8 @@ const getBookingHomeData = async (req, res) => {
           id: item.vet.id,
           name: item.vet.nombre,
           image: item.vet.fotoUrl,
+          coverPhoto: item.vet.coverPhotoUrl, // Add this
+          likes: item.vet._count.favoritedBy, // Add this
           clinic: item.vet.clinicMemberships[0]?.clinic.name || 'Veterinario Independiente'
         });
       }
@@ -58,6 +62,8 @@ const getBookingHomeData = async (req, res) => {
             id: true,
             nombre: true,
             fotoUrl: true,
+            coverPhotoUrl: true, // Add this
+            _count: { select: { favoritedBy: true } }, // Add count
             clinicMemberships: {
               where: { isActive: true },
               select: { clinic: { select: { name: true } } },
@@ -70,7 +76,8 @@ const getBookingHomeData = async (req, res) => {
             id: true,
             name: true,
             logoUrl: true,
-            address: true
+            address: true,
+            _count: { select: { favoritedBy: true } } // Add count
           }
         }
       }
@@ -83,6 +90,8 @@ const getBookingHomeData = async (req, res) => {
           type: 'VET',
           name: fav.vet.nombre,
           image: fav.vet.fotoUrl,
+          coverPhoto: fav.vet.coverPhotoUrl, // Add this
+          likes: fav.vet._count.favoritedBy, // Add this
           subtitle: fav.vet.clinicMemberships[0]?.clinic.name || 'Veterinario Independiente'
         };
       } else if (fav.clinic) {
@@ -91,29 +100,30 @@ const getBookingHomeData = async (req, res) => {
           type: 'CLINIC',
           name: fav.clinic.name,
           image: fav.clinic.logoUrl,
+          likes: fav.clinic._count.favoritedBy, // Add this
           subtitle: fav.clinic.address || 'Clínica Veterinaria'
         };
       }
       return null;
     }).filter(Boolean);
 
-    // 3. Obtener Próximas Citas
-    const upcomingAppointments = await prisma.appointment.findMany({
+    // 3. Obtener Citas (Futuras y Pasadas recientes)
+    const allAppointments = await prisma.appointment.findMany({
       where: {
         pet: { userId },
-        startDateTime: { gte: new Date() },
-        status: { notIn: ['CANCELLED', 'NO_SHOW', 'COMPLETED'] }
+        // Removido filtro de fecha futura para mostrar historial
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] } // Opcional: Mostrar canceladas también si se desea
       },
       include: {
         pet: { select: { nombre: true, fotoUrl: true } },
         vet: { select: { nombre: true } },
         clinic: { select: { name: true } }
       },
-      orderBy: { startDateTime: 'asc' },
-      take: 5
+      orderBy: { startDateTime: 'desc' }, // Más recientes primero
+      take: 20
     });
 
-    const appointments = upcomingAppointments.map(appt => ({
+    const appointments = allAppointments.map(appt => ({
       id: appt.id,
       petName: appt.pet.nombre,
       petImage: appt.pet.fotoUrl,

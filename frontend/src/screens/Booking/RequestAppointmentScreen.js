@@ -42,7 +42,6 @@ const RequestAppointmentScreen = () => {
   useEffect(() => {
     const fetchSlots = async () => {
         // Solo fetch slots si tenemos un vetId específico (limitación del MVP)
-        // Si es clínica general, por ahora no mostramos slots o mostramos genéricos
         if (!vetId) return;
 
         setSlotsLoading(true);
@@ -66,7 +65,6 @@ const RequestAppointmentScreen = () => {
           return;
       }
       
-      // Si hay slots disponibles y no seleccionó uno, validar. Si no hay vetId, la hora es aproximada (MVP)
       if(vetId && !selectedSlot) {
           Alert.alert('Error', 'Selecciona un horario');
           return;
@@ -80,7 +78,7 @@ const RequestAppointmentScreen = () => {
               startDateTime = new Date(selectedDate);
               startDateTime.setHours(parseInt(hours), parseInt(minutes), 0);
           } else {
-              // Fallback para clínica sin vet específico: mediodía
+              // Fallback para clínica sin vet específico
               startDateTime = new Date(selectedDate);
               startDateTime.setHours(12, 0, 0); 
           }
@@ -129,18 +127,25 @@ const RequestAppointmentScreen = () => {
       <CalendarStrip
         style={{height: 100, paddingTop: 10, paddingBottom: 10}}
         calendarColor={'white'}
-        calendarHeaderStyle={{color: '#333'}}
-        dateNumberStyle={{color: '#333'}}
-        dateNameStyle={{color: '#999'}}
-        highlightDateNumberStyle={{color: '#FFF', backgroundColor: '#007AFF', borderRadius: 15, overflow: 'hidden'}}
-        highlightDateNameStyle={{color: '#007AFF'}}
+        calendarHeaderStyle={{color: '#333', fontSize: 16}}
+        dateNumberStyle={{color: '#000', fontSize: 14}}
+        dateNameStyle={{color: '#666', fontSize: 12}}
+        
+        highlightDateNumberStyle={{color: '#FFF', backgroundColor: '#007AFF', borderRadius: 15, overflow: 'hidden', width: 30, height: 30, lineHeight: 30, textAlign: 'center'}}
+        highlightDateNameStyle={{color: '#007AFF', fontWeight: 'bold'}}
+        highlightDateContainerStyle={{backgroundColor: '#007AFF', borderRadius: 20, padding: 5}} // Container adjustments if library allows
+        
+        disabledDateNameStyle={{color: '#D3D3D3'}}
+        disabledDateNumberStyle={{color: '#D3D3D3'}}
+        
         locale={{name: 'es', config: {months: 'Enero_Febrero_Marzo_Abril_Mayo_Junio_Julio_Agosto_Septiembre_Octubre_Noviembre_Diciembre'.split('_'), monthsShort: 'Ene_Feb_Mar_Abr_May_Jun_Jul_Ago_Sep_Oct_Nov_Dic'.split('_'), weekdays: 'Domingo_Lunes_Martes_Miércoles_Jueves_Viernes_Sábado'.split('_'), weekdaysShort: 'Dom_Lun_Mar_Mié_Jue_Vie_Sáb'.split('_'), weekdaysMin: 'Do_Lu_Ma_Mi_Ju_Vi_Sá'.split('_')}}}
+        
         selectedDate={selectedDate}
         onDateSelected={(date) => setSelectedDate(date.toDate())}
         minDate={new Date()}
       />
 
-      {/* Paso 3: Hora (Solo si hay vetId) */}
+      {/* Paso 3: Hora */}
       {vetId && (
           <>
             <Text style={styles.label}>3. Horarios Disponibles</Text>

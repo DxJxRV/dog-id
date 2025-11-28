@@ -20,6 +20,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { getImageUrl } from '../../utils/imageHelper';
+import AddPetModal from '../../components/AddPetModal';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 20) / 2; // 8px padding on each side + 4px gap
@@ -32,6 +33,7 @@ const PetsListScreen = ({ navigation }) => {
   const [hasArchivedPets, setHasArchivedPets] = useState(false);
   const [error, setError] = useState(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showAddPetModal, setShowAddPetModal] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [archiving, setArchiving] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
@@ -266,6 +268,38 @@ const PetsListScreen = ({ navigation }) => {
         </TouchableOpacity>
       )}
 
+      {/* FAB para agregar mascota */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddPetModal(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Modal de agregar mascota */}
+      <AddPetModal
+        visible={showAddPetModal}
+        onClose={() => setShowAddPetModal(false)}
+        onNavigateToAddPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('AddPet');
+        }}
+        onNavigateToLinkPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('LinkPet');
+        }}
+        onNavigateToQuickPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('QuickPet');
+        }}
+        onNavigateToClaimPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('ClaimPet');
+        }}
+        isVet={isVet}
+      />
+
       {/* Modal de opciones */}
       <Modal
         visible={showOptionsMenu}
@@ -432,7 +466,7 @@ const styles = StyleSheet.create({
   },
   archivedButton: {
     position: 'absolute',
-    right: 20,
+    left: 20, // Changed from right to left to avoid overlap with FAB
     bottom: 20,
     width: 60,
     height: 60,
@@ -448,6 +482,23 @@ const styles = StyleSheet.create({
   },
   archivedCard: {
     opacity: 0.5,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20, // Ajustado para que no choque con el botón de archivados si ambos están visibles, aunque el de archivados podría moverse
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+    zIndex: 100,
   },
   topGradient: {
     position: 'absolute',

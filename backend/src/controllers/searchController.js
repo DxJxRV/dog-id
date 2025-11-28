@@ -19,6 +19,7 @@ const globalSearch = async (req, res) => {
           nombre: true,
           cedulaProfesional: true,
           fotoUrl: true,
+          coverPhotoUrl: true, // Add this
           clinicMemberships: {
             where: { isActive: true },
             include: { clinic: { select: { name: true } } }
@@ -47,6 +48,7 @@ const globalSearch = async (req, res) => {
       title: v.nombre,
       subtitle: v.clinicMemberships[0]?.clinic.name || 'Veterinario Independiente',
       image: v.fotoUrl,
+      coverPhoto: v.coverPhotoUrl, // Add this
       details: `Cédula: ${v.cedulaProfesional}`
     }));
 

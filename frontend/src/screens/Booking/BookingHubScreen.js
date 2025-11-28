@@ -1,15 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image, TextInput, ActivityIndicator, Modal, SafeAreaView, RefreshControl, ScrollView } from 'react-native';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  FlatList, 
+  TouchableOpacity, 
+  Image, 
+  TextInput, 
+  ActivityIndicator, 
+  Modal, 
+  Dimensions,
+  ScrollView,
+  RefreshControl,
+  TouchableWithoutFeedback
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { searchAPI, userAPI } from '../../services/api';
 import { getImageUrl } from '../../utils/imageHelper';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { height } = Dimensions.get('window');
 
 const BookingHubScreen = () => {
   const navigation = useNavigation();
   
+  // Main Tabs State
+  const [activeTab, setActiveTab] = useState('book'); // 'book' | 'appointments'
+
   // Data State
   const [myVets, setMyVets] = useState([]);
   const [favorites, setFavorites] = useState([]);
@@ -22,6 +42,16 @@ const BookingHubScreen = () => {
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+
+  // Mock Discovery Data (For empty search state)
+  const TOP_VETS_MOCK = [
+    { id: '101', title: 'Dr. Simi', subtitle: 'Cardiología', image: null, type: 'VET', rating: 4.9 },
+    { id: '102', title: 'Dra. Ana', subtitle: 'Dermatología', image: null, type: 'VET', rating: 4.8 },
+  ];
+  const FEATURED_CLINICS_MOCK = [
+    { id: '201', title: 'Vet Santa Fe', subtitle: '24 Horas', image: null, type: 'CLINIC' },
+    { id: '202', title: 'Pet Hospital', subtitle: 'Urgencias', image: null, type: 'CLINIC' },
+  ];
 
   const fetchDashboardData = async () => {
     try {
@@ -81,20 +111,37 @@ const BookingHubScreen = () => {
 
   // --- Render Items ---
 
-  const renderVetItem = ({ item }) => (
+  const renderVetCard = ({ item }) => (
     <TouchableOpacity 
       style={styles.vetCard}
-      onPress={() => navigation.navigate('RequestAppointment', { vetId: item.id, vetName: item.name })}
+      onPress={() => navigation.navigate('ServiceProfile', { service: { ...item, title: item.name, type: 'VET' } })}
+      activeOpacity={0.9}
     >
-      <View style={styles.vetAvatar}>
-        {item.image ? (
-            <Image source={{ uri: getImageUrl(item.image) }} style={styles.avatarImage} />
-        ) : (
-            <Text style={styles.vetInitials}>{item.name.charAt(0)}</Text>
-        )}
-      </View>
-      <Text style={styles.vetName} numberOfLines={1}>{item.name}</Text>
-      <Text style={styles.clinicName} numberOfLines={1}>{item.clinic}</Text>
+      {/* Background Image */}
+      {item.image ? (
+          <Image source={{ uri: getImageUrl(item.image) }} style={styles.vetCardImage} />
+      ) : (
+          <View style={styles.vetCardPlaceholder}>
+              <Ionicons name="person" size={64} color="rgba(255,255,255,0.3)" />
+          </View>
+      )}
+
+      {/* Gradient Overlay & Content */}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.8)']}
+        style={styles.vetCardOverlay}
+      >
+        <Text style={styles.vetName} numberOfLines={1}>{item.name}</Text>
+        <Text style={styles.vetSpecialty} numberOfLines={1}>{item.clinic}</Text>
+        
+        <TouchableOpacity 
+          style={styles.cardActionRow}
+          onPress={() => navigation.navigate('RequestAppointment', { vetId: item.id, vetName: item.name })}
+        >
+          <Text style={styles.cardActionText}>Agendar</Text>
+          <Ionicons name="arrow-forward" size={14} color="#FFF" />
+        </TouchableOpacity>
+      </LinearGradient>
     </TouchableOpacity>
   );
 
@@ -107,31 +154,51 @@ const BookingHubScreen = () => {
           <Image source={{ uri: getImageUrl(item.image) }} style={styles.favImage} />
       ) : (
           <View style={[styles.favImage, styles.placeholderBg]}>
-              <Ionicons name={item.type === 'VET' ? 'person' : 'medkit'} size={24} color="#FFF" />
+              <Ionicons name={item.type === 'VET' ? 'person' : 'medkit'} size={20} color="#FFF" />
           </View>
       )}
       <View style={styles.favInfo}>
           <Text style={styles.favName} numberOfLines={1}>{item.name}</Text>
           <Text style={styles.favSubtitle} numberOfLines={1}>{item.subtitle}</Text>
       </View>
-      <Ionicons name="heart" size={16} color="#FF3B30" style={styles.favIcon} />
     </TouchableOpacity>
   );
 
   const renderAppointmentItem = ({ item }) => (
       <View style={styles.apptCard}>
-          <View style={styles.apptDateBox}>
-              <Text style={styles.apptDay}>{format(parseISO(item.date), 'dd')}</Text>
-              <Text style={styles.apptMonth}>{format(parseISO(item.date), 'MMM', { locale: es })}</Text>
-          </View>
-          <View style={styles.apptInfo}>
-              <Text style={styles.apptProvider}>{item.providerName}</Text>
-              <Text style={styles.apptTime}>{format(parseISO(item.date), 'EEEE, HH:mm', { locale: es })} • {item.petName}</Text>
-              <Text style={[styles.apptStatus, styles[`status${item.status}`]]}>
-                  {item.status === 'PENDING_APPROVAL' ? 'Pendiente de aprobación' : item.status}
-              </Text>
+          <View style={styles.apptLeftBorder} />
+          <View style={styles.apptContent}>
+            <View style={styles.apptHeader}>
+              <Text style={styles.apptDay}>{format(parseISO(item.date), 'dd MMM', { locale: es })}</Text>
+              <View style={[styles.statusBadge, styles[`badge${item.status}`]]}>
+                <Text style={[styles.statusText, styles[`text${item.status}`]]}>
+                  {item.status === 'PENDING_APPROVAL' ? 'Pendiente' : item.status}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.apptProvider}>{item.providerName}</Text>
+            <Text style={styles.apptTime}>{format(parseISO(item.date), 'HH:mm')} • {item.petName}</Text>
           </View>
       </View>
+  );
+
+  const renderDiscoveryItem = ({ item }) => (
+    <TouchableOpacity 
+      style={styles.discoveryCard}
+      onPress={() => handleResultPress(item)}
+    >
+      <View style={[styles.discoveryImage, styles.placeholderBg]}>
+         <Ionicons name={item.type === 'VET' ? 'person' : 'medkit'} size={24} color="#FFF" />
+      </View>
+      <Text style={styles.discoveryTitle} numberOfLines={1}>{item.title}</Text>
+      <Text style={styles.discoverySubtitle} numberOfLines={1}>{item.subtitle}</Text>
+      {item.rating && (
+        <View style={styles.ratingContainer}>
+          <Ionicons name="star" size={12} color="#FFD700" />
+          <Text style={styles.ratingText}>{item.rating}</Text>
+        </View>
+      )}
+    </TouchableOpacity>
   );
 
   const renderSearchResult = ({ item }) => (
@@ -153,77 +220,103 @@ const BookingHubScreen = () => {
 
   return (
     <View style={styles.container}>
-      <ScrollView 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-            <Text style={styles.title}>Agendar Cita</Text>
-            <Text style={styles.subtitle}>Encuentra el mejor cuidado para tu mascota</Text>
+      {/* Top Tabs (Segmented Control) */}
+      <View style={styles.topTabsContainer}>
+        <View style={styles.segmentedControl}>
+          <TouchableOpacity 
+            style={[styles.segment, activeTab === 'book' && styles.segmentActive]}
+            onPress={() => setActiveTab('book')}
+          >
+            <Text style={[styles.segmentText, activeTab === 'book' && styles.segmentTextActive]}>Agendar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.segment, activeTab === 'appointments' && styles.segmentActive]}
+            onPress={() => setActiveTab('appointments')}
+          >
+            <Text style={[styles.segmentText, activeTab === 'appointments' && styles.segmentTextActive]}>Mis Citas</Text>
+          </TouchableOpacity>
         </View>
+      </View>
 
-        {/* Search Bar Trigger */}
-        <TouchableOpacity style={styles.searchBar} onPress={() => setShowSearchModal(true)}>
-            <Ionicons name="search" size={20} color="#666" />
-            <Text style={styles.searchText}>Buscar clínicas o veterinarios...</Text>
-        </TouchableOpacity>
+      {/* Content */}
+      {activeTab === 'book' ? (
+        <ScrollView 
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          <View style={styles.contentContainer}>
+            <Text style={styles.headerTitle}>Hola,</Text>
+            <Text style={styles.headerSubtitle}>¿Qué servicio buscas hoy?</Text>
 
-        {/* Upcoming Appointments Section */}
-        {appointments.length > 0 && (
+            {/* Search Trigger */}
+            <TouchableOpacity style={styles.searchBar} onPress={() => setShowSearchModal(true)}>
+                <Ionicons name="search" size={20} color="#666" />
+                <Text style={styles.searchText}>Buscar clínicas o veterinarios...</Text>
+            </TouchableOpacity>
+
+            {/* My Vets Section */}
             <View style={styles.section}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Próximas Citas</Text>
+                <Text style={styles.sectionTitle}>Mis Especialistas</Text>
+                {myVets.length > 0 ? (
+                    <FlatList
+                      data={myVets}
+                      renderItem={renderVetCard}
+                      keyExtractor={item => item.id}
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.horizontalList}
+                    />
+                ) : (
+                    <View style={styles.emptyStateBox}>
+                      <Text style={styles.emptyStateText}>Aún no tienes veterinarios recientes.</Text>
+                    </View>
+                )}
+            </View>
+
+            {/* Favorites Section */}
+            {favorites.length > 0 && (
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Favoritos</Text>
+                    <FlatList
+                        data={favorites}
+                        renderItem={renderFavoriteItem}
+                        keyExtractor={item => item.id}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.horizontalList}
+                    />
                 </View>
-                <FlatList
-                    data={appointments}
-                    renderItem={renderAppointmentItem}
-                    keyExtractor={item => item.id}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.listContent}
-                />
-            </View>
-        )}
-
-        {/* My Vets Section */}
-        <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Mis Especialistas</Text>
-            {myVets.length > 0 ? (
-                <FlatList
-                data={myVets}
-                renderItem={renderVetItem}
-                keyExtractor={item => item.id}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.listContent}
-                />
-            ) : (
-                <Text style={styles.emptyText}>Aún no tienes veterinarios vinculados.</Text>
             )}
-        </View>
-
-        {/* Favorites Section */}
-        {favorites.length > 0 && (
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Favoritos</Text>
-                <FlatList
-                    data={favorites}
-                    renderItem={renderFavoriteItem}
-                    keyExtractor={item => item.id}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.listContent}
-                />
+          </View>
+        </ScrollView>
+      ) : (
+        /* Appointments Tab */
+        <FlatList
+          data={appointments}
+          renderItem={renderAppointmentItem}
+          keyExtractor={item => item.id}
+          contentContainerStyle={styles.listContent}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+          ListEmptyComponent={
+            <View style={styles.emptyStateContainer}>
+              <Ionicons name="calendar-outline" size={64} color="#CCC" />
+              <Text style={styles.emptyStateTitle}>No tienes citas próximas</Text>
+              <Text style={styles.emptyStateSubtitle}>Tus citas agendadas aparecerán aquí.</Text>
             </View>
-        )}
+          }
+        />
+      )}
 
-        <View style={{height: 20}} />
-      </ScrollView>
-
-      {/* Search Modal */}
-      <Modal visible={showSearchModal} animationType="slide" presentationStyle="pageSheet">
-        <SafeAreaView style={styles.modalContainer}>
+      {/* Search Modal (Bottom Sheet Style) */}
+      <Modal visible={showSearchModal} transparent animationType="slide" onRequestClose={() => setShowSearchModal(false)}>
+        <TouchableWithoutFeedback onPress={() => setShowSearchModal(false)}>
+          <View style={styles.modalOverlay} />
+        </TouchableWithoutFeedback>
+        
+        <View style={styles.bottomSheet}>
           <View style={styles.modalHeader}>
+            <View style={styles.dragHandle} />
             <View style={styles.modalSearchBar}>
               <Ionicons name="search" size={20} color="#666" style={{ marginRight: 8 }} />
               <TextInput
@@ -234,27 +327,56 @@ const BookingHubScreen = () => {
                 autoFocus
                 placeholderTextColor="#999"
               />
-              {searching && <ActivityIndicator size="small" color="#007AFF" />}
+              {searching ? (
+                <ActivityIndicator size="small" color="#007AFF" />
+              ) : searchQuery.length > 0 ? (
+                <TouchableOpacity onPress={() => { setSearchQuery(''); setSearchResults([]); }}>
+                  <Ionicons name="close-circle" size={18} color="#999" />
+                </TouchableOpacity>
+              ) : null}
             </View>
-            <TouchableOpacity onPress={() => setShowSearchModal(false)}>
-              <Text style={styles.cancelButton}>Cancelar</Text>
-            </TouchableOpacity>
           </View>
 
-          <FlatList
-            data={searchResults}
-            renderItem={renderSearchResult}
-            keyExtractor={(item, index) => item.id + index}
-            contentContainerStyle={styles.resultsList}
-            ListEmptyComponent={
-              searchQuery.length > 2 && !searching ? (
-                <View style={styles.emptyResultContainer}>
-                    <Text style={styles.emptyResultText}>No se encontraron resultados</Text>
-                </View>
-              ) : null
-            }
-          />
-        </SafeAreaView>
+          {searchQuery.length === 0 ? (
+            /* Discovery State */
+            <ScrollView style={styles.discoveryContainer}>
+              <Text style={styles.discoveryHeader}>Veterinarios Top ⭐</Text>
+              <FlatList 
+                data={TOP_VETS_MOCK}
+                renderItem={renderDiscoveryItem}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+
+              <Text style={[styles.discoveryHeader, { marginTop: 20 }]}>Clínicas Destacadas 🏥</Text>
+              <FlatList 
+                data={FEATURED_CLINICS_MOCK}
+                renderItem={renderDiscoveryItem}
+                keyExtractor={item => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.horizontalList}
+              />
+            </ScrollView>
+          ) : (
+            /* Search Results */
+            <FlatList
+              data={searchResults}
+              renderItem={renderSearchResult}
+              keyExtractor={(item, index) => item.id + index}
+              contentContainerStyle={styles.resultsList}
+              ListEmptyComponent={
+                !searching && (
+                  <View style={styles.emptyResultContainer}>
+                      <Text style={styles.emptyResultText}>No se encontraron resultados</Text>
+                  </View>
+                )
+              }
+            />
+          )}
+        </View>
       </Modal>
     </View>
   );
@@ -262,64 +384,162 @@ const BookingHubScreen = () => {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F9F9F9' },
-  header: { marginBottom: 20, marginTop: 20, paddingHorizontal: 20 },
-  title: { fontSize: 28, fontWeight: 'bold', color: '#333' },
-  subtitle: { fontSize: 16, color: '#666', marginTop: 5 },
   
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 14, borderRadius: 16, marginHorizontal: 20, marginBottom: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  // Header & Tabs
+  topTabsContainer: { backgroundColor: '#fff', paddingVertical: 10, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: '#F0F0F0' },
+  segmentedControl: { flexDirection: 'row', backgroundColor: '#F2F2F7', borderRadius: 8, padding: 2 },
+  segment: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 6 },
+  segmentActive: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  segmentText: { fontSize: 14, fontWeight: '500', color: '#666' },
+  segmentTextActive: { color: '#000', fontWeight: '600' },
+
+  contentContainer: { padding: 20 },
+  headerTitle: { fontSize: 28, fontWeight: '800', color: '#333' },
+  headerSubtitle: { fontSize: 16, color: '#666', marginBottom: 20 },
+
+  // Search Trigger
+  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 14, borderRadius: 16, marginBottom: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
   searchText: { marginLeft: 10, color: '#999', fontSize: 16 },
-  
-  section: { marginBottom: 25 },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, marginBottom: 15 },
-  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginLeft: 20, marginBottom: 15 },
-  listContent: { paddingLeft: 20, paddingRight: 10 },
-  
-  // Vet Card
-  vetCard: { backgroundColor: '#FFF', padding: 15, borderRadius: 16, marginRight: 12, alignItems: 'center', width: 130, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  vetAvatar: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#E8F4FD', justifyContent: 'center', alignItems: 'center', marginBottom: 10, overflow: 'hidden' },
-  avatarImage: { width: '100%', height: '100%' },
-  vetInitials: { fontSize: 24, color: '#007AFF', fontWeight: 'bold' },
-  vetName: { fontSize: 14, fontWeight: '600', color: '#333', textAlign: 'center', marginBottom: 2 },
-  clinicName: { fontSize: 12, color: '#888', textAlign: 'center' },
-  
+
+  // Sections
+  section: { marginBottom: 30 },
+  sectionTitle: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 15 },
+  horizontalList: { paddingRight: 20 },
+  listContent: { padding: 20 },
+
+  // Vet Card (Redesigned like Pet Card - Image Full)
+  vetCard: { 
+    backgroundColor: '#fff', // Match cardContainer background
+    borderRadius: 8, // Match cardContainer borderRadius
+    marginRight: 16, 
+    width: 160, 
+    height: 210, 
+    shadowColor: '#000', // Match cardContainer shadowColor
+    shadowOffset: { width: 0, height: 4 }, // Match cardContainer shadowOffset
+    shadowOpacity: 0.25, // Match cardContainer shadowOpacity
+    shadowRadius: 8, // Match cardContainer shadowRadius
+    elevation: 6, // Match cardContainer elevation
+    overflow: 'hidden', 
+  },
+  vetCardImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  vetCardPlaceholder: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vetCardOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    padding: 12,
+  },
+  vetName: { 
+    fontSize: 18, 
+    fontWeight: '700', 
+    color: '#FFF', 
+    marginBottom: 2,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  vetSpecialty: { 
+    fontSize: 13, 
+    color: '#EEE', 
+    marginBottom: 8,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
+  cardActionRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardActionText: { 
+    color: '#FFF', 
+    fontSize: 14, 
+    fontWeight: '600', 
+    marginRight: 4 
+  },
+
   // Favorite Card
-  favCard: { backgroundColor: '#FFF', borderRadius: 12, marginRight: 12, width: 200, flexDirection: 'row', padding: 10, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  favImage: { width: 48, height: 48, borderRadius: 24, marginRight: 10 },
+  favCard: { backgroundColor: '#FFF', borderRadius: 12, marginRight: 12, padding: 10, flexDirection: 'row', alignItems: 'center', width: 200, borderWidth: 1, borderColor: '#F0F0F0' },
+  favImage: { width: 40, height: 40, borderRadius: 20, marginRight: 10 },
   placeholderBg: { backgroundColor: '#FF9500', justifyContent: 'center', alignItems: 'center' },
   favInfo: { flex: 1 },
   favName: { fontSize: 14, fontWeight: '600', color: '#333' },
   favSubtitle: { fontSize: 12, color: '#666' },
-  favIcon: { marginLeft: 5 },
 
-  // Appointment Card
-  apptCard: { backgroundColor: '#FFF', borderRadius: 16, marginRight: 12, width: 280, flexDirection: 'row', padding: 12, alignItems: 'center', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  apptDateBox: { backgroundColor: '#F0F8FF', borderRadius: 12, padding: 8, alignItems: 'center', justifyContent: 'center', width: 50, height: 50, marginRight: 12 },
-  apptDay: { fontSize: 18, fontWeight: 'bold', color: '#007AFF' },
-  apptMonth: { fontSize: 12, color: '#007AFF', textTransform: 'uppercase' },
-  apptInfo: { flex: 1 },
-  apptProvider: { fontSize: 15, fontWeight: '600', color: '#333' },
-  apptTime: { fontSize: 13, color: '#666', marginTop: 2 },
-  apptStatus: { fontSize: 11, marginTop: 4, fontWeight: '500' },
-  statusPENDING_APPROVAL: { color: '#FF9500' },
-  statusCONFIRMED: { color: '#4CAF50' },
+  // Appointment Card (Vertical List)
+  apptCard: { 
+    backgroundColor: '#FFF', 
+    borderRadius: 16, 
+    marginBottom: 16, 
+    flexDirection: 'row', 
+    shadowColor: '#000', 
+    shadowOffset: { width: 0, height: 2 }, 
+    shadowOpacity: 0.05, 
+    shadowRadius: 4, 
+    elevation: 2,
+    overflow: 'hidden'
+  },
+  apptLeftBorder: { width: 6, backgroundColor: '#007AFF' },
+  apptContent: { flex: 1, padding: 16 },
+  apptHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  apptDay: { fontSize: 14, fontWeight: '700', color: '#007AFF', textTransform: 'uppercase' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  badgePENDING_APPROVAL: { backgroundColor: '#FFF3E0' },
+  badgeCONFIRMED: { backgroundColor: '#E8F5E9' },
+  textPENDING_APPROVAL: { color: '#E65100', fontSize: 10, fontWeight: '700' },
+  textCONFIRMED: { color: '#2E7D32', fontSize: 10, fontWeight: '700' },
+  apptProvider: { fontSize: 16, fontWeight: '700', color: '#333', marginBottom: 4 },
+  apptTime: { fontSize: 14, color: '#666' },
 
-  emptyText: { marginLeft: 20, color: '#999', fontStyle: 'italic' },
+  // Empty States
+  emptyStateBox: { padding: 20, alignItems: 'center', justifyContent: 'center', borderStyle: 'dashed', borderWidth: 1, borderColor: '#DDD', borderRadius: 12 },
+  emptyStateText: { color: '#999', fontStyle: 'italic' },
+  emptyStateContainer: { alignItems: 'center', justifyContent: 'center', marginTop: 60 },
+  emptyStateTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginTop: 10 },
+  emptyStateSubtitle: { fontSize: 14, color: '#999', marginTop: 5 },
 
-  // Modal Styles
-  modalContainer: { flex: 1, backgroundColor: '#FFF' },
-  modalHeader: { flexDirection: 'row', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#EEE' },
-  modalSearchBar: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#F2F2F7', borderRadius: 10, padding: 8, marginRight: 12 },
-  modalSearchInput: { flex: 1, fontSize: 16, color: '#333' },
-  cancelButton: { color: '#007AFF', fontSize: 16 },
-  resultsList: { padding: 16 },
+  // Bottom Sheet Modal
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' },
+  bottomSheet: { 
+    height: '90%', 
+    backgroundColor: '#FFF', 
+    borderTopLeftRadius: 24, 
+    borderTopRightRadius: 24, 
+    paddingTop: 10,
+    overflow: 'hidden'
+  },
+  dragHandle: { width: 40, height: 4, backgroundColor: '#E0E0E0', borderRadius: 2, alignSelf: 'center', marginBottom: 10 },
+  modalHeader: { paddingHorizontal: 20, paddingBottom: 15, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
+  modalSearchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#F2F2F7', borderRadius: 12, paddingHorizontal: 12, height: 44 },
+  modalSearchInput: { flex: 1, fontSize: 16, color: '#333', marginLeft: 8 },
+  
+  // Discovery & Results
+  discoveryContainer: { padding: 20 },
+  discoveryHeader: { fontSize: 18, fontWeight: '700', color: '#333', marginBottom: 15 },
+  discoveryCard: { width: 140, marginRight: 15 },
+  discoveryImage: { width: 140, height: 100, borderRadius: 12, marginBottom: 8 },
+  discoveryTitle: { fontSize: 14, fontWeight: '600', color: '#333' },
+  discoverySubtitle: { fontSize: 12, color: '#666' },
+  ratingContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+  ratingText: { fontSize: 12, color: '#666', marginLeft: 4, fontWeight: '600' },
+  
   resultItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F5F5F5' },
   resultImage: { width: 50, height: 50, borderRadius: 25, marginRight: 12 },
   resultPlaceholder: { backgroundColor: '#CCC', justifyContent: 'center', alignItems: 'center' },
   resultInfo: { flex: 1 },
   resultTitle: { fontSize: 16, fontWeight: '600', color: '#333' },
   resultSubtitle: { fontSize: 14, color: '#666', marginTop: 2 },
+  resultsList: { padding: 20 },
   emptyResultContainer: { alignItems: 'center', marginTop: 40 },
-  emptyResultText: { color: '#999', fontSize: 16 }
+  emptyResultText: { color: '#999', fontSize: 16 },
 });
 
 export default BookingHubScreen;
