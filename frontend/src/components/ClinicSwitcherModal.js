@@ -24,7 +24,14 @@ const ClinicSwitcherModal = ({ visible, onClose, clinics, currentClinic, onSelec
             <Text style={[styles.name, isSelected && styles.nameSelected]}>{item.name}</Text>
             <Text style={styles.role}>{item.myRole === 'OWNER' ? 'Director' : 'Veterinario'}</Text>
         </View>
-        {isSelected && <Ionicons name="checkmark-circle" size={24} color="#007AFF" />}
+        
+        {item.pendingAppointments > 0 && (
+            <View style={styles.badge}>
+                <Text style={styles.badgeText}>{item.pendingAppointments}</Text>
+            </View>
+        )}
+        
+        {isSelected && <Ionicons name="checkmark-circle" size={24} color="#007AFF" style={{marginLeft: 10}} />}
       </TouchableOpacity>
     );
   };
@@ -148,6 +155,21 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     fontWeight: '600',
+  },
+  badge: {
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    marginLeft: 10,
+  },
+  badgeText: {
+    color: '#FFF',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
 });
 

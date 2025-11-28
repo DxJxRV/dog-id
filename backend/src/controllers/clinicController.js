@@ -56,14 +56,27 @@ const getMyClinics = async (req, res) => {
         status: 'ACTIVE' // Solo activas
       },
       include: {
-        clinic: true
+        clinic: {
+          include: {
+            _count: {
+              select: {
+                appointments: {
+                  where: {
+                    status: 'PENDING_APPROVAL'
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     });
 
     const clinics = memberships.map(m => ({
       ...m.clinic,
       myRole: m.role,
-      isAvailable: m.isAvailable
+      isAvailable: m.isAvailable,
+      pendingAppointments: m.clinic._count.appointments // Add count
     }));
 
     res.json({ clinics });

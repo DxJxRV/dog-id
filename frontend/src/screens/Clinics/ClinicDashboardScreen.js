@@ -63,8 +63,11 @@ const ClinicDashboardScreen = () => {
       if (activeTab === 0) {
         const res = await appointmentAPI.getPendingRequests();
         setRequests(res.data.requests);
+        // Check notifications count (Invites + Pending Requests for this clinic)
         const notifRes = await userAPI.getNotifications();
-        setUnreadCount(notifRes.data.notifications.length);
+        // Filter notifications to only count invites or relevant stuff, but for now all are relevant
+        // Plus requests count
+        setUnreadCount(notifRes.data.notifications.length + res.data.requests.length);
       } else if (activeTab === 1) {
         const staffRes = await clinicAPI.getStaff(currentClinic.id);
         setStaff(staffRes.data.staff);
@@ -212,28 +215,32 @@ const ClinicDashboardScreen = () => {
       </View>
   );
 
-  const renderDashboardSummary = () => (
+  const renderDashboardSummary = () => {
+    const otherPendingCount = requests.filter(r => r.clinicId !== clinicData?.id).length;
+
+    return (
     <View style={styles.dashboardSummary}>
         <View style={styles.welcomeRow}>
             <View>
                 <Text style={styles.welcomeText}>Hola, Dr. {user?.nombre}</Text>
                 <Text style={styles.dateText}>{format(new Date(), 'EEEE, d MMMM', { locale: es })}</Text>
             </View>
-            <View style={styles.headerActions}>
-                {requests.length > 0 && (
+            
+            <View style={{flexDirection: 'row', gap: 10}}>
+                {otherPendingCount > 0 && (
                     <TouchableOpacity 
                         style={styles.iconBtn}
-                        onPress={() => setActiveTab(0)}
+                        onPress={() => { loadMyClinics(); setShowSwitcherModal(true); }}
                     >
                         <Ionicons name="alert-circle-outline" size={22} color="#333" />
                         <View style={[styles.smallBadge, { backgroundColor: '#FF9500' }]}>
-                            <Text style={styles.smallBadgeText}>{requests.length}</Text>
+                            <Text style={styles.smallBadgeText}>{otherPendingCount}</Text>
                         </View>
                     </TouchableOpacity>
                 )}
 
                 <TouchableOpacity 
-                    style={[styles.iconBtn, { backgroundColor: '#007AFF' }]}
+                    style={styles.agendaBtn}
                     onPress={() => navigation.navigate('Appointments')} 
                 >
                     <Ionicons name="calendar" size={20} color="#FFF" />
@@ -241,9 +248,28 @@ const ClinicDashboardScreen = () => {
             </View>
         </View>
 
+        <View style={styles.statsRow}>
+            <View style={styles.statCard}>
+                <View style={[styles.statIcon, { backgroundColor: '#FFF3E0' }]}>
+                    <Ionicons name="alert-circle" size={24} color="#E65100" />
+                </View>
+                <Text style={styles.statNumber}>{requests.filter(req => req.clinicId === clinicData?.id).length}</Text>
+                <Text style={styles.statLabel}>Pendientes</Text>
+            </View>
+            
+            <TouchableOpacity style={styles.statCard} onPress={() => setActiveTab(1)}>
+                <View style={[styles.statIcon, { backgroundColor: '#E8F5E9' }]}>
+                    <Ionicons name="people" size={24} color="#2E7D32" />
+                </View>
+                <Text style={styles.statNumber}>{staff.length || '-'}</Text>
+                <Text style={styles.statLabel}>Miembros</Text>
+            </TouchableOpacity>
+        </View>
+
         <Text style={styles.sectionTitle}>Bandeja de Entrada</Text>
     </View>
-  );
+    );
+  };
 
   const renderRequestItem = ({ item }) => {
     const isGeneral = !item.vetId;
@@ -306,8 +332,6 @@ const ClinicDashboardScreen = () => {
     );
   };
 
-  // ... (renderStaffItem and return existing) ...
-  // Include renderStaffItem to complete the file structure
   const renderStaffItem = ({ item }) => (
       <View style={styles.staffCard}>
           <View style={styles.staffInfoRow}>
@@ -402,6 +426,7 @@ const ClinicDashboardScreen = () => {
                       <>
                         <Input label="Nombre" value={clinicData.name} onChangeText={t => setClinicData({...clinicData, name: t})} />
                         <Input label="Dirección" value={clinicData.address} onChangeText={t => setClinicData({...clinicData, address: t})} />
+                        
                         <Text style={styles.label}>Ubicación</Text>
                         <View style={styles.mapContainer}>
                             <View style={styles.mapPlaceholder}>
@@ -409,6 +434,7 @@ const ClinicDashboardScreen = () => {
                                 <Text style={styles.mapHint}>Mapa no disponible en esta versión</Text>
                             </View>
                         </View>
+
                         <Button title="Guardar Cambios" onPress={handleSaveConfig} style={{marginTop: 20}} />
                       </>
                   )}
@@ -511,7 +537,6 @@ const ClinicDashboardScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  // ... existing styles ...
   container: { flex: 1, backgroundColor: '#F5F5F5' },
   tabs: { flexDirection: 'row', backgroundColor: '#FFF', padding: 10, gap: 10 },
   tab: { flex: 1, padding: 10, alignItems: 'center', borderRadius: 8 },
@@ -550,6 +575,13 @@ const styles = StyleSheet.create({
   iconBtn: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}, elevation: 2 },
   smallBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: '#F5F5F5' },
   smallBadgeText: { color: '#FFF', fontSize: 10, fontWeight: 'bold' },
+  agendaBtn: { backgroundColor: '#007AFF', padding: 10, borderRadius: 12, shadowColor: '#007AFF', shadowOpacity: 0.3, shadowOffset: {width:0, height:4}, elevation: 4 },
+
+  statsRow: { flexDirection: 'row', gap: 15, marginBottom: 25 },
+  statCard: { flex: 1, backgroundColor: '#FFF', padding: 15, borderRadius: 16, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.05, shadowOffset: {width:0, height:2}, elevation: 2 },
+  statIcon: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
+  statNumber: { fontSize: 24, fontWeight: 'bold', color: '#333' },
+  statLabel: { fontSize: 12, color: '#888' },
 
   sectionTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 15 },
 

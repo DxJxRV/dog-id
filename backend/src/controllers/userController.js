@@ -224,39 +224,100 @@ const getUserNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
 
-    // Buscar invitaciones en ClinicMember donde el vetId coincida con el usuario
+    // 1. Invitaciones a Clínicas
     const invitations = await prisma.clinicMember.findMany({
       where: {
         vetId: userId,
         status: 'INVITED'
       },
       include: {
-        clinic: {
-          select: {
-            id: true,
-            name: true,
-            logoUrl: true
-          }
-        }
+        clinic: { select: { id: true, name: true, logoUrl: true } }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    // Mapear a formato genérico de notificación
-    const notifications = invitations.map(inv => ({
-      id: inv.id,
-      type: 'INVITATION',
-      title: 'Invitación a Clínica',
-      subtitle: `Te han invitado a unirte a ${inv.clinic.name} como ${inv.role}`,
-      data: {
-        clinicId: inv.clinicId,
-        clinicName: inv.clinic.name,
-        role: inv.role
-      },
-      createdAt: inv.createdAt
-    }));
+    // 2. Mis solicitudes de cita (Como Dueño)
+    const myPetRequests = await prisma.appointment.findMany({
+        where: {
+            pet: { userId: userId },
+            status: { in: ['PENDING_APPROVAL', 'CONFIRMED', 'CANCELLED'] }, // Mostrar actualizaciones recientes
+            updatedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } // Últimos 7 días
+        },
+        include: {
+            pet: { select: { nombre: true } },
+            clinic: { select: { name: true } }
+        },
+        orderBy: { updatedAt: 'desc' }
+    });
 
-    res.json({ notifications });
+    // 3. Solicitudes para mí (Como Veterinario)
+    const activeMemberships = await prisma.clinicMember.findMany({
+        where: { vetId: userId, status: 'ACTIVE' },
+        select: { clinicId: true }
+    });
+    
+    const myClinicIds = activeMemberships.map(m => m.clinicId);
+    
+    let vetWorkRequests = [];
+    if (myClinicIds.length > 0) {
+        vetWorkRequests = await prisma.appointment.findMany({
+            where: {
+                clinicId: { in: myClinicIds },
+                status: 'PENDING_APPROVAL',
+                OR: [{ vetId: userId }, { vetId: null }]
+            },
+            include: {
+                pet: { select: { nombre: true } },
+                clinic: { select: { name: true } }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    // Mapeo
+    const notifs = [];
+
+    invitations.forEach(inv => {
+        notifs.push({
+            id: `inv-${inv.id}`,
+            type: 'INVITATION',
+            title: 'Invitación a Clínica',
+            subtitle: `Te han invitado a unirte a ${inv.clinic.name}`,
+            data: { clinicId: inv.clinicId, clinicName: inv.clinic.name },
+            createdAt: inv.createdAt
+        });
+    });
+
+    myPetRequests.forEach(appt => {
+        let title = 'Estado de Cita';
+        if (appt.status === 'PENDING_APPROVAL') title = 'Solicitud Enviada';
+        if (appt.status === 'CONFIRMED') title = 'Cita Confirmada';
+        if (appt.status === 'CANCELLED') title = 'Cita Cancelada';
+
+        notifs.push({
+            id: `pet-appt-${appt.id}`,
+            type: 'MY_PET_APPOINTMENT',
+            title: title,
+            subtitle: `${appt.pet.nombre} en ${appt.clinic.name} - ${appt.status}`,
+            data: { appointmentId: appt.id, status: appt.status },
+            createdAt: appt.updatedAt // Use updated at for status changes
+        });
+    });
+
+    vetWorkRequests.forEach(appt => {
+        notifs.push({
+            id: `work-appt-${appt.id}`,
+            type: 'CLINIC_REQUEST',
+            title: 'Nueva Solicitud de Cita',
+            subtitle: `Solicitud para ${appt.pet.nombre} en ${appt.clinic.name}`,
+            data: { appointmentId: appt.id },
+            createdAt: appt.createdAt
+        });
+    });
+
+    notifs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+    res.json({ notifications: notifs });
 
   } catch (error) {
     console.error('Get notifications error:', error);

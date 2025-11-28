@@ -97,6 +97,33 @@ const NotificationsScreen = ({ navigation }) => {
                   </View>
               </View>
           );
+      } else if (item.type === 'CLINIC_REQUEST') {
+          return (
+              <View style={styles.card}>
+                  <View style={styles.iconContainer}>
+                      <Ionicons name="calendar" size={24} color="#FF9500" />
+                  </View>
+                  <View style={styles.content}>
+                      <Text style={styles.title}>{item.title}</Text>
+                      <Text style={styles.subtitle}>{item.subtitle}</Text>
+                      <Text style={styles.date}>{format(parseISO(item.createdAt), 'dd MMM, HH:mm', { locale: es })}</Text>
+                      {/* No action buttons needed here if navigating to dashboard is preferred, or add 'Ver' */}
+                  </View>
+              </View>
+          );
+      } else if (item.type === 'MY_PET_APPOINTMENT') {
+          return (
+              <View style={styles.card}>
+                  <View style={styles.iconContainer}>
+                      <Ionicons name="paw" size={24} color="#4CAF50" />
+                  </View>
+                  <View style={styles.content}>
+                      <Text style={styles.title}>{item.title}</Text>
+                      <Text style={styles.subtitle}>{item.subtitle}</Text>
+                      <Text style={styles.date}>{format(parseISO(item.createdAt), 'dd MMM, HH:mm', { locale: es })}</Text>
+                  </View>
+              </View>
+          );
       }
       return null;
   };
