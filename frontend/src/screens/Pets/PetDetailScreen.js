@@ -315,19 +315,6 @@ const PetDetailScreen = ({ route, navigation }) => {
                 Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
               </Text>
             )}
-
-            {/* Botón compartir */}
-            {isOwner && (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity
-                  style={styles.qrButton}
-                  onPress={handleShowLinkCode}
-                >
-                  <Ionicons name="share-social-outline" size={32} color="#007AFF" />
-                  <Text style={styles.qrButtonText}>Compartir</Text>
-                </TouchableOpacity>
-              </View>
-            )}
           </LinearGradient>
         </ImageBackground>
       ) : (
@@ -359,19 +346,6 @@ const PetDetailScreen = ({ route, navigation }) => {
               <Text style={styles.petBirthdate}>
                 Nacimiento: {format(new Date(pet.fechaNacimiento), 'd MMMM, yyyy', { locale: es })}
               </Text>
-            )}
-
-            {/* Botón compartir */}
-            {isOwner && (
-              <View style={styles.actionsRow}>
-                <TouchableOpacity
-                  style={styles.qrButton}
-                  onPress={handleShowLinkCode}
-                >
-                  <Ionicons name="share-social-outline" size={32} color="#007AFF" />
-                  <Text style={styles.qrButtonText}>Compartir</Text>
-                </TouchableOpacity>
-              </View>
             )}
           </LinearGradient>
         </View>
@@ -820,6 +794,16 @@ const PetDetailScreen = ({ route, navigation }) => {
       {/* Botones Flotantes */}
       {pet.status !== 'DECEASED' && (
         <View style={styles.floatingButtonsContainer}>
+          {isOwner && (
+            <TouchableOpacity
+              style={styles.floatingButtonSecondary}
+              onPress={handleShowLinkCode}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="share-social" size={28} color="#FFFFFF" />
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity
             style={styles.floatingButtonSecondary}
             onPress={() => setShowProcedureMenu(true)}

@@ -89,6 +89,7 @@ export const petsAPI = {
   unlinkPetAsVet: (id) => api.delete(`/pets/${id}/unlink-vet`),
   unlinkPetAsCoOwner: (id) => api.delete(`/pets/${id}/unlink-coowner`),
   archive: (id, archived) => api.patch(`/pets/${id}/archive`, { archived }),
+  search: (query) => api.get(`/pets/search?q=${encodeURIComponent(query)}`),
 };
 
 // Vaccines API
@@ -164,6 +165,21 @@ export const consentAPI = {
 export const deathCertificateAPI = {
   create: (data) => api.post('/death-certificates', data),
   getByPetId: (petId) => api.get(`/pets/${petId}/death-certificate`),
+};
+
+// Clinic API (SaaS)
+export const clinicAPI = {
+  create: (data) => api.post('/clinics', data),
+  getMyClinics: () => api.get('/clinics/my'),
+  addMember: (data) => api.post('/clinics/members', data),
+};
+
+// Appointment API (SaaS)
+export const appointmentAPI = {
+  create: (data) => api.post('/appointments', data),
+  getSchedule: (params) => api.get('/appointments', { params }),
+  updateStatus: (id, status) => api.put(`/appointments/${id}/status`, { status }),
+  getDetail: (id) => api.get(`/appointments/${id}`),
 };
 
 export default api;

@@ -36,6 +36,7 @@ router.delete('/:id', authenticateUser, validateUUIDParam('id'), petController.d
 // Usuarios y veterinarios pueden ver mascotas
 router.get('/', authenticateUserOrVet, petController.getUserPets);
 router.get('/archived/list', authenticateUserOrVet, petController.getArchivedPets);
+router.get('/search', authenticateUserOrVet, petController.searchPets); // Nueva ruta de búsqueda
 router.get('/:id', authenticateUserOrVet, validateUUIDParam('id'), petController.getPetById);
 
 // Archivar/desarchivar mascota (ambos usuarios y vets)

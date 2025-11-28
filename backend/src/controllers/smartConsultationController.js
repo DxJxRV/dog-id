@@ -14,6 +14,8 @@ const createSmartConsultation = async (req, res) => {
 
   try {
     const { petId } = req.params;
+    // Si viene appointmentId en body, lo extraemos
+    const { appointmentId } = req.body; 
     const vetId = req.user.id;
 
     // Validar que es un veterinario
@@ -72,6 +74,7 @@ const createSmartConsultation = async (req, res) => {
       data: {
         petId,
         vetId,
+        appointmentId: appointmentId || null, // Vincular si existe
         audioUrl: audioS3Key,
         duration: Math.round(aiResult.duration || 0),
         rawText: aiResult.rawText,
@@ -91,6 +94,19 @@ const createSmartConsultation = async (req, res) => {
         }
       }
     });
+
+    // Si hay appointmentId, actualizar estado de la cita a IN_PROCESS o COMPLETED
+    if (appointmentId) {
+      try {
+        await prisma.appointment.update({
+          where: { id: appointmentId },
+          data: { status: 'COMPLETED' } // Se asume completada al grabar la consulta
+        });
+        console.log('✅ [SMART CONSULTATION] Linked appointment marked as COMPLETED');
+      } catch (apptError) {
+        console.error('⚠️ [SMART CONSULTATION] Failed to update appointment status:', apptError);
+      }
+    }
 
     // Paso 4: Crear registros borrador (DRAFT) a partir de las acciones sugeridas
     console.log('📝 [SMART CONSULTATION] Creating draft records from suggested actions...');

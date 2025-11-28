@@ -883,6 +883,54 @@ const claimPet = async (req, res) => {
   }
 };
 
+// Buscar mascotas por nombre (para autocompletar en citas)
+const searchPets = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const { id: vetId, type: userType } = req.user;
+
+    // Solo veterinarios pueden usar esta función para agendar citas
+    if (userType !== 'vet') {
+      return res.status(403).json({ error: 'Only vets can search pets for appointments' });
+    }
+
+    if (!q || q.length < 2) {
+      return res.json({ pets: [] });
+    }
+
+    // Buscar mascotas vinculadas o creadas por el vet que coincidan con el nombre
+    const pets = await prisma.pet.findMany({
+      where: {
+        nombre: {
+          contains: q
+        },
+        OR: [
+          { linkedVets: { some: { vetId } } },
+          { createdByVetId: vetId }
+        ]
+      },
+      take: 10, // Limitar resultados
+      select: {
+        id: true,
+        nombre: true,
+        especie: true,
+        raza: true,
+        fotoUrl: true,
+        user: {
+          select: {
+            nombre: true // Nombre del dueño
+          }
+        }
+      }
+    });
+
+    res.json({ pets });
+  } catch (error) {
+    console.error('Search pets error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPet,
   getUserPets,
@@ -893,5 +941,6 @@ module.exports = {
   getArchivedPets,
   createQuickPet,
   getTransferCode,
-  claimPet
+  claimPet,
+  searchPets
 };

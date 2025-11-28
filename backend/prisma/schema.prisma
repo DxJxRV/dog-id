@@ -49,6 +49,22 @@ enum RecordStatus {
   DRAFT
 }
 
+enum ClinicRole {
+  OWNER
+  ADMIN
+  VET
+  ASSISTANT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROCESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
 // ==================== MODELOS EXISTENTES ====================
 
 model User {
@@ -88,6 +104,10 @@ model Vet {
   createdPets         Pet[]
   deathCertificates   DeathCertificate[]
   smartConsultations  SmartConsultation[]
+  
+  // Relaciones SaaS Multi-Clínica
+  clinicMemberships   ClinicMember[]
+  appointments        Appointment[]
 
   @@map("vets")
 }
@@ -118,6 +138,7 @@ model Pet {
   coOwners           CoOwnerPetLink[]
   deathCertificate   DeathCertificate?
   smartConsultations SmartConsultation[]
+  appointments       Appointment[]
 
   @@map("pets")
 }
@@ -164,6 +185,60 @@ model Procedure {
   consentRecord         ConsentRecord?
 
   @@map("procedures")
+}
+
+// ==================== NUEVOS MODELOS SAAS MULTI-CLÍNICA ====================
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  phone       String?
+  logoUrl     String?  @map("logo_url")
+  settings    Json?    // Horarios, configuración
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members       ClinicMember[]
+  appointments  Appointment[]
+
+  @@map("clinics")
+}
+
+model ClinicMember {
+  id        String     @id @default(uuid())
+  clinicId  String     @map("clinic_id")
+  vetId     String     @map("vet_id")
+  role      ClinicRole @default(VET)
+  isActive  Boolean    @default(true) @map("is_active")
+  createdAt DateTime   @default(now()) @map("created_at")
+
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  vet       Vet        @relation(fields: [vetId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, vetId])
+  @@map("clinic_members")
+}
+
+model Appointment {
+  id                  String            @id @default(uuid())
+  clinicId            String            @map("clinic_id")
+  vetId               String            @map("vet_id")
+  petId               String            @map("pet_id")
+  startDateTime       DateTime          @map("start_date_time")
+  endDateTime         DateTime          @map("end_date_time")
+  status              AppointmentStatus @default(PENDING)
+  reason              String?           @db.Text
+  notes               String?           @db.Text // Notas internas
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  clinic              Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  vet                 Vet               @relation(fields: [vetId], references: [id], onDelete: Restrict)
+  pet                 Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  smartConsultation   SmartConsultation?
+
+  @@map("appointments")
 }
 
 // ==================== NUEVOS MODELOS ECE ====================
@@ -236,6 +311,7 @@ model SmartConsultation {
   id                String   @id @default(uuid())
   petId             String   @map("pet_id")
   vetId             String   @map("vet_id")
+  appointmentId     String?  @unique @map("appointment_id") // Conexión con Cita
 
   // Audio
   audioUrl          String   @map("audio_url")
@@ -257,6 +333,7 @@ model SmartConsultation {
 
   pet               Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
   vet               Vet      @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
   suggestedVaccines Vaccine[]
   suggestedProcedures Procedure[]
 

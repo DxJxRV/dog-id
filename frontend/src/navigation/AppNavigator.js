@@ -50,8 +50,14 @@ import PetProfileScreen from '../screens/Friends/PetProfileScreen';
 // Profile Screens
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 
+// Clinic & Appointments
+import ClinicSetupScreen from '../screens/Clinics/ClinicSetupScreen';
+import AppointmentSchedulerScreen from '../screens/Appointments/AppointmentSchedulerScreen';
+import CreateAppointmentScreen from '../screens/Appointments/CreateAppointmentScreen';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+const RootStack = createStackNavigator();
 
 const UserAvatar = ({ size = 28, focused }) => {
   const { user } = useAuth();
@@ -113,6 +119,34 @@ const ProfileStack = () => (
         },
         headerTintColor: '#fff',
       }}
+    />
+  </Stack.Navigator>
+);
+
+const AppointmentsStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="AppointmentScheduler"
+      component={AppointmentSchedulerScreen}
+      options={{
+        title: 'Agenda',
+        headerStyle: { backgroundColor: '#007AFF' },
+        headerTitleStyle: { color: '#fff' },
+        headerTintColor: '#fff',
+      }}
+    />
+    <Stack.Screen
+      name="ClinicSetup"
+      component={ClinicSetupScreen}
+      options={{ title: 'Configurar Clínica' }}
     />
   </Stack.Navigator>
 );
@@ -555,6 +589,23 @@ const MainTabs = ({ navigationRef }) => {
             ),
           }}
         />
+        {/* Mostrar Agenda solo para Veterinarios */}
+        {isVet && (
+          <Tab.Screen
+            name="Appointments"
+            component={AppointmentsStack}
+            options={{
+              tabBarLabel: () => null,
+              tabBarIcon: ({ focused, color, size }) => (
+                <Ionicons
+                  name={focused ? 'calendar' : 'calendar-outline'}
+                  size={size}
+                  color={color}
+                />
+              ),
+            }}
+          />
+        )}
         {/* Solo mostrar tab de amigos para usuarios normales, no para veterinarios */}
         {!isVet && (
           <Tab.Screen
@@ -656,6 +707,20 @@ const MainTabs = ({ navigationRef }) => {
   );
 };
 
+const AuthenticatedNavigator = ({ navigationRef }) => (
+  <RootStack.Navigator screenOptions={{ headerShown: false }}>
+    <RootStack.Screen name="Main">
+      {props => <MainTabs {...props} navigationRef={navigationRef} />}
+    </RootStack.Screen>
+    <RootStack.Group screenOptions={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}>
+      <RootStack.Screen 
+        name="CreateAppointment" 
+        component={CreateAppointmentScreen} 
+      />
+    </RootStack.Group>
+  </RootStack.Navigator>
+);
+
 const AppNavigator = () => {
   const { isAuthenticated, loading } = useAuth();
   const navigationRef = React.useRef(null);
@@ -666,7 +731,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? <MainTabs navigationRef={navigationRef} /> : <AuthStack />}
+      {isAuthenticated ? <AuthenticatedNavigator navigationRef={navigationRef} /> : <AuthStack />}
     </NavigationContainer>
   );
 };
