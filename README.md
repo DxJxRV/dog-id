@@ -1,263 +1,100 @@
-# 🏥 Veterinary Control Platform
+# 🐾 Mi Mascota Plus - Plataforma SaaS de Gestión Veterinaria
 
-Plataforma completa para gestión de historiales veterinarios de mascotas, con backend REST API y aplicación móvil.
+**Mi Mascota Plus** es una plataforma SaaS (Software-as-a-Service) integral diseñada para la gestión moderna de clínicas veterinarias y el empoderamiento de los dueños de mascotas. La aplicación móvil, construida con React Native, ofrece dos experiencias distintas según el tipo de usuario: una para dueños de mascotas y otra para profesionales veterinarios.
 
-## 🚀 Inicio Rápido
+---
 
-### Opción 1: Automático (Recomendado)
-```bash
-./start.sh
-```
-Inicia backend y frontend con un solo comando.
+## ✨ Características Principales
 
-### Opción 2: Con tmux (Paneles divididos)
-```bash
-./start-tmux.sh
-```
+La plataforma se divide en dos flujos de trabajo principales, ofreciendo funcionalidades específicas para cada rol.
 
-### Opción 3: Manual
-```bash
-# Terminal 1 - Backend
-cd backend && npm run dev
+### Para Dueños de Mascotas
+*   **Búsqueda y Descubrimiento:** Encuentra clínicas y veterinarios cercanos, filtra por servicios y disponibilidad.
+*   **Gestión de Citas Online:** Solicita, gestiona y cancela citas directamente desde la app.
+*   **Historial Clínico Unificado:** Accede al historial médico completo de tus mascotas, incluyendo vacunas, procedimientos y consultas.
+*   **Conexión Social:** Agrega amigos y comparte los perfiles de tus mascotas.
+*   **Favoritos:** Guarda tus clínicas y veterinarios preferidos para un acceso rápido.
 
-# Terminal 2 - Frontend
-cd frontend && npm start
-```
+### Para Veterinarios y Clínicas
+*   **Gestión de Clínica:** Administra el perfil completo de tu clínica, incluyendo logo, dirección, y personal. Un veterinario puede pertenecer y cambiar entre múltiples clínicas.
+*   **Gestión de Equipo:** Invita a otros veterinarios y asistentes a tu clínica, asignando roles (`OWNER`, `ADMIN`, `VET`).
+*   **Agenda Inteligente:** Visualiza y gestiona el calendario de citas por día/semana/mes. Aprueba o rechaza solicitudes de pacientes y maneja tu disponibilidad.
+*   **Bitácora Inteligente por Voz:** Graba la consulta usando tu voz. El sistema genera una transcripción automática y extrae datos clave (síntomas, signos vitales) usando IA.
+*   **Expediente Clínico Electrónico (ECE):** Todos los registros de un paciente (consultas, vacunas, procedimientos, consentimientos) en un solo lugar.
+*   **Multi-Clínica:** Un único perfil de veterinario puede acceder a todas las clínicas donde es miembro, cambiando de contexto fácilmente.
 
-Ver [QUICKSTART.md](QUICKSTART.md) para instrucciones detalladas.
+---
+
+## 🛠️ Stack Tecnológico
+
+| Área                | Tecnología                                                                   |
+| ------------------- | ---------------------------------------------------------------------------- |
+| **Backend**         | Node.js, Express.js                                                          |
+| **Base de Datos**     | MySQL con Prisma ORM                                                         |
+| **App Móvil**       | React Native (Expo)                                                          |
+| **Autenticación**   | JWT (JSON Web Tokens) con roles                                                |
+| **IA y Servicios**  | **OpenAI (GPT-4)** para análisis de audio, **Tesseract** para OCR de vacunas. |
+| **Almacenamiento**  | AWS S3 para archivos (imágenes, audio, PDFs).                                |
+| **Búsqueda Semántica**| Pinecone para búsqueda de consultas por similitud de texto.                  |
 
 ---
 
 ## 📁 Estructura del Proyecto
 
+La arquitectura está diseñada para escalar, separando claramente el backend de la aplicación móvil.
+
 ```
 dog_id/
-├── backend/              # API REST (Node.js + Express + MySQL)
+├── backend/              # API REST (Node.js + Express + Prisma)
 │   ├── src/
-│   │   ├── controllers/  # Lógica de endpoints
-│   │   ├── routes/       # Definición de rutas
-│   │   ├── middlewares/  # Autenticación JWT
-│   │   ├── services/     # OCR y servicios
-│   │   └── utils/        # Prisma client
-│   ├── prisma/          # Schema y migraciones
-│   └── uploads/         # Almacenamiento de imágenes
+│   │   ├── controllers/  # Lógica para Citas, Clínicas, Mascotas, etc.
+│   │   ├── routes/       # Definición de endpoints
+│   │   ├── services/     # Servicios (OpenAI, S3, Pinecone)
+│   │   └── middlewares/  # Autenticación y roles
+│   └── prisma/           # Schema y migraciones de la base de datos
 │
-├── frontend/            # App móvil (React Native + Expo)
+├── frontend/             # App móvil (React Native + Expo)
 │   └── src/
-│       ├── screens/     # Pantallas de la app
-│       ├── components/  # Componentes reutilizables
-│       ├── navigation/  # Configuración de navegación
-│       ├── contexts/    # Estado global (Auth)
-│       └── services/    # API client
+│       ├── screens/      # Pantallas divididas por rol y funcionalidad
+│       │   ├── Auth/
+│       │   ├── Booking/   # Flujo de solicitud de citas (Usuario)
+│       │   ├── Appointments/ # Agenda del veterinario
+│       │   ├── Clinics/    # Gestión de la clínica (Veterinario)
+│       │   └── ...
+│       ├── navigation/   # Navegadores por rol (OwnerTabs, VetTabs)
+│       ├── contexts/     # Estado global (AuthContext, ClinicContext)
+│       └── services/     # Cliente de API (api.js)
 │
-├── start.sh            # 🚀 Script de inicio automático
-├── start-tmux.sh       # 🖥️ Inicio con tmux
-├── stop.sh             # 🛑 Detener servicios
-│
-└── Documentación:
-    ├── QUICKSTART.md        # Guía de inicio rápido
-    ├── SCRIPTS_GUIDE.md     # Guía de scripts
-    ├── PROJECT_STATUS.md    # Estado del proyecto
-    └── CLAUDE.md           # Especificaciones originales
+└── ... Documentación y scripts de inicio
 ```
 
 ---
 
-## ✨ Características
+## 🚀 Inicio Rápido
 
-### Backend
-- ✅ **16 endpoints** REST completos
-- ✅ Autenticación JWT (usuarios y veterinarios)
-- ✅ CRUD de mascotas con fotos
-- ✅ **OCR automático** para etiquetas de vacunas (Tesseract)
-- ✅ Gestión de procedimientos clínicos
-- ✅ Base de datos MySQL con Prisma ORM
-- ✅ Validaciones y manejo de errores
+Para levantar el entorno de desarrollo completo:
 
-### Frontend
-- ✅ Login/Registro (usuarios y vets)
-- ✅ Lista de mascotas con pull-to-refresh
-- ✅ Detalle de mascota con historial completo
-- ✅ Visualización de vacunas y procedimientos
-- ✅ Almacenamiento seguro de tokens
-- ✅ Navegación con React Navigation
+```bash
+# Opción 1: Iniciar backend y frontend con un solo comando
+./start.sh
 
----
+# Opción 2: Iniciar en paneles divididos (requiere tmux)
+./start-tmux.sh
+```
+Ambos scripts instalan dependencias (`npm install`) en `backend` y `frontend` antes de iniciar los servidores.
 
-## 🛠️ Tecnologías
-
-### Backend
-- Node.js + Express
-- MySQL + Prisma ORM
-- JWT para autenticación
-- Multer (subida de archivos)
-- Tesseract OCR
-- bcryptjs, axios, cors
-
-### Frontend
-- React Native
-- Expo
-- React Navigation
-- Axios
-- Expo Camera & Image Picker
-- Expo Secure Store
-- date-fns
-
----
-
-## 📋 Requisitos
-
+### Requisitos
 - Node.js >= 18
 - MySQL >= 8.0
-- Tesseract OCR (para reconocimiento de vacunas)
-- Expo Go app en tu smartphone
-
-### Instalar Tesseract
-```bash
-# Ubuntu/Debian
-sudo apt-get install tesseract-ocr tesseract-ocr-spa
-
-# macOS
-brew install tesseract tesseract-lang
-```
+- **(Opcional)** Tesseract OCR para el reconocimiento de etiquetas de vacunas.
+- Expo Go app en tu smartphone para probar la app móvil.
 
 ---
 
-## 🎯 Endpoints API
+## 📚 Documentación Adicional
 
-### Autenticación
-- `POST /auth/user/register` - Registro de usuario
-- `POST /auth/user/login` - Login de usuario
-- `POST /auth/vet/register` - Registro de veterinario
-- `POST /auth/vet/login` - Login de veterinario
-
-### Mascotas
-- `GET /pets` - Listar mascotas del usuario
-- `POST /pets` - Crear mascota
-- `GET /pets/:id` - Detalle con historial completo
-- `PUT /pets/:id` - Actualizar mascota
-- `DELETE /pets/:id` - Eliminar mascota
-
-### Vacunas
-- `POST /pets/:petId/vaccines` - Agregar vacuna (con OCR)
-- `GET /pets/:petId/vaccines` - Listar vacunas
-- `PUT /pets/vaccines/:id` - Actualizar vacuna
-
-### Procedimientos
-- `POST /pets/:petId/procedures` - Crear procedimiento (solo vets)
-- `GET /pets/:petId/procedures` - Listar procedimientos
-- `PUT /pets/procedures/:id` - Actualizar procedimiento
-- `DELETE /pets/procedures/:id` - Eliminar procedimiento
-
-Ver [backend/API_EXAMPLES.md](backend/API_EXAMPLES.md) para ejemplos completos.
-
----
-
-## 📱 Uso de la App
-
-1. **Instalar Expo Go** en tu smartphone
-2. **Iniciar el proyecto**: `./start.sh`
-3. **Escanear QR** con Expo Go
-4. **Registrarse** como usuario o veterinario
-5. **Agregar mascotas** y gestionar su historial
-
-**Importante**: Si usas dispositivo físico, edita `frontend/src/utils/config.js` y cambia `localhost` por tu IP local.
-
----
-
-## 🔧 Scripts Disponibles
-
-| Script | Descripción |
-|--------|-------------|
-| `./start.sh` | Inicia backend + frontend automáticamente |
-| `./start-tmux.sh` | Inicia en paneles divididos (requiere tmux) |
-| `./stop.sh` | Detiene todos los servicios |
-
-Ver [SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md) para detalles.
-
----
-
-## 📚 Documentación
-
-- **[QUICKSTART.md](QUICKSTART.md)** - Empieza aquí
-- **[SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md)** - Guía de scripts
-- **[PROJECT_STATUS.md](PROJECT_STATUS.md)** - Estado y arquitectura
-- **[CLAUDE.md](CLAUDE.md)** - Especificaciones del proyecto
-- **[backend/README.md](backend/README.md)** - Docs del backend
-- **[backend/API_EXAMPLES.md](backend/API_EXAMPLES.md)** - Ejemplos de API
-- **[frontend/README.md](frontend/README.md)** - Docs del frontend
-
----
-
-## 🐛 Troubleshooting
-
-### Backend no inicia
-```bash
-# Verificar MySQL
-sudo systemctl status mysql
-
-# Ver logs
-tail -f /tmp/backend.log
-```
-
-### Frontend no conecta
-- Verifica que backend esté corriendo en puerto 3000
-- Si usas dispositivo físico, cambia `localhost` por IP local
-- Asegúrate de estar en la misma red WiFi
-
-### Puerto 3000 ocupado
-```bash
-./stop.sh
-```
-
----
-
-## 🎨 Próximas Funcionalidades
-
-- [ ] Pantalla crear/editar mascota en frontend
-- [ ] Captura de fotos con cámara para vacunas
-- [ ] Pantalla para vets: agregar procedimientos
-- [ ] Galería de evidencias
-- [ ] Perfil de usuario
-- [ ] Notificaciones de recordatorios
-- [ ] Exportación de historial a PDF
-
----
-
-## 📄 Licencia
-
-Este es un proyecto educativo para gestión de historiales veterinarios.
-
----
-
-## 🚦 Estado del Proyecto
-
-**Backend**: ✅ Completamente funcional
-**Frontend**: ✅ MVP funcional (login, lista, detalle)
-**Base de Datos**: ✅ Configurada y migrada
-**Documentación**: ✅ Completa
-
-Ver [PROJECT_STATUS.md](PROJECT_STATUS.md) para detalles completos.
-
----
-
-## 🤝 Contribuir
-
-1. Revisar [PROJECT_STATUS.md](PROJECT_STATUS.md) para ver funcionalidades pendientes
-2. Revisar código y estructura
-3. Implementar funcionalidades siguiendo los patrones existentes
-
----
-
-## 💡 Tips
-
-- Usa `./start.sh` para desarrollo rápido
-- Usa `./start-tmux.sh` si prefieres ver logs en paneles
-- Revisa `backend/API_EXAMPLES.md` para probar endpoints
-- Usa `npm run prisma:studio` para ver la base de datos visualmente
-
----
-
-**¡Listo para desarrollar! 🚀**
-
-Ver [QUICKSTART.md](QUICKSTART.md) para empezar.
+- **[QUICKSTART.md](QUICKSTART.md)**: Guía detallada de inicio y configuración.
+- **[SCRIPTS_GUIDE.md](SCRIPTS_GUIDE.md)**: Explicación de los scripts de automatización.
+- **[PROJECT_STATUS.md](PROJECT_STATUS.md)**: Estado actual del desarrollo y funcionalidades pendientes.
+- **`backend/prisma/schema.prisma`**: Considerado la "fuente de verdad" para el modelo de datos.
+- **`frontend/src/navigation/AppNavigator.js`**: Define todos los flujos de navegación de la app.

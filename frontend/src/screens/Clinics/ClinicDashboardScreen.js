@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  FlatList, 
-  TouchableOpacity, 
-  Alert, 
-  RefreshControl, 
-  ScrollView, 
-  Modal, 
-  Switch, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  Alert,
+  RefreshControl,
+  ScrollView,
+  Modal,
+  Switch,
   TextInput,
-  Image 
+  Image,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -22,6 +23,16 @@ import { es } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
 import { getImageUrl } from '../../utils/imageHelper';
 import ClinicSwitcherModal from '../../components/ClinicSwitcherModal';
+import * as ImagePicker from 'expo-image-picker';
+// Conditional import for maps
+let MapView, Marker;
+try {
+  const Maps = require('react-native-maps');
+  MapView = Maps.default;
+  Marker = Maps.Marker;
+} catch (e) {
+  console.log('Maps not available in this build');
+}
 
 const ClinicDashboardScreen = () => {
   const navigation = useNavigation();
@@ -30,10 +41,21 @@ const ClinicDashboardScreen = () => {
   const [requests, setRequests] = useState([]);
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(false);
-  
+
   // Clinic Data
   const [clinicData, setClinicData] = useState(currentClinic);
   const [myClinics, setMyClinics] = useState([]);
+
+  // Form Config (Reactive form states)
+  const [formData, setFormData] = useState({
+    name: currentClinic?.name || '',
+    address: currentClinic?.address || '',
+    phone: currentClinic?.phone || '',
+    latitude: currentClinic?.latitude || 19.4326,  // Default: CDMX
+    longitude: currentClinic?.longitude || -99.1332
+  });
+  const [originalData, setOriginalData] = useState({});
+  const [isDirty, setIsDirty] = useState(false);
   
   // Modals
   const [showAssignModal, setShowAssignModal] = useState(false);
@@ -51,6 +73,9 @@ const ClinicDashboardScreen = () => {
 
   // Notifications
   const [unreadCount, setUnreadCount] = useState(0);
+
+  // Logo Upload
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const DURATION_OPTIONS = [30, 60, 90, 120];
 
@@ -81,8 +106,35 @@ const ClinicDashboardScreen = () => {
 
   useEffect(() => {
     setClinicData(currentClinic);
+    // Inicializar datos del formulario cuando cambia la clínica actual
+    if (currentClinic) {
+      const initial = {
+        name: currentClinic.name || '',
+        address: currentClinic.address || '',
+        phone: currentClinic.phone || '',
+        latitude: currentClinic.latitude || 19.4326,
+        longitude: currentClinic.longitude || -99.1332
+      };
+      setFormData(initial);
+      setOriginalData(initial);
+      setIsDirty(false);
+    }
     loadData();
   }, [activeTab, currentClinic]);
+
+  // Detectar cambios en el formulario
+  useEffect(() => {
+    if (!originalData.name) return; // No comparar si no hay datos originales
+
+    const hasChanges =
+      formData.name !== originalData.name ||
+      formData.address !== originalData.address ||
+      formData.phone !== originalData.phone ||
+      formData.latitude !== originalData.latitude ||
+      formData.longitude !== originalData.longitude;
+
+    setIsDirty(hasChanges);
+  }, [formData, originalData]);
 
   const loadMyClinics = async () => {
       try {
@@ -177,16 +229,83 @@ const ClinicDashboardScreen = () => {
       }
   };
 
+  const handleFieldChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
   const handleSaveConfig = async () => {
-      try {
-          await clinicAPI.update(clinicData.id, {
-              name: clinicData.name,
-              address: clinicData.address,
-          });
-          Alert.alert('Éxito', 'Configuración guardada');
-      } catch (error) {
-          Alert.alert('Error', 'No se pudo guardar');
+    if (!isDirty) return;
+
+    try {
+      setLoading(true);
+      await clinicAPI.update(clinicData.id, {
+        name: formData.name,
+        address: formData.address,
+        phone: formData.phone,
+        latitude: formData.latitude,
+        longitude: formData.longitude
+      });
+
+      // Actualizar datos originales
+      setOriginalData({...formData});
+      setIsDirty(false);
+
+      // Actualizar contexto
+      selectClinic({
+        ...currentClinic,
+        name: formData.name,
+        address: formData.address,
+        phone: formData.phone,
+        latitude: formData.latitude,
+        longitude: formData.longitude
+      });
+
+      Alert.alert('✓ Guardado', 'Los datos de la clínica se actualizaron correctamente');
+    } catch (error) {
+      console.error('Error saving config:', error);
+      Alert.alert('Error', 'No se pudo guardar la configuración');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUploadLogo = async () => {
+    try {
+      // Request permission
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permiso denegado', 'Necesitamos permiso para acceder a tus fotos');
+        return;
       }
+
+      // Pick image
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (result.canceled) return;
+
+      setUploadingLogo(true);
+
+      // Upload to backend
+      const response = await clinicAPI.uploadLogo(clinicData.id, result.assets[0].uri);
+
+      // Update local state
+      setClinicData({ ...clinicData, logoUrl: response.data.clinic.logoUrl });
+
+      // Update context
+      selectClinic({ ...currentClinic, logoUrl: response.data.clinic.logoUrl });
+
+      Alert.alert('Éxito', 'Logo actualizado correctamente');
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      Alert.alert('Error', 'No se pudo subir el logo');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   // --- Renderers ---
@@ -403,21 +522,147 @@ const ClinicDashboardScreen = () => {
               </ScrollView>
           ) : (
               <ScrollView contentContainerStyle={{ padding: 20 }}>
-                  <Text style={styles.sectionTitle}>Datos de la Clínica</Text>
+                  <Text style={styles.sectionTitle}>Identidad de la Clínica</Text>
                   {clinicData && (
                       <>
-                        <Input label="Nombre" value={clinicData.name} onChangeText={t => setClinicData({...clinicData, name: t})} />
-                        <Input label="Dirección" value={clinicData.address} onChangeText={t => setClinicData({...clinicData, address: t})} />
-                        
-                        <Text style={styles.label}>Ubicación</Text>
-                        <View style={styles.mapContainer}>
-                            <View style={styles.mapPlaceholder}>
-                                <Ionicons name="map" size={48} color="#ccc" />
-                                <Text style={styles.mapHint}>Mapa no disponible en esta versión</Text>
-                            </View>
+                        {/* Logo Uploader */}
+                        <View style={styles.logoSection}>
+                          <Text style={styles.label}>Logo de la Clínica</Text>
+                          <TouchableOpacity
+                            style={styles.logoUploader}
+                            onPress={handleUploadLogo}
+                            disabled={uploadingLogo}
+                          >
+                            {uploadingLogo ? (
+                              <ActivityIndicator size="large" color="#007AFF" />
+                            ) : clinicData.logoUrl ? (
+                              <Image
+                                source={{ uri: getImageUrl(clinicData.logoUrl) }}
+                                style={styles.logoPreview}
+                              />
+                            ) : (
+                              <View style={styles.logoPlaceholder}>
+                                <Ionicons name="camera" size={32} color="#999" />
+                                <Text style={styles.logoPlaceholderText}>Subir Logo</Text>
+                              </View>
+                            )}
+                            {clinicData.logoUrl && !uploadingLogo && (
+                              <View style={styles.logoOverlay}>
+                                <Ionicons name="camera" size={24} color="#FFF" />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                          <Text style={styles.logoNote}>El logo se actualiza inmediatamente</Text>
                         </View>
 
-                        <Button title="Guardar Cambios" onPress={handleSaveConfig} style={{marginTop: 20}} />
+                        <Text style={styles.sectionTitle}>Datos de la Clínica</Text>
+
+                        {/* Input Nombre */}
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Nombre</Text>
+                          <TextInput
+                            style={[
+                              styles.configInput,
+                              formData.name !== originalData.name && styles.configInputDirty
+                            ]}
+                            value={formData.name}
+                            onChangeText={(value) => handleFieldChange('name', value)}
+                            placeholder="Nombre de la clínica"
+                          />
+                        </View>
+
+                        {/* Input Dirección */}
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Dirección</Text>
+                          <TextInput
+                            style={[
+                              styles.configInput,
+                              formData.address !== originalData.address && styles.configInputDirty
+                            ]}
+                            value={formData.address}
+                            onChangeText={(value) => handleFieldChange('address', value)}
+                            placeholder="Dirección completa"
+                            multiline
+                          />
+                        </View>
+
+                        {/* Input Teléfono */}
+                        <View style={styles.inputContainer}>
+                          <Text style={styles.inputLabel}>Teléfono</Text>
+                          <TextInput
+                            style={[
+                              styles.configInput,
+                              formData.phone !== originalData.phone && styles.configInputDirty
+                            ]}
+                            value={formData.phone}
+                            onChangeText={(value) => handleFieldChange('phone', value)}
+                            placeholder="55 1234 5678"
+                            keyboardType="phone-pad"
+                          />
+                        </View>
+
+                        <Text style={styles.label}>Ubicación en el Mapa</Text>
+                        <View style={styles.mapContainer}>
+                          {MapView ? (
+                            <MapView
+                              style={styles.map}
+                              provider={null}
+                              initialRegion={{
+                                latitude: formData.latitude,
+                                longitude: formData.longitude,
+                                latitudeDelta: 0.01,
+                                longitudeDelta: 0.01,
+                              }}
+                            >
+                              <Marker
+                                coordinate={{
+                                  latitude: formData.latitude,
+                                  longitude: formData.longitude,
+                                }}
+                                draggable
+                                onDragEnd={(e) => {
+                                  handleFieldChange('latitude', e.nativeEvent.coordinate.latitude);
+                                  handleFieldChange('longitude', e.nativeEvent.coordinate.longitude);
+                                }}
+                                title={formData.name}
+                                description={formData.address}
+                              >
+                                <View style={styles.markerContainer}>
+                                  <Ionicons name="location" size={40} color="#007AFF" />
+                                </View>
+                              </Marker>
+                            </MapView>
+                          ) : (
+                            <View style={styles.mapPlaceholder}>
+                              <Ionicons name="map-outline" size={48} color="#999" />
+                              <Text style={styles.mapPlaceholderText}>Mapa no disponible en Expo Go</Text>
+                              <Text style={styles.mapPlaceholderSubtext}>
+                                Lat: {formData.latitude.toFixed(4)}, Lng: {formData.longitude.toFixed(4)}
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                        <Text style={styles.mapHint}>
+                          {MapView ? 'Arrastra el pin para ajustar la ubicación' : 'Requiere build nativo para editar'}
+                        </Text>
+
+                        {/* Botón Guardar - Solo visible si hay cambios */}
+                        {isDirty && (
+                          <TouchableOpacity
+                            style={[styles.saveButton, loading && styles.saveButtonDisabled]}
+                            onPress={handleSaveConfig}
+                            disabled={loading}
+                          >
+                            {loading ? (
+                              <ActivityIndicator color="#FFF" />
+                            ) : (
+                              <>
+                                <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                                <Text style={styles.saveButtonText}>Guardar Cambios</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        )}
                       </>
                   )}
               </ScrollView>
@@ -618,9 +863,119 @@ const styles = StyleSheet.create({
   // Config & Map
   label: { fontWeight: '600', marginTop: 15, marginBottom: 5 },
   mapContainer: { height: 200, borderRadius: 12, overflow: 'hidden', marginTop: 10, backgroundColor: '#E0E0E0' },
-  mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  mapPlaceholder: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 20 },
+  mapPlaceholderText: {
+    marginTop: 12,
+    fontSize: 14,
+    color: '#666',
+    fontWeight: '600',
+    textAlign: 'center'
+  },
+  mapPlaceholderSubtext: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center'
+  },
   map: { flex: 1 },
-  mapHint: { textAlign: 'center', marginTop: 10, color: '#666' },
+  mapHint: { textAlign: 'center', marginTop: 10, color: '#666', fontSize: 13 },
+
+  // Logo Uploader
+  logoSection: { marginBottom: 30, alignItems: 'center' },
+  logoUploader: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    backgroundColor: '#F5F5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E0E0E0',
+    borderStyle: 'dashed',
+    overflow: 'hidden',
+    marginTop: 10
+  },
+  logoPlaceholder: {
+    justifyContent: 'center',
+    alignItems: 'center'
+  },
+  logoPlaceholderText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#999',
+    fontWeight: '600'
+  },
+  logoPreview: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 60
+  },
+  logoOverlay: {
+    position: 'absolute',
+    width: '100%',
+    height: '100%',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 60
+  },
+  logoNote: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#8E8E93',
+    fontStyle: 'italic',
+  },
+
+  // Reactive Form Inputs
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#3A3A3C',
+    marginBottom: 8,
+  },
+  configInput: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#1C1C1E',
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  configInputDirty: {
+    borderColor: '#007AFF',
+    backgroundColor: '#F0F8FF',
+  },
+  saveButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 24,
+    marginBottom: 20,
+    gap: 8,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  saveButtonDisabled: {
+    opacity: 0.6,
+  },
+  saveButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  markerContainer: {
+    alignItems: 'center',
+  },
   
   // Modal
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },

@@ -1,4 +1,5 @@
 const prisma = require('../utils/prisma');
+const { uploadPublicImage, deletePublicImage } = require('../services/s3Service');
 
 /**
  * Crear una nueva clínica
@@ -356,6 +357,66 @@ const toggleAvailability = async (req, res) => {
   }
 };
 
+/**
+ * Subir logo de la clínica
+ */
+const uploadLogo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const requesterId = req.user.id;
+
+    // Verificar permisos
+    const membership = await prisma.clinicMember.findUnique({
+      where: { clinicId_vetId: { clinicId: id, vetId: requesterId } }
+    });
+
+    if (!membership || !['OWNER', 'ADMIN'].includes(membership.role)) {
+      return res.status(403).json({ error: 'Insufficient permissions' });
+    }
+
+    // Verificar que se envió un archivo
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    // Obtener clínica actual para eliminar logo anterior
+    const clinic = await prisma.clinic.findUnique({
+      where: { id }
+    });
+
+    if (!clinic) {
+      return res.status(404).json({ error: 'Clinic not found' });
+    }
+
+    // Subir nueva imagen a S3
+    const logoUrl = await uploadPublicImage(req.file.buffer, req.file.originalname, 'clinic-logos');
+
+    // Eliminar logo anterior de S3 si existe
+    if (clinic.logoUrl) {
+      try {
+        await deletePublicImage(clinic.logoUrl);
+      } catch (err) {
+        console.warn('Could not delete old logo:', err);
+      }
+    }
+
+    // Actualizar BD
+    const updatedClinic = await prisma.clinic.update({
+      where: { id },
+      data: { logoUrl }
+    });
+
+    res.json({
+      message: 'Logo uploaded successfully',
+      clinic: updatedClinic
+    });
+
+  } catch (error) {
+    console.error('Error uploading logo:', error);
+    res.status(500).json({ error: 'Failed to upload logo' });
+  }
+};
+
 module.exports = {
   createClinic,
   getMyClinics,
@@ -365,5 +426,6 @@ module.exports = {
   toggleAvailability,
   inviteMember,
   manageInvitation,
-  getMyInvitations
+  getMyInvitations,
+  uploadLogo
 };

@@ -2,6 +2,7 @@ const prisma = require('../utils/prisma');
 const { uploadPrivateFile, deletePrivateImage } = require('../services/s3Service');
 const { processVeterinaryAudio } = require('../services/openaiService');
 const { indexConsultation, deleteConsultationFromIndex } = require('../services/embeddingService');
+const { optimizeAudio, cleanupTempFile } = require('../services/audioProcessingService');
 const fs = require('fs');
 const path = require('path');
 
@@ -11,6 +12,7 @@ const path = require('path');
  */
 const createSmartConsultation = async (req, res) => {
   let tempFilePath = null;
+  let audioOptimization = null;
 
   try {
     const { petId } = req.params;
@@ -53,10 +55,22 @@ const createSmartConsultation = async (req, res) => {
 
     tempFilePath = req.file.path;
 
-    // Paso 1: Procesar el audio con OpenAI (Transcripción + Análisis)
+    // Paso 1: Optimizar audio (VAD - Voice Activity Detection)
+    console.log('🎵 [SMART CONSULTATION] Optimizing audio (removing silence)...');
+    const audioOptimization = await optimizeAudio(tempFilePath);
+    console.log('   ✨ Audio optimization complete:');
+    console.log('      Original duration:', audioOptimization.originalDuration, 'seconds');
+    console.log('      Optimized duration:', audioOptimization.newDuration, 'seconds');
+    console.log('      Saved:', audioOptimization.savedSeconds, 'seconds');
+    console.log('      Cost savings: ~', Math.round((audioOptimization.savedSeconds / 60) * 0.006 * 100), 'cents');
+
+    // Usar el audio optimizado para el procesamiento
+    const audioToProcess = audioOptimization.optimized ? audioOptimization.path : tempFilePath;
+
+    // Paso 2: Procesar el audio con OpenAI (Transcripción + Análisis)
     console.log('🤖 [SMART CONSULTATION] Processing audio with OpenAI...');
     const aiResult = await processVeterinaryAudio(
-      tempFilePath,
+      audioToProcess,
       pet.nombre,
       pet.especie
     );
@@ -70,30 +84,86 @@ const createSmartConsultation = async (req, res) => {
 
     // Paso 3: Guardar en base de datos
     console.log('💾 [SMART CONSULTATION] Saving to database...');
-    const smartConsultation = await prisma.smartConsultation.create({
-      data: {
-        petId,
-        vetId,
-        appointmentId: appointmentId || null, // Vincular si existe
-        audioUrl: audioS3Key,
-        duration: Math.round(aiResult.duration || 0),
-        rawText: aiResult.rawText,
-        transcriptionJson: aiResult.transcriptionJson,
-        medicalHighlights: aiResult.medicalHighlights,
-        extractedVitals: aiResult.extractedVitals,
-        tags: aiResult.tags, // Legacy
-        summary: null // Explicitly set to null (legacy field)
-      },
-      include: {
-        vet: {
-          select: {
-            id: true,
-            nombre: true,
-            cedulaProfesional: true
+
+    // Verificar si ya existe una consulta para este appointmentId
+    let existingConsultation = null;
+    if (appointmentId) {
+      existingConsultation = await prisma.smartConsultation.findUnique({
+        where: { appointmentId }
+      });
+    }
+
+    let smartConsultation;
+
+    if (existingConsultation) {
+      console.log('🔄 [SMART CONSULTATION] Updating existing consultation...');
+
+      // Merge de highlights (agregar nuevos)
+      const existingHighlights = existingConsultation.medicalHighlights || [];
+      const newHighlights = aiResult.medicalHighlights || [];
+      const mergedHighlights = [...existingHighlights, ...newHighlights];
+
+      // Merge de vitals (los nuevos valores sobrescriben)
+      const existingVitals = existingConsultation.extractedVitals || {};
+      const newVitals = aiResult.extractedVitals || {};
+      const mergedVitals = { ...existingVitals, ...newVitals };
+
+      // Concatenar transcripciones
+      const mergedRawText = existingConsultation.rawText + '\n\n--- Nueva grabación ---\n\n' + aiResult.rawText;
+
+      smartConsultation = await prisma.smartConsultation.update({
+        where: { id: existingConsultation.id },
+        data: {
+          // Mantener el primer audio URL (o podríamos crear un array)
+          // audioUrl: audioS3Key, // No sobreescribir el primer audio
+          duration: existingConsultation.duration + Math.round(aiResult.duration || 0),
+          rawText: mergedRawText,
+          // transcriptionJson: mantener el original
+          medicalHighlights: mergedHighlights,
+          extractedVitals: mergedVitals,
+        },
+        include: {
+          vet: {
+            select: {
+              id: true,
+              nombre: true,
+              cedulaProfesional: true
+            }
           }
         }
-      }
-    });
+      });
+
+      console.log('✅ [SMART CONSULTATION] Consultation updated with new recording');
+    } else {
+      console.log('➕ [SMART CONSULTATION] Creating new consultation...');
+
+      smartConsultation = await prisma.smartConsultation.create({
+        data: {
+          petId,
+          vetId,
+          appointmentId: appointmentId || null, // Vincular si existe
+          audioUrl: audioS3Key,
+          duration: Math.round(aiResult.duration || 0),
+          rawText: aiResult.rawText,
+          transcriptionJson: aiResult.transcriptionJson,
+          medicalHighlights: aiResult.medicalHighlights,
+          extractedVitals: aiResult.extractedVitals,
+          tags: aiResult.tags, // Legacy
+          summary: null // Explicitly set to null (legacy field)
+        },
+        include: {
+          vet: {
+            select: {
+              id: true,
+              nombre: true,
+              cedulaProfesional: true
+            }
+          }
+        }
+      });
+
+      console.log('✅ [SMART CONSULTATION] New consultation created');
+    }
 
     // Si hay appointmentId, actualizar estado de la cita a IN_PROCESS o COMPLETED
     if (appointmentId) {
@@ -111,6 +181,7 @@ const createSmartConsultation = async (req, res) => {
     // Paso 4: Crear registros borrador (DRAFT) a partir de las acciones sugeridas
     console.log('📝 [SMART CONSULTATION] Creating draft records from suggested actions...');
     let draftsCreated = 0;
+    const createdDraftActions = [];
     if (aiResult.suggestedActions && aiResult.suggestedActions.length > 0) {
       console.log('   📋 Found', aiResult.suggestedActions.length, 'suggested actions');
 
@@ -118,7 +189,7 @@ const createSmartConsultation = async (req, res) => {
         try {
           if (action.type === 'VACCINE') {
             console.log('   💉 Creating draft vaccine:', action.name);
-            await prisma.vaccine.create({
+            const vaccine = await prisma.vaccine.create({
               data: {
                 petId,
                 vetId,
@@ -129,9 +200,15 @@ const createSmartConsultation = async (req, res) => {
               }
             });
             draftsCreated++;
+            createdDraftActions.push({
+              type: 'VACCINE',
+              id: vaccine.id,
+              name: action.name,
+              status: 'incomplete'
+            });
           } else if (action.type === 'PROCEDURE') {
             console.log('   🏥 Creating draft procedure:', action.name);
-            await prisma.procedure.create({
+            const procedure = await prisma.procedure.create({
               data: {
                 petId,
                 vetId,
@@ -143,6 +220,12 @@ const createSmartConsultation = async (req, res) => {
               }
             });
             draftsCreated++;
+            createdDraftActions.push({
+              type: 'PROCEDURE',
+              id: procedure.id,
+              name: action.description || action.name,
+              status: 'incomplete'
+            });
           }
         } catch (draftError) {
           console.error('   ⚠️ Failed to create draft record:', draftError);
@@ -150,6 +233,61 @@ const createSmartConsultation = async (req, res) => {
         }
       }
       console.log('   ✅ Draft records created:', draftsCreated);
+    }
+
+    // Paso 4.5: Agregar medicamentos a prescription si hay appointmentId y se detectaron medicamentos
+    let prescriptionItems = [];
+    if (appointmentId && aiResult.medications && aiResult.medications.length > 0) {
+      console.log('💊 [SMART CONSULTATION] Processing medications...');
+      console.log('   📋 Found', aiResult.medications.length, 'medications');
+
+      try {
+        // Buscar o crear prescription DRAFT para esta cita
+        let prescription = await prisma.prescription.findUnique({
+          where: { appointmentId },
+          include: { items: true }
+        });
+
+        if (!prescription) {
+          console.log('   ✅ Creating new prescription for appointment');
+          prescription = await prisma.prescription.create({
+            data: {
+              appointmentId,
+              petId,
+              vetId,
+              status: 'DRAFT'
+            },
+            include: { items: true }
+          });
+        } else {
+          console.log('   ✅ Using existing prescription:', prescription.id);
+        }
+
+        // Agregar medicamentos a la prescription
+        for (const med of aiResult.medications) {
+          try {
+            const item = await prisma.prescriptionItem.create({
+              data: {
+                prescriptionId: prescription.id,
+                medication: med.medication,
+                dosage: med.dosage,
+                frequency: med.frequency,
+                duration: med.duration || null,
+                instructions: med.instructions || null
+              }
+            });
+            prescriptionItems.push(item);
+            console.log('   💊 Added medication:', med.medication);
+          } catch (medError) {
+            console.error('   ⚠️ Failed to add medication:', medError);
+          }
+        }
+
+        console.log('   ✅ Medications added:', prescriptionItems.length);
+      } catch (prescriptionError) {
+        console.error('   ⚠️ Failed to process prescription:', prescriptionError);
+        // No bloquear la respuesta si falla la prescription
+      }
     }
 
     // Paso 5: Indexar en Pinecone para búsqueda semántica
@@ -177,12 +315,29 @@ const createSmartConsultation = async (req, res) => {
       fs.unlinkSync(tempFilePath);
     }
 
+    // Limpiar archivo de audio optimizado si existe
+    if (audioOptimization.optimized && audioOptimization.path !== tempFilePath) {
+      cleanupTempFile(audioOptimization.path);
+    }
+
     console.log('✅ [SMART CONSULTATION] Created successfully:', smartConsultation.id);
 
     res.status(201).json({
       message: 'Smart consultation created successfully',
       consultation: smartConsultation,
-      draftsCreated // Cantidad de borradores creados
+      draftsCreated, // Cantidad de borradores creados
+      // Datos para LiveConsultationScreen
+      vitals: aiResult.extractedVitals || {},
+      draftActions: createdDraftActions,
+      prescriptionItems: prescriptionItems,
+      medicationsDetected: aiResult.medications?.length || 0,
+      // Estadísticas de optimización de audio
+      optimizationStats: {
+        savedSeconds: audioOptimization.savedSeconds,
+        originalDuration: audioOptimization.originalDuration,
+        finalDuration: audioOptimization.newDuration,
+        optimized: audioOptimization.optimized
+      }
     });
   } catch (error) {
     console.error('❌ [SMART CONSULTATION] Creation error:', error);
@@ -194,6 +349,11 @@ const createSmartConsultation = async (req, res) => {
       } catch (cleanupError) {
         console.error('Failed to cleanup temp file:', cleanupError);
       }
+    }
+
+    // Limpiar archivo de audio optimizado si existe
+    if (audioOptimization?.optimized && audioOptimization.path !== tempFilePath) {
+      cleanupTempFile(audioOptimization.path);
     }
 
     res.status(500).json({ error: 'Failed to create smart consultation', details: error.message });

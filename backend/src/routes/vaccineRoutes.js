@@ -30,6 +30,7 @@ router.get('/:petId/vaccines', authenticateUserOrVet, validateUUIDParam('petId')
 router.put('/vaccines/:id', authenticateUserOrVet, validateUUIDParam('id'), vaccineController.updateVaccine);
 
 // Rutas de borradores (DRAFT)
+router.get('/vet/drafts/all', authenticateUserOrVet, vaccineController.getAllVetDrafts); // Obtener TODOS los drafts del veterinario
 router.get('/:petId/drafts', authenticateUserOrVet, validateUUIDParam('petId'), vaccineController.getDraftRecords);
 router.put('/vaccines/:id/complete', authenticateUserOrVet, validateUUIDParam('id'), upload.single('evidencia'), vaccineController.completeDraftVaccine);
 router.delete('/vaccines/:id/draft', authenticateUserOrVet, validateUUIDParam('id'), vaccineController.deleteDraftVaccine);

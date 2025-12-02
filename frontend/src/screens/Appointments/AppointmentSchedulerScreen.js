@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, FlatList, RefreshControl, Modal, Image } from 'react-native';
 import CalendarStrip from 'react-native-calendar-strip';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,6 +10,7 @@ import { es } from 'date-fns/locale';
 import moment from 'moment';
 import 'moment/locale/es';
 import { useAuth } from '../../contexts/AuthContext';
+import { getImageUrl } from '../../utils/imageHelper';
 
 const AppointmentSchedulerScreen = () => {
   const navigation = useNavigation();
@@ -17,6 +18,8 @@ const AppointmentSchedulerScreen = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchAppointments = async (date) => {
     setLoading(true);
@@ -56,25 +59,33 @@ const AppointmentSchedulerScreen = () => {
   };
 
   const handleAppointmentPress = (item) => {
-    Alert.alert(
-      'Cita con ' + item.pet.nombre,
-      `Estado: ${item.status}\nHorario: ${format(parseISO(item.startDateTime), 'HH:mm')} - ${format(parseISO(item.endDateTime), 'HH:mm')}\n\n¿Deseas iniciar la consulta ahora?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Iniciar Consulta',
-          onPress: () => startConsultation(item)
-        }
-      ]
-    );
+    setSelectedAppointment(item);
+    setModalVisible(true);
   };
 
-  const startConsultation = (item) => {
-    navigation.navigate('RecordConsultation', {
-      petId: item.petId,
-      appointmentId: item.id,
-      petName: item.pet.nombre
-    });
+  const startConsultation = () => {
+    if (!selectedAppointment) return;
+
+    setModalVisible(false);
+
+    // Si la cita ya está completada, navegar a la pantalla de consulta completada
+    if (selectedAppointment.status === 'COMPLETED') {
+      navigation.navigate('CompletedConsultation', {
+        appointmentId: selectedAppointment.id
+      });
+    } else {
+      // Si es una cita pendiente o confirmada, iniciar consulta en vivo
+      navigation.navigate('LiveConsultation', {
+        petId: selectedAppointment.petId,
+        appointmentId: selectedAppointment.id,
+        petName: selectedAppointment.pet.nombre
+      });
+    }
+  };
+
+  const closeModal = () => {
+    setModalVisible(false);
+    setTimeout(() => setSelectedAppointment(null), 300);
   };
 
   const renderItem = ({ item }) => {
@@ -168,12 +179,126 @@ const AppointmentSchedulerScreen = () => {
         />
       </View>
 
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.fab}
         onPress={() => navigation.navigate('CreateAppointment')}
       >
         <Ionicons name="add" size={30} color="#fff" />
       </TouchableOpacity>
+
+      {/* Modal Bottom Sheet */}
+      <Modal
+        visible={modalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={closeModal}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={closeModal}
+        >
+          <TouchableOpacity
+            style={styles.modalContainer}
+            activeOpacity={1}
+          >
+            {selectedAppointment && (
+              <>
+                {/* Header */}
+                <View style={styles.modalHeader}>
+                  <View style={styles.modalHeaderContent}>
+                    {selectedAppointment.pet.fotoUrl ? (
+                      <Image
+                        source={{ uri: getImageUrl(selectedAppointment.pet.fotoUrl) }}
+                        style={styles.petAvatar}
+                      />
+                    ) : (
+                      <View style={styles.petAvatarPlaceholder}>
+                        <Ionicons name="paw" size={32} color="#007AFF" />
+                      </View>
+                    )}
+                    <View style={styles.petInfo}>
+                      <Text style={styles.modalPetName}>{selectedAppointment.pet.nombre}</Text>
+                      <Text style={styles.modalPetBreed}>
+                        {selectedAppointment.pet.raza || selectedAppointment.pet.especie || 'Mascota'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
+                    <Ionicons name="close" size={28} color="#8E8E93" />
+                  </TouchableOpacity>
+                </View>
+
+                {/* Body */}
+                <View style={styles.modalBody}>
+                  {/* Horario */}
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <Ionicons name="time-outline" size={24} color="#007AFF" />
+                    </View>
+                    <View style={styles.infoTextContainer}>
+                      <Text style={styles.infoLabel}>Horario</Text>
+                      <Text style={styles.infoValue}>
+                        {format(parseISO(selectedAppointment.startDateTime), 'HH:mm')} - {format(parseISO(selectedAppointment.endDateTime), 'HH:mm')}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Motivo */}
+                  <View style={styles.infoRow}>
+                    <View style={styles.infoIconContainer}>
+                      <Ionicons name="document-text-outline" size={24} color="#007AFF" />
+                    </View>
+                    <View style={styles.infoTextContainer}>
+                      <Text style={styles.infoLabel}>Motivo</Text>
+                      <Text style={styles.infoValue}>
+                        {selectedAppointment.reason || 'Visita general'}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Notas */}
+                  {selectedAppointment.notes && (
+                    <View style={styles.notesContainer}>
+                      <Text style={styles.notesLabel}>📝 Notas</Text>
+                      <Text style={styles.notesText}>{selectedAppointment.notes}</Text>
+                    </View>
+                  )}
+                </View>
+
+                {/* Footer */}
+                <View style={styles.modalFooter}>
+                  <TouchableOpacity
+                    style={[
+                      styles.primaryButton,
+                      selectedAppointment.status === 'COMPLETED' && styles.primaryButtonCompleted
+                    ]}
+                    onPress={startConsultation}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons
+                      name={selectedAppointment.status === 'COMPLETED' ? 'document-text' : 'mic'}
+                      size={24}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.primaryButtonText}>
+                      {selectedAppointment.status === 'COMPLETED' ? 'Ver Consulta' : 'Iniciar Consulta IA'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.secondaryButton}
+                    onPress={closeModal}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={styles.secondaryButtonText}>Cancelar</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            )}
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 };
@@ -291,7 +416,151 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 4.65,
-  }
+  },
+  // Modal styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContainer: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingBottom: 20,
+    maxHeight: '80%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E5EA',
+  },
+  modalHeaderContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  petAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    marginRight: 16,
+  },
+  petAvatarPlaceholder: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#E8F4FD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  petInfo: {
+    flex: 1,
+  },
+  modalPetName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
+  },
+  modalPetBreed: {
+    fontSize: 15,
+    color: '#8E8E93',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  modalBody: {
+    padding: 20,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  infoIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#E8F4FD',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  infoTextContainer: {
+    flex: 1,
+  },
+  infoLabel: {
+    fontSize: 13,
+    color: '#8E8E93',
+    marginBottom: 4,
+  },
+  infoValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+  },
+  notesContainer: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 8,
+  },
+  notesLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 8,
+  },
+  notesText: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  modalFooter: {
+    paddingHorizontal: 20,
+    paddingTop: 12,
+  },
+  primaryButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 12,
+    shadowColor: '#007AFF',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryButtonCompleted: {
+    backgroundColor: '#34C759',
+    shadowColor: '#34C759',
+  },
+  primaryButtonText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  secondaryButton: {
+    backgroundColor: 'transparent',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#007AFF',
+  },
 });
 
 export default AppointmentSchedulerScreen;

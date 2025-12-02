@@ -49,7 +49,7 @@ const analyzeVeterinaryConsultation = async (rawText, petName, petSpecies) => {
   try {
     console.log('🤖 [OPENAI] Analyzing veterinary consultation with GPT-4...');
 
-    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer MEDICAL HIGHLIGHTS (hallazgos clínicos clave) y SUGGESTED ACTIONS (acciones que deben registrarse en el historial).
+    const systemPrompt = `Eres un asistente experto en medicina veterinaria. Tu tarea es analizar grabaciones de consultas veterinarias y extraer MEDICAL HIGHLIGHTS (hallazgos clínicos clave), SUGGESTED ACTIONS (acciones que deben registrarse en el historial), y MEDICATIONS (medicamentos recetados).
 
 Debes generar una respuesta en formato JSON con la siguiente estructura:
 {
@@ -77,6 +77,15 @@ Debes generar una respuesta en formato JSON con la siguiente estructura:
       "description": "Por qué se sugiere registrar esta acción",
       "category": "string (opcional, solo para PROCEDURE: desparasitación, limpieza dental, cirugía, chequeo general, radiografía, otro)"
     }
+  ],
+  "medications": [
+    {
+      "medication": "Nombre del medicamento",
+      "dosage": "Dosis (ej: 1 tableta, 5ml, 250mg)",
+      "frequency": "Frecuencia (ej: cada 8 horas, dos veces al día, una vez al día)",
+      "duration": "Duración (ej: 7 días, 2 semanas, 1 mes) o null",
+      "instructions": "Instrucciones adicionales (ej: con comida, en ayunas) o null"
+    }
   ]
 }
 
@@ -96,13 +105,22 @@ SUGGESTED ACTIONS - CUÁNDO SUGERIR:
 - VACCINE: Si se menciona que se aplicó una vacuna (ej: "Le puse la vacuna de rabia", "Se le aplicó la triple felina")
 - PROCEDURE: Si se realizó algún procedimiento médico que debe registrarse (ej: "Le hice una desparasitación", "Se realizó limpieza dental", "Tomé una radiografía", "Le corté las uñas")
 
+MEDICATIONS - CUÁNDO EXTRAER:
+- Extrae TODOS los medicamentos que se mencionen que el veterinario está recetando o administrando
+- Incluye: antibióticos, antiinflamatorios, analgésicos, desparasitantes, suplementos, etc.
+- Captura la dosis exacta mencionada (ej: "1 tableta", "5ml", "250mg")
+- Captura la frecuencia exacta (ej: "cada 8 horas", "dos veces al día", "cada 12 horas")
+- Captura la duración si se menciona (ej: "por 7 días", "durante 2 semanas")
+- Captura instrucciones adicionales si se mencionan (ej: "con comida", "en ayunas", "disolver en agua")
+
 INSTRUCCIONES CRÍTICAS:
 1. La "triggerPhrase" debe ser el texto EXACTO de la transcripción (respeta mayúsculas, tildes, errores de transcripción).
 2. Extrae entre 3-8 highlights (los más relevantes clínicamente).
-3. Solo sugiere acciones si se mencionan EXPLÍCITAMENTE en la consulta.
+3. Solo sugiere acciones y medicamentos si se mencionan EXPLÍCITAMENTE en la consulta.
 4. NO inventes información que no esté en la transcripción.
 5. Los signos vitales solo si se mencionan explícitamente.
-6. Ordena highlights por SEVERIDAD: primero HIGH, luego MEDIUM, al final LOW.`;
+6. Ordena highlights por SEVERIDAD: primero HIGH, luego MEDIUM, al final LOW.
+7. Para medications, extrae TODOS los medicamentos mencionados, no solo algunos.`;
 
     const userPrompt = `Paciente: ${petName} (${petSpecies})
 
@@ -127,11 +145,13 @@ Analiza esta consulta y extrae los Medical Highlights con sus trigger phrases ex
     console.log('🔍 [OPENAI] Medical Highlights:', analysisResult.medicalHighlights?.length || 0);
     console.log('💊 [OPENAI] Vitals extracted:', Object.keys(analysisResult.extractedVitals || {}).length);
     console.log('📋 [OPENAI] Suggested Actions:', analysisResult.suggested_actions?.length || 0);
+    console.log('💊 [OPENAI] Medications extracted:', analysisResult.medications?.length || 0);
 
     return {
       medicalHighlights: analysisResult.medicalHighlights || [],
       extractedVitals: analysisResult.extractedVitals || {},
       suggestedActions: analysisResult.suggested_actions || [],
+      medications: analysisResult.medications || [],
       // Mantener tags legacy para compatibilidad
       tags: analysisResult.medicalHighlights?.map(h => h.category) || []
     };

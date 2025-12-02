@@ -144,6 +144,7 @@ export const proceduresAPI = {
 // Drafts API (Bitácora Inteligente)
 export const draftsAPI = {
   getDrafts: (petId) => api.get(`/pets/${petId}/drafts`),
+  getAllVetDrafts: () => api.get('/pets/vet/drafts/all'), // Obtener TODOS los drafts del veterinario
 };
 
 // Friendships API
@@ -193,6 +194,17 @@ export const clinicAPI = {
   toggleAvailability: (id, data) => api.post(`/clinics/${id}/availability`, data),
   getMyInvitations: () => api.get('/vets/invitations'),
   manageInvitation: (id, action) => api.post(`/clinics/invitations/${id}/manage`, { action }),
+  uploadLogo: async (id, imageUri) => {
+    const formData = new FormData();
+    formData.append('logo', {
+      uri: imageUri,
+      type: 'image/jpeg',
+      name: 'logo.jpg',
+    });
+    return api.put(`/clinics/${id}/logo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
 };
 
 // Appointment API (SaaS)
@@ -206,6 +218,26 @@ export const appointmentAPI = {
   manageRequest: (id, action, vetId) => api.post(`/appointments/${id}/manage`, { action, vetId }),
   getSlots: (vetId, date) => api.get(`/vets/${vetId}/slots?date=${date}`),
   assignAndConfirm: (id, data) => api.post(`/appointments/${id}/assign-confirm`, data),
+};
+
+// Prescription API (Live Consultation)
+export const prescriptionAPI = {
+  createOrGet: (appointmentId) => api.post(`/appointments/${appointmentId}/prescription`),
+  getOrCreateByAppointment: (appointmentId) => api.post(`/appointments/${appointmentId}/prescription`),
+  get: (id) => api.get(`/prescriptions/${id}`),
+  addMedication: (id, data) => api.post(`/prescriptions/${id}/items`, data),
+  addMedicationsBatch: (id, medications) => api.post(`/prescriptions/${id}/items/batch`, { medications }),
+  updateMedication: (itemId, data) => api.put(`/prescriptions/items/${itemId}`, data),
+  removeMedication: (itemId) => api.delete(`/prescriptions/items/${itemId}`),
+  updateDetails: (id, data) => api.put(`/prescriptions/${id}`, data),
+  finalize: (id, data) => api.post(`/prescriptions/${id}/finalize`, data),
+  regenerate: (id, data) => api.put(`/prescriptions/${id}/regenerate`, data), // Update finalized prescription and regenerate PDF
+};
+
+// Public API (No auth required)
+export const publicAPI = {
+  getPrescriptionByToken: (token) => axios.get(`${API_URL}/public/prescription/${token}`),
+  getPrescriptionPdfByToken: (token) => `${API_URL}/public/prescription/${token}/pdf`,
 };
 
 export default api;

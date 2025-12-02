@@ -72,6 +72,11 @@ enum ClinicMemberStatus {
   INACTIVE
 }
 
+enum PrescriptionStatus {
+  DRAFT
+  FINALIZED
+}
+
 // ==================== MODELOS DE USUARIOS ====================
 
 model User {
@@ -112,7 +117,8 @@ model Vet {
   createdPets         Pet[]
   deathCertificates   DeathCertificate[]
   smartConsultations  SmartConsultation[]
-  
+  prescriptions       Prescription[]
+
   // Relaciones SaaS Multi-Clínica
   clinicMemberships   ClinicMember[]
   appointments        Appointment[]
@@ -177,7 +183,8 @@ model Appointment {
   clinic              Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
   vet                 Vet?              @relation(fields: [vetId], references: [id], onDelete: SetNull)
   pet                 Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
-  smartConsultation   SmartConsultation?
+  smartConsultation   SmartConsultation?  // Mantenemos 1:1 por ahora
+  prescription        Prescription?       // Una receta por cita
 
   @@map("appointments")
 }
@@ -226,6 +233,7 @@ model Pet {
   deathCertificate   DeathCertificate?
   smartConsultations SmartConsultation[]
   appointments       Appointment[]
+  prescriptions      Prescription[]
 
   @@map("pets")
 }
@@ -344,7 +352,7 @@ model SmartConsultation {
   id                String   @id @default(uuid())
   petId             String   @map("pet_id")
   vetId             String   @map("vet_id")
-  appointmentId     String?  @unique @map("appointment_id")
+  appointmentId     String?  @unique @map("appointment_id")  // Mantenemos @unique para relación 1:1
 
   audioUrl          String   @map("audio_url")
   duration          Int
@@ -412,4 +420,61 @@ model Friendship {
 
   @@unique([requesterId, addresseeId])
   @@map("friendships")
+}
+
+// ==================== MODELOS DE RECETAS Y CONSULTAS EN VIVO ====================
+
+model Prescription {
+  id                String              @id @default(uuid())
+  appointmentId     String              @unique @map("appointment_id")  // Única receta por cita
+  petId             String              @map("pet_id")
+  vetId             String              @map("vet_id")
+  status            PrescriptionStatus  @default(DRAFT)
+  diagnosis         String?             @db.Text
+  notes             String?             @db.Text
+  pdfUrl            String?             @map("pdf_url")
+  publicToken       String?             @unique @map("public_token")  // Magic link token
+  tokenExpiresAt    DateTime?           @map("token_expires_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at")
+  finalizedAt       DateTime?           @map("finalized_at")
+
+  appointment       Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  pet               Pet                 @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet               Vet                 @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  items             PrescriptionItem[]
+  sharedDocuments   SharedDocument[]
+
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id              String       @id @default(uuid())
+  prescriptionId  String       @map("prescription_id")
+  medication      String       // Nombre del medicamento
+  dosage          String       // Dosis (ej: "1 tableta")
+  frequency       String       // Frecuencia (ej: "cada 8 horas")
+  duration        String?      // Duración (ej: "7 días")
+  instructions    String?      @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("prescription_items")
+}
+
+model SharedDocument {
+  id              String       @id @default(uuid())
+  prescriptionId  String?      @map("prescription_id")
+  publicToken     String       @unique @map("public_token")
+  documentUrl     String       @map("document_url")
+  documentType    String       @map("document_type")  // 'prescription', 'consent', etc.
+  expiresAt       DateTime?    @map("expires_at")
+  viewCount       Int          @default(0) @map("view_count")
+  lastViewedAt    DateTime?    @map("last_viewed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  prescription    Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("shared_documents")
 }

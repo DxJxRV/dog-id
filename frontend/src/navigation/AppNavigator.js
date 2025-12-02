@@ -25,6 +25,7 @@ import ClaimPetScreen from '../screens/Pets/ClaimPetScreen';
 import ArchivedPetsScreen from '../screens/Pets/ArchivedPetsScreen';
 import AddVaccineScreen from '../screens/Pets/AddVaccineScreen';
 import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
+import AllDraftsScreen from '../screens/Pets/AllDraftsScreen';
 
 // Vaccine & Procedure Detail Screens
 import VaccineDetailScreen from '../screens/Vaccines/VaccineDetailScreen';
@@ -37,8 +38,10 @@ import DeathCertificateFormScreen from '../screens/DeathCertificate/DeathCertifi
 
 // Smart Consultation Screens
 import RecordConsultationScreen from '../screens/SmartConsultation/RecordConsultationScreen';
+import LiveConsultationScreen from '../screens/SmartConsultation/LiveConsultationScreen';
 import ConsultationsListScreen from '../screens/SmartConsultation/ConsultationsListScreen';
 import ConsultationDetailScreen from '../screens/SmartConsultation/ConsultationDetailScreen';
+import CompletedConsultationScreen from '../screens/SmartConsultation/CompletedConsultationScreen';
 
 // Friends Screens
 import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
@@ -248,6 +251,11 @@ const PetsStack = () => (
       name="ClaimPet"
       component={ClaimPetScreen}
       options={{ headerShown: false }}
+    />
+    <Stack.Screen
+      name="AllDrafts"
+      component={AllDraftsScreen}
+      options={{ title: 'Registros Pendientes' }}
     />
     <Stack.Screen
       name="AddVaccine"
@@ -529,10 +537,35 @@ const AuthenticatedNavigator = ({ navigationRef }) => {
       </RootStack.Screen>
       <RootStack.Screen name="ClinicSelector" component={ClinicSelectorScreen} />
       <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificaciones', headerShown: true }} />
+
+      {/* Consultation Screens - Outside tabs for proper navigation */}
+      <RootStack.Screen
+        name="CompletedConsultation"
+        component={CompletedConsultationScreen}
+        options={{
+          title: 'Consulta Completada',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
+        }}
+      />
+      <RootStack.Screen
+        name="LiveConsultation"
+        component={LiveConsultationScreen}
+        options={{
+          title: 'Consulta en Vivo',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
+        }}
+      />
+
       <RootStack.Group screenOptions={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}>
-        <RootStack.Screen 
-          name="CreateAppointment" 
-          component={CreateAppointmentScreen} 
+        <RootStack.Screen
+          name="CreateAppointment"
+          component={CreateAppointmentScreen}
         />
       </RootStack.Group>
     </RootStack.Navigator>

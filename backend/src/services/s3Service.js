@@ -195,6 +195,7 @@ const getContentType = (filename) => {
     '.mp3': 'audio/mpeg',
     '.wav': 'audio/wav',
     '.aac': 'audio/aac',
+    '.pdf': 'application/pdf',
   };
   return types[ext] || 'application/octet-stream';
 };
