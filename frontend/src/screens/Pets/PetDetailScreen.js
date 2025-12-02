@@ -14,7 +14,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI, medicalDataAPI, deathCertificateAPI } from '../../services/api';
-import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline, PetStatusBadge, WeightChart } from '../../components';
+import { Loading, Button, PetLinkCodeModal, ErrorNetwork, Timeline, PetStatusBadge, WeightChart, VaccinationPassport } from '../../components';
 import PendingDraftsList from '../../components/PendingDraftsList';
 import { getImageUrl } from '../../utils/imageHelper';
 import { format } from 'date-fns';
@@ -45,8 +45,8 @@ const PetDetailScreen = ({ route, navigation }) => {
   });
   const [tempFilters, setTempFilters] = useState(filters);
 
-  // ECE: Toggle entre Historial y Evolución
-  const [activeTab, setActiveTab] = useState('historial'); // 'historial' | 'evolucion'
+  // ECE: Toggle entre Historial, Evolución y Vacunas
+  const [activeTab, setActiveTab] = useState('historial'); // 'historial' | 'evolucion' | 'vacunas'
   const [weightData, setWeightData] = useState([]);
   const [loadingWeight, setLoadingWeight] = useState(false);
 
@@ -443,7 +443,7 @@ const PetDetailScreen = ({ route, navigation }) => {
           )}
         </View>
 
-        {/* Toggle entre Historial y Evolución */}
+        {/* Toggle entre Historial, Vacunas y Evolución */}
         <View style={styles.tabsContainer}>
           <TouchableOpacity
             style={[
@@ -464,6 +464,28 @@ const PetDetailScreen = ({ route, navigation }) => {
               ]}
             >
               Historial
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.tab,
+              activeTab === 'vacunas' && styles.tabActive,
+            ]}
+            onPress={() => setActiveTab('vacunas')}
+          >
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={activeTab === 'vacunas' ? '#007AFF' : '#8E8E93'}
+            />
+            <Text
+              style={[
+                styles.tabText,
+                activeTab === 'vacunas' && styles.tabTextActive,
+              ]}
+            >
+              Vacunas
             </Text>
           </TouchableOpacity>
 
@@ -497,6 +519,30 @@ const PetDetailScreen = ({ route, navigation }) => {
             procedures={pet.procedures || []}
             filters={filters}
             onItemPress={handleTimelineItemPress}
+          />
+        ) : activeTab === 'vacunas' ? (
+          <VaccinationPassport
+            vaccines={pet.vaccines || []}
+            petBirthDate={pet.fechaNacimiento}
+            userType={userType}
+            onAddVaccine={(vaccineName) => {
+              // Veterinario: abrir formulario para agregar vacuna
+              navigation.navigate('AddVaccine', { petId, suggestedName: vaccineName });
+            }}
+            onScheduleAppointment={(vaccineName) => {
+              // Owner: sugerir agendar cita
+              Alert.alert(
+                'Agendar Vacuna',
+                `¿Deseas agendar una cita para aplicar la vacuna "${vaccineName}"?`,
+                [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                    text: 'Agendar',
+                    onPress: () => navigation.navigate('ScheduleAppointment', { petId, reason: `Vacuna: ${vaccineName}` }),
+                  },
+                ]
+              );
+            }}
           />
         ) : (
           <View style={styles.evolutionContainer}>

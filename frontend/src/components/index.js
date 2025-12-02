@@ -17,3 +17,4 @@ export { default as SignaturePad } from './SignaturePad';
 export { default as VitalSignsForm } from './VitalSignsForm';
 export { default as WeightChart } from './WeightChart';
 export { default as AddPetModal } from './AddPetModal';
+export { default as VaccinationPassport } from './VaccinationPassport';
