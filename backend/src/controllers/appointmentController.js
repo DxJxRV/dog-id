@@ -182,14 +182,34 @@ const requestAppointment = async (req, res) => {
 const getSchedule = async (req, res) => {
   try {
     const { start, end, clinicId } = req.query;
-    const vetId = req.user.id;
+    const userId = req.user.id;
+    const userType = req.user.type;
 
-    const whereClause = {
-      vetId: vetId
-    };
+    let whereClause = {};
 
-    if (clinicId) whereClause.clinicId = clinicId;
-    
+    // Si es veterinario: buscar por vetId
+    if (userType === 'vet') {
+      whereClause.vetId = userId;
+      if (clinicId) whereClause.clinicId = clinicId;
+    }
+    // Si es dueño: buscar por las mascotas del usuario
+    else if (userType === 'user') {
+      const userPets = await prisma.pet.findMany({
+        where: { userId: userId },
+        select: { id: true }
+      });
+
+      const petIds = userPets.map(pet => pet.id);
+
+      if (petIds.length === 0) {
+        return res.json({ appointments: [] });
+      }
+
+      whereClause.petId = { in: petIds };
+    } else {
+      return res.status(403).json({ error: 'Invalid user type' });
+    }
+
     if (start && end) {
       whereClause.startDateTime = {
         gte: new Date(start),
@@ -212,6 +232,13 @@ const getSchedule = async (req, res) => {
           select: {
             id: true,
             name: true
+          }
+        },
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            telefono: true
           }
         }
       },

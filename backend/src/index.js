@@ -42,6 +42,7 @@ const searchRoutes = require('./routes/searchRoutes');
 const userRoutes = require('./routes/userRoutes');
 const prescriptionRoutes = require('./routes/prescriptionRoutes');
 const publicRoutes = require('./routes/publicRoutes');
+const medicationLogRoutes = require('./routes/medicationLogRoutes');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -81,6 +82,7 @@ app.use('/', searchRoutes);
 app.use('/', userRoutes);
 app.use('/', prescriptionRoutes);
 app.use('/public', publicRoutes); // Rutas públicas (magic links)
+app.use('/', medicationLogRoutes); // Medication tracking
 
 // Manejo de rutas no encontradas
 app.use((req, res) => {

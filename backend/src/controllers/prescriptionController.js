@@ -1400,6 +1400,268 @@ const updatePrescription = async (req, res) => {
   }
 };
 
+/**
+ * Obtener todas las prescriptions de las mascotas del usuario (Owner)
+ * GET /api/owner/prescriptions
+ */
+const getOwnerPrescriptions = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    // Validar que es un usuario (dueño)
+    if (userType !== 'user') {
+      return res.status(403).json({ error: 'Only pet owners can access this endpoint' });
+    }
+
+    console.log('📋 [OWNER PRESCRIPTIONS] Fetching prescriptions for user:', userId);
+
+    // Obtener todas las mascotas del usuario
+    const userPets = await prisma.pet.findMany({
+      where: { userId: userId },
+      select: { id: true }
+    });
+
+    const petIds = userPets.map(pet => pet.id);
+
+    if (petIds.length === 0) {
+      return res.json({ prescriptions: [] });
+    }
+
+    // Obtener todas las prescriptions finalizadas de las mascotas del usuario
+    const prescriptions = await prisma.prescription.findMany({
+      where: {
+        appointment: {
+          petId: { in: petIds }
+        },
+        status: 'FINALIZED' // Solo prescriptions finalizadas
+      },
+      include: {
+        appointment: {
+          include: {
+            pet: {
+              select: {
+                id: true,
+                nombre: true,
+                especie: true,
+                fotoUrl: true
+              }
+            },
+            vet: {
+              select: {
+                id: true,
+                nombre: true,
+                telefono: true
+              }
+            }
+          }
+        },
+        items: {
+          orderBy: {
+            createdAt: 'asc'
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc' // Más recientes primero
+      }
+    });
+
+    console.log(`   ✅ Found ${prescriptions.length} prescriptions`);
+
+    res.json({ prescriptions });
+  } catch (error) {
+    console.error('❌ Error fetching owner prescriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch prescriptions' });
+  }
+};
+
+/**
+ * Obtener resumen del dashboard para el dueño
+ * GET /api/owner/dashboard
+ */
+const getOwnerDashboard = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userType = req.user.type;
+
+    // Validar que es un usuario (dueño)
+    if (userType !== 'user') {
+      return res.status(403).json({ error: 'Only pet owners can access this endpoint' });
+    }
+
+    console.log('🏠 [OWNER DASHBOARD] Fetching dashboard for user:', userId);
+
+    // Obtener todas las mascotas del usuario
+    const userPets = await prisma.pet.findMany({
+      where: { userId: userId },
+      select: { id: true, nombre: true, fotoUrl: true }
+    });
+
+    const petIds = userPets.map(pet => pet.id);
+
+    if (petIds.length === 0) {
+      return res.json({
+        activeTreatments: [],
+        dailyTasks: []
+      });
+    }
+
+    // Obtener prescriptions finalizadas
+    const prescriptions = await prisma.prescription.findMany({
+      where: {
+        appointment: {
+          petId: { in: petIds }
+        },
+        status: 'FINALIZED'
+      },
+      include: {
+        appointment: {
+          include: {
+            pet: {
+              select: {
+                id: true,
+                nombre: true,
+                especie: true,
+                fotoUrl: true
+              }
+            }
+          }
+        },
+        items: {
+          orderBy: {
+            createdAt: 'asc'
+          }
+        }
+      }
+    });
+
+    // Agrupar tratamientos por mascota
+    const treatmentsByPet = {};
+
+    prescriptions.forEach(prescription => {
+      const pet = prescription.appointment?.pet;
+      if (!pet) return;
+
+      if (!treatmentsByPet[pet.id]) {
+        treatmentsByPet[pet.id] = {
+          petId: pet.id,
+          petName: pet.nombre,
+          petImage: pet.fotoUrl,
+          medications: [],
+          prescriptions: []
+        };
+      }
+
+      // Agregar medicamentos únicos
+      prescription.items.forEach(item => {
+        if (!treatmentsByPet[pet.id].medications.includes(item.medication)) {
+          treatmentsByPet[pet.id].medications.push(item.medication);
+        }
+      });
+
+      // Agregar prescripción completa
+      treatmentsByPet[pet.id].prescriptions.push({
+        id: prescription.id,
+        diagnosis: prescription.diagnosis,
+        finalizedAt: prescription.finalizedAt,
+        publicToken: prescription.publicToken,
+        items: prescription.items
+      });
+    });
+
+    const activeTreatments = Object.values(treatmentsByPet);
+
+    // Generar tareas diarias
+    const dailyTasks = [];
+
+    prescriptions.forEach(prescription => {
+      const pet = prescription.appointment?.pet;
+      if (!pet) return;
+
+      prescription.items.forEach(medication => {
+        const tasks = generateDailyTasks(medication, pet);
+        dailyTasks.push(...tasks);
+      });
+    });
+
+    // Ordenar tareas por hora
+    dailyTasks.sort((a, b) => {
+      const timeA = a.time.split(':').map(Number);
+      const timeB = b.time.split(':').map(Number);
+      return timeA[0] * 60 + timeA[1] - (timeB[0] * 60 + timeB[1]);
+    });
+
+    console.log(`   ✅ Found ${activeTreatments.length} pets with active treatments`);
+    console.log(`   ✅ Generated ${dailyTasks.length} daily tasks`);
+
+    res.json({
+      activeTreatments,
+      dailyTasks
+    });
+  } catch (error) {
+    console.error('❌ Error fetching owner dashboard:', error);
+    res.status(500).json({ error: 'Failed to fetch dashboard' });
+  }
+};
+
+// Helper: Generar tareas diarias para un medicamento
+const generateDailyTasks = (medication, pet) => {
+  const tasks = [];
+
+  if (!medication.dosage) return tasks;
+
+  const lower = medication.dosage.toLowerCase();
+  let timesPerDay = 0;
+
+  // Parsear frecuencia
+  const hoursMatch = lower.match(/cada\s+(\d+)\s+horas?/);
+  if (hoursMatch) {
+    const hours = parseInt(hoursMatch[1]);
+    timesPerDay = Math.floor(24 / hours);
+  } else {
+    const timesMatch = lower.match(/(\d+)\s+veces?\s+al\s+d[ií]a/);
+    if (timesMatch) {
+      timesPerDay = parseInt(timesMatch[1]);
+    }
+  }
+
+  if (timesPerDay === 0) return tasks;
+
+  // Distribuir horas
+  let hours = [];
+  if (timesPerDay === 1) {
+    hours = ['09:00'];
+  } else if (timesPerDay === 2) {
+    hours = ['09:00', '21:00'];
+  } else if (timesPerDay === 3) {
+    hours = ['08:00', '16:00', '00:00'];
+  } else if (timesPerDay === 4) {
+    hours = ['08:00', '14:00', '20:00', '02:00'];
+  } else {
+    const interval = Math.floor(24 / timesPerDay);
+    for (let i = 0; i < timesPerDay; i++) {
+      const hour = (8 + (i * interval)) % 24;
+      hours.push(`${hour.toString().padStart(2, '0')}:00`);
+    }
+  }
+
+  // Crear tareas
+  hours.forEach(hour => {
+    tasks.push({
+      id: `${medication.id}-${hour}`,
+      time: hour,
+      medicationName: medication.medication,
+      dosage: medication.dosage,
+      petId: pet.id,
+      petName: pet.nombre,
+      petImage: pet.fotoUrl
+    });
+  });
+
+  return tasks;
+};
+
 module.exports = {
   createOrGetPrescription,
   addMedication,
@@ -1409,5 +1671,7 @@ module.exports = {
   updatePrescriptionDetails,
   getPrescription,
   finalizePrescription,
-  updatePrescription
+  updatePrescription,
+  getOwnerPrescriptions,
+  getOwnerDashboard
 };

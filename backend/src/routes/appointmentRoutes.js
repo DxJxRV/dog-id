@@ -5,7 +5,7 @@ const { authenticateVet, authenticateUser, authenticateUserOrVet } = require('..
 
 // Vet Routes
 router.post('/appointments', authenticateVet, appointmentController.createAppointment);
-router.get('/appointments', authenticateVet, appointmentController.getSchedule);
+router.get('/appointments', authenticateUserOrVet, appointmentController.getSchedule);
 router.get('/appointments/requests', authenticateVet, appointmentController.getPendingRequests); // Mover antes de :id
 router.put('/appointments/:id/status', authenticateVet, appointmentController.updateStatus);
 router.get('/appointments/:id', authenticateVet, appointmentController.getAppointmentDetail); 

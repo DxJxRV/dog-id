@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const prescriptionController = require('../controllers/prescriptionController');
-const { authenticateUserOrVet } = require('../middlewares/auth');
+const { authenticateUserOrVet, authenticateUser } = require('../middlewares/auth');
 const { validateUUIDParam } = require('../utils/validators');
 
 // Crear o obtener prescription para una cita
@@ -74,6 +74,20 @@ router.put(
   authenticateUserOrVet,
   validateUUIDParam('id'),
   prescriptionController.updatePrescription
+);
+
+// Obtener todas las prescriptions del dueño (Owner)
+router.get(
+  '/owner/prescriptions',
+  authenticateUser,
+  prescriptionController.getOwnerPrescriptions
+);
+
+// Obtener dashboard summary del dueño
+router.get(
+  '/owner/dashboard',
+  authenticateUser,
+  prescriptionController.getOwnerDashboard
 );
 
 module.exports = router;

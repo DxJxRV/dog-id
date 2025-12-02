@@ -43,6 +43,13 @@ import ConsultationsListScreen from '../screens/SmartConsultation/ConsultationsL
 import ConsultationDetailScreen from '../screens/SmartConsultation/ConsultationDetailScreen';
 import CompletedConsultationScreen from '../screens/SmartConsultation/CompletedConsultationScreen';
 
+// Home Screen
+import HomeScreen from '../screens/Home/HomeScreen';
+
+// Prescriptions Screens
+import PrescriptionsListScreen from '../screens/Prescriptions/PrescriptionsListScreen';
+import TreatmentDetailScreen from '../screens/Treatments/TreatmentDetailScreen';
+
 // Friends Screens
 import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
 import FriendsPetsScreen from '../screens/Friends/FriendsPetsScreen';
@@ -429,7 +436,7 @@ const OwnerTabs = () => {
     >
       <Tab.Screen
         name="Feed"
-        component={FriendsMainScreen}
+        component={HomeScreen}
         options={{
           tabBarLabel: 'Inicio',
           tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
@@ -537,6 +544,29 @@ const AuthenticatedNavigator = ({ navigationRef }) => {
       </RootStack.Screen>
       <RootStack.Screen name="ClinicSelector" component={ClinicSelectorScreen} />
       <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificaciones', headerShown: true }} />
+      <RootStack.Screen
+        name="PrescriptionsList"
+        component={PrescriptionsListScreen}
+        options={{
+          title: 'Recetas Médicas',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
+        }}
+      />
+      <RootStack.Screen
+        name="TreatmentDetail"
+        component={TreatmentDetailScreen}
+        options={{
+          title: 'Detalle de Tratamiento',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false,
+          headerBackTitleVisible: false
+        }}
+      />
 
       {/* Consultation Screens - Outside tabs for proper navigation */}
       <RootStack.Screen

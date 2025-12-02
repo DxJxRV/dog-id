@@ -91,11 +91,12 @@ model User {
   friendCode    String?  @unique @map("friend_code")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  pets              Pet[]
-  coOwnedPets       CoOwnerPetLink[]
-  sentFriendships   Friendship[] @relation("SentFriendships")
+  pets                Pet[]
+  coOwnedPets         CoOwnerPetLink[]
+  sentFriendships     Friendship[] @relation("SentFriendships")
   receivedFriendships Friendship[] @relation("ReceivedFriendships")
-  favorites         Favorite[]
+  favorites           Favorite[]
+  medicationLogs      MedicationLog[]
 
   @@map("users")
 }
@@ -459,6 +460,7 @@ model PrescriptionItem {
   createdAt       DateTime     @default(now()) @map("created_at")
 
   prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicationLogs  MedicationLog[]
 
   @@map("prescription_items")
 }
@@ -477,4 +479,21 @@ model SharedDocument {
   prescription    Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
 
   @@map("shared_documents")
+}
+
+model MedicationLog {
+  id                  String           @id @default(uuid())
+  prescriptionItemId  String           @map("prescription_item_id")
+  userId              String           @map("user_id")
+  scheduledTime       String           @map("scheduled_time")  // "09:00", "14:00", etc.
+  takenAt             DateTime         @default(now()) @map("taken_at")  // Timestamp real
+  date                DateTime         @map("date")  // Fecha del día (sin hora)
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  prescriptionItem    PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionItemId, date])
+  @@index([userId, date])
+  @@map("medication_logs")
 }

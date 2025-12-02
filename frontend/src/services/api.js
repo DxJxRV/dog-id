@@ -232,12 +232,21 @@ export const prescriptionAPI = {
   updateDetails: (id, data) => api.put(`/prescriptions/${id}`, data),
   finalize: (id, data) => api.post(`/prescriptions/${id}/finalize`, data),
   regenerate: (id, data) => api.put(`/prescriptions/${id}/regenerate`, data), // Update finalized prescription and regenerate PDF
+  getOwnerPrescriptions: () => api.get('/owner/prescriptions'), // Get all prescriptions for owner's pets
+  getOwnerDashboard: () => api.get('/owner/dashboard'), // Get dashboard summary for owner
 };
 
 // Public API (No auth required)
 export const publicAPI = {
   getPrescriptionByToken: (token) => axios.get(`${API_URL}/public/prescription/${token}`),
   getPrescriptionPdfByToken: (token) => `${API_URL}/public/prescription/${token}/pdf`,
+};
+
+// Medication Logs API
+export const medicationLogAPI = {
+  logMedication: (data) => api.post('/medication-logs', data), // Toggle medication log
+  getTodayLogs: () => api.get('/medication-logs/today'), // Get today's logs
+  getPetAdherence: (petId, params) => api.get(`/pets/${petId}/adherence`, { params }), // Get adherence data
 };
 
 export default api;
