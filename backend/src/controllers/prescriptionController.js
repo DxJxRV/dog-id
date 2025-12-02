@@ -521,6 +521,7 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
       const GRAY_MEDIUM = '#6B7280';
       const GRAY_LIGHT = '#f9f9f9';
       const MARGIN = 40;  // Margen superior reducido
+      const CONTAINER_PADDING = 20;  // Padding interno del contenedor gris
       const LOGO_SIZE = 80;  // Logo más grande
 
       const doc = new PDFDocument({
@@ -533,15 +534,21 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
 
       doc.pipe(stream);
 
-      // Espacio reservado para footer (posicionamiento absoluto)
-      const footerReservedSpace = 200;  // Aumentado para evitar overflow
-      const contentMaxY = doc.page.height - footerReservedSpace;
+      // ==========================================
+      // DEFINICIÓN DE ZONAS (COORDENADAS MAESTRAS)
+      // ==========================================
+      const PAGE_BOTTOM = doc.page.height;
+      const FOOTER_HEIGHT = 180;  // Aumentado para bajar más la firma y el QR
+      const FOOTER_Y = PAGE_BOTTOM - FOOTER_HEIGHT;  // Aquí empieza el footer
+      const contentMaxY = FOOTER_Y - 20;  // Contenido termina 20px antes del footer
 
       // ==========================================
       // 1. HEADER - ESTILO MEMBRETE PROFESIONAL
       // ==========================================
 
       let logoLoaded = false;
+      let logoBuffer = null; // Logo de clínica (para header)
+      let appLogoBuffer = null; // Logo de app (para watermark SIEMPRE)
 
       // 🔍 DIAGNÓSTICO INICIAL DEL LOGO
       console.log('🔍 DEBUG LOGO [PDF Generator]:');
@@ -568,7 +575,7 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
           console.log('   ✓ Content-Type:', logoResponse.headers['content-type']);
           console.log('   ✓ Content-Length:', logoResponse.headers['content-length']);
 
-          const logoBuffer = Buffer.from(logoResponse.data, 'binary');
+          logoBuffer = Buffer.from(logoResponse.data, 'binary');
           console.log('   ✓ Buffer created. Size:', logoBuffer.length, 'bytes');
 
           // Logo fijo en (50, 45) con width: 50
@@ -595,6 +602,36 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
         console.log('   ⚠️ No logo to load:');
         console.log('      clinic is null?:', !clinic);
         console.log('      logoUrl is null/undefined?:', !clinic?.logoUrl);
+      }
+
+      // CARGAR LOGO DE LA APP SIEMPRE (para watermark)
+      try {
+        const appLogoPath = path.join(__dirname, '../assets/logo.png');
+        console.log('   🔄 Loading app logo for watermark from:', appLogoPath);
+
+        if (fs.existsSync(appLogoPath)) {
+          appLogoBuffer = fs.readFileSync(appLogoPath);
+          console.log('   ✅ App logo loaded for watermark');
+        } else {
+          console.log('   ⚠️ App logo file not found at:', appLogoPath);
+        }
+      } catch (appLogoError) {
+        console.error('   ⚠️ Could not load app logo:', appLogoError.message);
+      }
+
+      // FALLBACK: Usar logo de la app en header si no hay logo de clínica
+      if (!logoBuffer && appLogoBuffer) {
+        logoBuffer = appLogoBuffer;
+        console.log('   ✅ Using app logo as fallback for header');
+
+        // Dibujar logo de app en header si aún no hay logo
+        if (!logoLoaded) {
+          doc.image(logoBuffer, 50, 45, {
+            width: 50,
+            fit: [50, 50]
+          });
+          logoLoaded = true;
+        }
       }
 
       // Nombre de clínica centrado (Membrete) - 30% más grande
@@ -719,14 +756,59 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
       // Calcular la altura máxima de ambas columnas
       currentY = Math.max(leftY, rightY) + 20;
 
-      // Línea azul separadora debajo de los datos (crea efecto "sándwich")
-      doc.moveTo(MARGIN, currentY)
-         .lineTo(doc.page.width - MARGIN, currentY)
-         .lineWidth(2)
-         .strokeColor(PRIMARY_COLOR)
-         .stroke();
+      // ==========================================
+      // 3. CONTENEDOR DE TRATAMIENTO (SECURITY PAPER STYLE)
+      // ==========================================
 
-      currentY += 20;
+      // CONTENT_TOP: Donde empiezan los medicamentos
+      const CONTENT_TOP = currentY;
+
+      // CONTENT_BOTTOM: Termina antes del footer (usando zona maestra)
+      const CONTENT_BOTTOM = FOOTER_Y - 20;  // 20px de aire antes del footer
+
+      // Altura del rectángulo gris
+      const RECT_HEIGHT = CONTENT_BOTTOM - CONTENT_TOP;
+      const RECT_WIDTH = doc.page.width - MARGIN * 2;
+
+      // DIBUJAR RECTÁNGULO RECTO CON FONDO (SIN BORDE)
+      doc.save(); // Guardar estado del documento
+      doc.rect(
+        MARGIN,
+        CONTENT_TOP,
+        RECT_WIDTH,
+        RECT_HEIGHT
+      )
+      .fill('#F9FAFB'); // Fondo gris muy pálido (sin borde)
+
+      // WATERMARK: Logo de la APP como marca de agua en el centro (SIEMPRE)
+      if (appLogoBuffer) {
+        try {
+          const watermarkSize = 300;
+          const watermarkX = (doc.page.width - watermarkSize) / 2;
+          const watermarkY = CONTENT_TOP + (RECT_HEIGHT - watermarkSize) / 2;
+
+          // Aplicar opacidad al logo de la app
+          doc.opacity(0.05); // 5% de opacidad
+          doc.image(appLogoBuffer, watermarkX, watermarkY, {
+            width: watermarkSize,
+            height: watermarkSize,
+            fit: [watermarkSize, watermarkSize]
+          });
+
+          // CRÍTICO: Restaurar opacidad a 1.0 para el texto
+          doc.opacity(1.0);
+
+          console.log('   💧 App logo watermark embedded with 5% opacity');
+        } catch (watermarkError) {
+          console.warn('   ⚠️ Could not embed watermark:', watermarkError.message);
+          doc.opacity(1.0); // Restaurar opacidad en caso de error
+        }
+      }
+
+      doc.restore(); // Restaurar estado del documento
+
+      // Posicionar cursor dentro del rectángulo con padding
+      currentY = CONTENT_TOP + 20;
 
       // ==========================================
       // 4. DIAGNÓSTICO (si existe)
@@ -742,15 +824,15 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
         doc.font('Helvetica-Bold')
            .fontSize(12)
            .fillColor(GRAY_DARK)
-           .text('DIAGNOSTICO:', MARGIN, currentY);
+           .text('DIAGNOSTICO:', MARGIN + CONTAINER_PADDING, currentY);
 
         currentY += 18;
 
         doc.font('Helvetica')
            .fontSize(11)
            .fillColor(GRAY_DARK)
-           .text(prescription.diagnosis, MARGIN, currentY, {
-             width: doc.page.width - MARGIN * 2,
+           .text(prescription.diagnosis, MARGIN + CONTAINER_PADDING, currentY, {
+             width: doc.page.width - MARGIN * 2 - CONTAINER_PADDING * 2,
              align: 'left',
              lineGap: 2
            });
@@ -765,7 +847,7 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
       doc.font('Helvetica-Bold')
          .fontSize(14)
          .fillColor(GRAY_DARK)
-         .text('Prescripcion Medica / Rx', MARGIN, currentY);
+         .text('Prescripcion Medica / Rx', MARGIN + CONTAINER_PADDING, currentY);
 
       currentY += 25;
 
@@ -782,7 +864,7 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
         doc.font('Helvetica-Bold')
            .fontSize(12)
            .fillColor(GRAY_DARK)
-           .text(`${index + 1}. ${item.medication}`, MARGIN, currentY);
+           .text(`${index + 1}. ${item.medication}`, MARGIN + CONTAINER_PADDING, currentY);
 
         currentY += 16;
 
@@ -797,12 +879,12 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
           indications += `. ${item.instructions}`;
         }
 
-        // Escribir las indicaciones con sangría
+        // Escribir las indicaciones con sangría (padding del contenedor + sangría adicional)
         doc.font('Helvetica')
            .fontSize(11)
            .fillColor(GRAY_DARK)
-           .text(indications, MARGIN + 20, currentY, {
-             width: doc.page.width - MARGIN * 2 - 20,
+           .text(indications, MARGIN + CONTAINER_PADDING + 20, currentY, {
+             width: doc.page.width - MARGIN * 2 - CONTAINER_PADDING * 2 - 20,
              align: 'left',
              lineGap: 2
            });
@@ -826,15 +908,15 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
         doc.font('Helvetica-Bold')
            .fontSize(11)
            .fillColor(GRAY_DARK)
-           .text('NOTAS:', MARGIN, currentY);
+           .text('NOTAS:', MARGIN + CONTAINER_PADDING, currentY);
 
         currentY += 16;
 
         doc.font('Helvetica')
            .fontSize(10)
            .fillColor(GRAY_DARK)
-           .text(prescription.notes, MARGIN, currentY, {
-             width: doc.page.width - MARGIN * 2,
+           .text(prescription.notes, MARGIN + CONTAINER_PADDING, currentY, {
+             width: doc.page.width - MARGIN * 2 - CONTAINER_PADDING * 2,
              align: 'left',
              lineGap: 2
            });
@@ -843,37 +925,25 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
       }
 
       // ==========================================
-      // 7. FOOTER - POSICIONAMIENTO ABSOLUTO DESDE ABAJO
+      // 7. FOOTER - POSICIONAMIENTO ABSOLUTO CON ZONAS MAESTRAS
       // ==========================================
 
       // Verificar si necesitamos nueva página para el footer
-      // (footerReservedSpace ya definido en sección de medicamentos)
-      if (currentY > contentMaxY) {
+      if (currentY > CONTENT_BOTTOM) {
         doc.addPage();
         currentY = MARGIN;
       }
 
-      // POSICIONAMIENTO ABSOLUTO DESDE ABAJO (ajustado más arriba)
-      const bottomBaseY = doc.page.height - 50;  // Base desde el borde inferior
+      // ==========================================
+      // FOOTER: DISEÑO DE 2 BLOQUES LATERALES (SIMPLIFICADO)
+      // ==========================================
 
-      // 1. DISCLAIMER (más abajo de todo)
-      const disclaimerY = bottomBaseY;
+      // Configuración de zona (usando FOOTER_Y de las coordenadas maestras)
+      const FOOTER_START_Y = FOOTER_Y + 30;  // 30px más abajo del inicio de la zona footer
+      const LEFT_MARGIN = 50;
 
-      doc.font('Helvetica')
-         .fontSize(7)
-         .fillColor(GRAY_MEDIUM)
-         .text('Receta médica generada digitalmente • MiMascota Plus', MARGIN, disclaimerY, {
-           width: doc.page.width - MARGIN * 2,
-           align: 'center'
-         });
-
-      // 2. BLOQUE DE FIRMA (arriba del disclaimer)
-      const signatureBlockHeight = 110;  // Ajustado para la firma optimizada
-      const signatureStartY = disclaimerY - signatureBlockHeight - 10;
-
-      // Generar QR code (usar shareUrl si está disponible)
+      // ==== GENERAR QR CODE ====
       const finalShareUrl = shareUrl || `${process.env.APP_BASE_URL || process.env.API_URL || 'http://localhost:3000'}/public/prescription/${prescription.publicToken}`;
-
       console.log('   🔗 Generating QR with URL:', finalShareUrl);
 
       const qrDataUrl = await QRCode.toDataURL(finalShareUrl, {
@@ -885,87 +955,92 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
         }
       });
 
-      // QR en la esquina inferior DERECHA absoluta
-      const qrSize = 70;
-      const qrX = doc.page.width - 50 - qrSize;  // Esquina derecha absoluta (margen 50 + tamaño QR)
-      const qrY = signatureStartY;
+      // ==== BLOQUE IZQUIERDO: FIRMA DEL VETERINARIO ====
+      const signatureWidth = 180;
+      const signatureHeight = 60;  // Más alto para mejor visualización
+      const signatureX = LEFT_MARGIN;
+      const signatureY = FOOTER_START_Y - 40;  // Firma sobre la línea
 
-      doc.image(qrDataUrl, qrX, qrY, {
-        width: qrSize,
-        height: qrSize
-      });
-
-      doc.font('Helvetica')
-         .fontSize(7)
-         .fillColor(GRAY_MEDIUM)
-         .text('Escanea para validar', qrX - 5, qrY + qrSize + 5, {
-           width: qrSize + 10,
-           align: 'center'
-         });
-
-      // FIRMA DIGITAL CENTRADA CON LÍNEA SÓLIDA
-      const signatureWidth = 200;
-      const signatureHeight = 60;  // Reducido de 80 a 60 para acercar la firma a la línea
-      const signatureX = (doc.page.width - signatureWidth) / 2;
-      const signatureY = signatureStartY;
-
-      // Si hay firma digital (base64), mostrarla flotando arriba
+      // Imagen de firma (si existe) - MÁS GRANDE
       if (signature) {
         try {
           const base64Data = signature.includes('base64,')
             ? signature.split('base64,')[1]
             : signature;
-
           const signatureBuffer = Buffer.from(base64Data, 'base64');
 
-          // Mostrar la firma digital FLOTANDO sobre la línea (más cerca)
           doc.image(signatureBuffer, signatureX, signatureY, {
             fit: [signatureWidth, signatureHeight],
-            align: 'center'
+            align: 'left'
           });
-
-          console.log('   ✍️ Digital signature embedded (floating above line)');
+          console.log('   ✍️ Digital signature embedded (180x60)');
         } catch (sigError) {
           console.warn('   ⚠️ Could not embed signature image:', sigError.message);
         }
       }
 
-      // SIEMPRE dibujar línea sólida negra (con o sin firma) - casi tocando la firma
-      const lineY = signatureY + signatureHeight + 2;  // Reducido de 5 a 2 píxeles
+      // Línea de firma (200px de largo)
+      const lineY = FOOTER_START_Y;
       doc.moveTo(signatureX, lineY)
-         .lineTo(signatureX + signatureWidth, lineY)
+         .lineTo(signatureX + 200, lineY)
          .lineWidth(1.5)
          .strokeColor('#000000')
          .stroke();
 
-      // Nombre y cédula del veterinario debajo de la línea
-      const signatureInfoY = lineY + 5;
+      // Datos del veterinario (alineados a la izquierda, debajo de la línea)
+      const vetInfoY = lineY + 5;
 
       doc.font('Helvetica')
          .fontSize(8)
          .fillColor(GRAY_MEDIUM)
-         .text('Firma del Veterinario', signatureX, signatureInfoY, {
-           width: signatureWidth,
-           align: 'center'
+         .text('Firma del Veterinario', signatureX, vetInfoY, {
+           lineGap: 0,
+           lineBreak: false,
+           continued: false
          });
 
       doc.font('Helvetica-Bold')
          .fontSize(10)
          .fillColor(GRAY_DARK)
-         .text(`MVZ. ${vet.nombre}`, signatureX, signatureInfoY + 12, {
-           width: signatureWidth,
-           align: 'center'
+         .text(`MVZ. ${vet.nombre}`, signatureX, vetInfoY + 12, {
+           lineGap: 0,
+           lineBreak: false,
+           continued: false
          });
 
       if (vet.cedulaProfesional) {
         doc.font('Helvetica')
            .fontSize(8)
            .fillColor(GRAY_MEDIUM)
-           .text(`Cédula Prof. ${vet.cedulaProfesional}`, signatureX, signatureInfoY + 26, {
-             width: signatureWidth,
-             align: 'center'
+           .text(`Cédula Prof. ${vet.cedulaProfesional}`, signatureX, vetInfoY + 26, {
+             lineGap: 0,
+             lineBreak: false,
+             continued: false
            });
       }
+
+      // ==== BLOQUE DERECHO: QR CODE ====
+      const QR_SIZE = 70;
+      const qrX = doc.page.width - LEFT_MARGIN - QR_SIZE;
+      const qrY = FOOTER_START_Y - 20;
+
+      doc.image(qrDataUrl, qrX, qrY, {
+        width: QR_SIZE,
+        height: QR_SIZE
+      });
+
+      // Texto "Escanea para validar" centrado respecto al QR
+      const qrTextY = qrY + QR_SIZE + 5;
+      doc.font('Helvetica')
+         .fontSize(8)
+         .fillColor(GRAY_MEDIUM)
+         .text('Escanea para validar', qrX, qrTextY, {
+           width: QR_SIZE,
+           align: 'center',
+           lineGap: 0,
+           lineBreak: false,
+           continued: false
+         });
 
       // ==========================================
       // FINALIZAR DOCUMENTO

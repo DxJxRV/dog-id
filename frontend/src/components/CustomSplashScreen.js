@@ -8,7 +8,7 @@ const CustomSplashScreen = ({ onFinish }) => {
       if (onFinish) {
         onFinish();
       }
-    }, 3000);
+    }, 500);
 
     return () => clearTimeout(timer);
   }, [onFinish]);
