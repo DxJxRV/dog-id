@@ -167,27 +167,42 @@ const HomeScreen = ({ navigation }) => {
 
   const totalTasks = dailyTasks.length + todayAppointments.length;
 
-  // Agrupar medicamentos por medicamento+mascota (una card por medicamento)
-  const groupedMedications = React.useMemo(() => {
-    const groups = {};
+  // Agrupar medicamentos primero por mascota, luego por medicamento
+  const medicationsByPet = React.useMemo(() => {
+    const petGroups = {};
+
     dailyTasks.forEach(task => {
-      const key = `${task.petId}-${task.medicationName}`;
-      if (!groups[key]) {
-        groups[key] = {
-          id: key,
-          medicationName: task.medicationName,
+      // Agrupar por mascota
+      if (!petGroups[task.petId]) {
+        petGroups[task.petId] = {
           petId: task.petId,
           petName: task.petName,
           petImage: task.petImage,
+          medications: {}
+        };
+      }
+
+      // Agrupar medicamentos dentro de cada mascota
+      const medKey = task.medicationName;
+      if (!petGroups[task.petId].medications[medKey]) {
+        petGroups[task.petId].medications[medKey] = {
+          id: `${task.petId}-${medKey}`,
+          medicationName: task.medicationName,
           dosage: task.dosage,
           times: [],
           taskIds: []
         };
       }
-      groups[key].times.push(task.time);
-      groups[key].taskIds.push(task.id);
+
+      petGroups[task.petId].medications[medKey].times.push(task.time);
+      petGroups[task.petId].medications[medKey].taskIds.push(task.id);
     });
-    return Object.values(groups);
+
+    // Convertir a array y transformar medications object a array
+    return Object.values(petGroups).map(pet => ({
+      ...pet,
+      medications: Object.values(pet.medications)
+    }));
   }, [dailyTasks]);
 
   // Check if all times for a medication are completed
@@ -318,6 +333,94 @@ const HomeScreen = ({ navigation }) => {
     );
   };
 
+  // Render Medication Card (dentro del carrusel de cada mascota)
+  const renderMedicationCard = ({ item: medication }) => {
+    const isCompleted = isMedicationCompleted(medication.taskIds);
+    const nextTime = getNextMedicationTime(medication.times);
+    // Mostrar máximo 4 horarios
+    const displayTimes = medication.times.slice(0, 4);
+    const displayTaskIds = medication.taskIds.slice(0, 4);
+    const hasMore = medication.times.length > 4;
+
+    return (
+      <View
+        style={[
+          styles.medicationCardHorizontal,
+          isCompleted && styles.medicationCardCompleted,
+        ]}
+      >
+        {/* Header con checkbox */}
+        <View style={styles.medCardHeader}>
+          <TouchableOpacity
+            style={[
+              styles.checkbox,
+              isCompleted && styles.checkboxCompleted,
+            ]}
+            onPress={() => toggleMedicationGroup(medication.taskIds)}
+            activeOpacity={0.7}
+          >
+            {isCompleted && (
+              <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+            )}
+          </TouchableOpacity>
+          <View style={styles.medCardHeaderText}>
+            <Text
+              style={[
+                styles.medicationNameCard,
+                isCompleted && styles.medicationNameCompleted,
+              ]}
+              numberOfLines={1}
+            >
+              {medication.medicationName}
+            </Text>
+            {medication.dosage && (
+              <Text style={styles.medicationDosageCard} numberOfLines={1}>
+                {medication.dosage}
+              </Text>
+            )}
+          </View>
+        </View>
+
+        {/* Times as clickable chips */}
+        <View style={styles.medCardTimes}>
+          {displayTimes.map((time, idx) => {
+            const taskId = displayTaskIds[idx];
+            const isTaskCompleted = completedMeds.has(taskId);
+            const isPastTime = isTimePast(time);
+            const isNextTime = time === nextTime && !isTaskCompleted;
+
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.timeChipCard,
+                  isNextTime && styles.timeChipNext,
+                  (isPastTime && !isTaskCompleted) && styles.timeChipPast,
+                  isTaskCompleted && styles.timeChipCompleted,
+                ]}
+                onPress={() => toggleMedicationComplete(taskId)}
+                activeOpacity={0.7}
+              >
+                <Text style={[
+                  styles.timeChipText,
+                  isNextTime && styles.timeChipTextNext,
+                  isTaskCompleted && styles.timeChipTextCompleted,
+                ]}>
+                  {time}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+          {hasMore && (
+            <View style={styles.moreTimesIndicator}>
+              <Text style={styles.moreTimesText}>+{medication.times.length - 4}</Text>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   if (loading) {
     return <Loading />;
   }
@@ -376,98 +479,43 @@ const HomeScreen = ({ navigation }) => {
         </View>
       )}
 
-      {/* MEDICAMENTOS DE HOY (AGRUPADOS POR MEDICAMENTO) */}
+      {/* MEDICAMENTOS DE HOY (AGRUPADOS POR MASCOTA EN CARROUSELES) */}
       {hasMedications && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Medicamentos de Hoy</Text>
-          {groupedMedications.map((medication) => {
-            const isCompleted = isMedicationCompleted(medication.taskIds);
-            const nextTime = getNextMedicationTime(medication.times);
-
-            return (
-              <View
-                key={medication.id}
-                style={[
-                  styles.medicationCard,
-                  isCompleted && styles.medicationCardCompleted,
-                ]}
-              >
-                <View style={styles.medicationLeft}>
-                  {/* Checkbox (solo visual, muestra si TODOS están completados) */}
-                  <TouchableOpacity
-                    style={[
-                      styles.checkbox,
-                      isCompleted && styles.checkboxCompleted,
-                    ]}
-                    onPress={() => toggleMedicationGroup(medication.taskIds)}
-                    activeOpacity={0.7}
-                  >
-                    {isCompleted && (
-                      <Ionicons name="checkmark" size={16} color="#FFFFFF" />
-                    )}
-                  </TouchableOpacity>
-
-                  {/* Pet Avatar */}
-                  {medication.petImage ? (
-                    <Image
-                      source={{ uri: getImageUrl(medication.petImage) }}
-                      style={styles.petAvatarTiny}
-                    />
-                  ) : (
-                    <View style={[styles.petAvatarTiny, styles.petAvatarPlaceholder]}>
-                      <Ionicons name="paw" size={12} color="#FFFFFF" />
-                    </View>
-                  )}
-
-                  {/* Medication Info */}
-                  <View style={styles.medicationInfo}>
-                    <Text style={[
-                      styles.medicationName,
-                      isCompleted && styles.medicationNameCompleted,
-                    ]}>
-                      {medication.medicationName}
-                    </Text>
-                    <Text style={styles.medicationPetName}>{medication.petName}</Text>
-                    {medication.dosage && (
-                      <Text style={styles.medicationDosageText}>{medication.dosage}</Text>
-                    )}
+          {medicationsByPet.map((pet) => (
+            <View key={pet.petId} style={styles.petMedicationSection}>
+              {/* Header de la mascota */}
+              <View style={styles.petMedicationHeader}>
+                {pet.petImage ? (
+                  <Image
+                    source={{ uri: getImageUrl(pet.petImage) }}
+                    style={styles.petAvatarTiny}
+                  />
+                ) : (
+                  <View style={[styles.petAvatarTiny, styles.petAvatarPlaceholder]}>
+                    <Ionicons name="paw" size={14} color="#007AFF" />
                   </View>
-                </View>
-
-                {/* Times as clickable chips */}
-                <View style={styles.medicationTimesContainer}>
-                  {medication.times.map((time, idx) => {
-                    const taskId = medication.taskIds[idx];
-                    const isTaskCompleted = completedMeds.has(taskId);
-                    const isPastTime = isTimePast(time);
-                    const isNextTime = time === nextTime && !isTaskCompleted;
-
-                    return (
-                      <TouchableOpacity
-                        key={idx}
-                        style={[
-                          styles.timeChip,
-                          isNextTime && styles.timeChipNext,
-                          (isPastTime && !isTaskCompleted) && styles.timeChipPast,
-                          isTaskCompleted && styles.timeChipCompleted,
-                        ]}
-                        onPress={() => toggleMedicationComplete(taskId)}
-                        activeOpacity={0.7}
-                      >
-                        <Text style={[
-                          styles.timeChipText,
-                          isNextTime && styles.timeChipTextNext,
-                          isTaskCompleted && styles.timeChipTextCompleted,
-                        ]}>
-                          {time}
-                        </Text>
-                      </TouchableOpacity>
-                    );
-                  })}
-                </View>
+                )}
+                <Text style={styles.petMedicationName}>{pet.petName}</Text>
+                <Text style={styles.petMedicationCount}>
+                  {pet.medications.length} {pet.medications.length === 1 ? 'medicamento' : 'medicamentos'}
+                </Text>
               </View>
-            );
-          })}
+
+              {/* Carrusel de medicamentos */}
+              <FlatList
+                data={pet.medications}
+                renderItem={renderMedicationCard}
+                keyExtractor={(item) => item.id}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                snapToInterval={CARD_WIDTH * 0.7 + 12}
+                decelerationRate="fast"
+                contentContainerStyle={styles.medicationCarouselContainer}
+              />
+            </View>
+          ))}
         </View>
       )}
 
@@ -855,6 +903,86 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#007AFF',
     marginTop: 2,
+  },
+  // Pet Medication Section (Carrusel por mascota)
+  petMedicationSection: {
+    marginBottom: 20,
+  },
+  petMedicationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 4,
+  },
+  petMedicationName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#000',
+    marginRight: 8,
+  },
+  petMedicationCount: {
+    fontSize: 13,
+    color: '#8E8E93',
+  },
+  medicationCarouselContainer: {
+    paddingRight: 16,
+  },
+  medicationCardHorizontal: {
+    width: CARD_WIDTH * 0.7,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 16,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  medCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  medCardHeaderText: {
+    flex: 1,
+    marginLeft: 4,
+  },
+  medicationNameCard: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 4,
+  },
+  medicationDosageCard: {
+    fontSize: 12,
+    color: '#8E8E93',
+  },
+  medCardTimes: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timeChipCard: {
+    backgroundColor: '#F2F2F7',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  moreTimesIndicator: {
+    backgroundColor: '#E5E5EA',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  moreTimesText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#8E8E93',
   },
   // Appointments
   appointmentCard: {

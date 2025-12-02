@@ -1575,12 +1575,22 @@ const getOwnerDashboard = async (req, res) => {
     // Generar tareas diarias
     const dailyTasks = [];
 
-    prescriptions.forEach(prescription => {
-      const pet = prescription.appointment?.pet;
-      if (!pet) return;
+    console.log(`🔍 Processing ${prescriptions.length} prescriptions for daily tasks`);
 
-      prescription.items.forEach(medication => {
+    prescriptions.forEach((prescription, idx) => {
+      const pet = prescription.appointment?.pet;
+      if (!pet) {
+        console.log(`   ⚠️ Prescription ${idx} has no pet, skipping`);
+        return;
+      }
+
+      console.log(`   📋 Prescription ${idx + 1} - Pet: ${pet.nombre}, Items: ${prescription.items.length}`);
+
+      prescription.items.forEach((medication, medIdx) => {
+        console.log(`      💊 Item ${medIdx + 1}: ${medication.medication}`);
+        console.log(`         Dosage: "${medication.dosage}", Frequency: "${medication.frequency}"`);
         const tasks = generateDailyTasks(medication, pet);
+        console.log(`         → Generated ${tasks.length} tasks`);
         dailyTasks.push(...tasks);
       });
     });
@@ -1609,24 +1619,74 @@ const getOwnerDashboard = async (req, res) => {
 const generateDailyTasks = (medication, pet) => {
   const tasks = [];
 
-  if (!medication.dosage) return tasks;
+  // Usar el campo 'frequency' en lugar de 'dosage'
+  if (!medication.frequency) {
+    console.log(`         ⚠️ No frequency found for ${medication.medication}`);
+    return tasks;
+  }
 
-  const lower = medication.dosage.toLowerCase();
+  const lower = medication.frequency.toLowerCase();
   let timesPerDay = 0;
 
+  // Mapa de palabras numéricas a números
+  const wordToNumber = {
+    'una': 1, 'uno': 1,
+    'dos': 2,
+    'tres': 3,
+    'cuatro': 4,
+    'cinco': 5,
+    'seis': 6,
+    'siete': 7,
+    'ocho': 8,
+    'nueve': 9,
+    'diez': 10,
+    'once': 11,
+    'doce': 12,
+    'veinticuatro': 24
+  };
+
+  // Convertir palabras a números en la cadena
+  let processedFrequency = lower;
+  for (const [word, num] of Object.entries(wordToNumber)) {
+    processedFrequency = processedFrequency.replace(new RegExp(`\\b${word}\\b`, 'g'), num.toString());
+  }
+
   // Parsear frecuencia
-  const hoursMatch = lower.match(/cada\s+(\d+)\s+horas?/);
+  // Patrón 1: "cada X horas" (ahora acepta números o palabras convertidas)
+  const hoursMatch = processedFrequency.match(/cada\s+(\d+)\s+horas?/);
   if (hoursMatch) {
     const hours = parseInt(hoursMatch[1]);
     timesPerDay = Math.floor(24 / hours);
-  } else {
-    const timesMatch = lower.match(/(\d+)\s+veces?\s+al\s+d[ií]a/);
+    console.log(`         ⏰ Matched "cada X horas": ${hours} hours → ${timesPerDay} times/day`);
+  }
+  // Patrón 2: "X veces al día" (ahora acepta números o palabras convertidas)
+  else {
+    const timesMatch = processedFrequency.match(/(\d+)\s+veces?\s+al\s+d[ií]a/);
     if (timesMatch) {
       timesPerDay = parseInt(timesMatch[1]);
+      console.log(`         ⏰ Matched "X veces al día": ${timesPerDay} times/day`);
+    }
+    // Patrón 3: "X vez/veces diaria/diario"
+    else {
+      const dailyMatch = processedFrequency.match(/(\d+)\s+(?:vez|veces)?\s*diarias?/);
+      if (dailyMatch) {
+        timesPerDay = parseInt(dailyMatch[1]);
+        console.log(`         ⏰ Matched "X diaria": ${timesPerDay} times/day`);
+      }
+      // Patrón 4: Casos especiales
+      else if (processedFrequency.includes('todas las noches') || processedFrequency.includes('cada noche')) {
+        timesPerDay = 1;
+        console.log(`         ⏰ Matched "todas las noches": 1 time/day`);
+      } else {
+        console.log(`         ❌ Frequency format not recognized: "${medication.frequency}"`);
+      }
     }
   }
 
-  if (timesPerDay === 0) return tasks;
+  if (timesPerDay === 0) {
+    console.log(`         ⚠️ timesPerDay = 0, no tasks generated`);
+    return tasks;
+  }
 
   // Distribuir horas
   let hours = [];
