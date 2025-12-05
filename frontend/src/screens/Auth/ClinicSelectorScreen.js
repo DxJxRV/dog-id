@@ -7,7 +7,7 @@ import { Loading } from '../../components';
 import { getImageUrl } from '../../utils/imageHelper';
 
 const ClinicSelectorScreen = ({ navigation }) => {
-  const { user, selectClinic } = useAuth();
+  const { user, selectClinic, logout } = useAuth();
   const [clinics, setClinics] = useState([]);
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -73,6 +73,21 @@ const ClinicSelectorScreen = ({ navigation }) => {
       }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Cerrar sesión',
+      '¿Estás seguro de que deseas cerrar sesión?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Cerrar sesión',
+          style: 'destructive',
+          onPress: logout,
+        },
+      ]
+    );
+  };
+
   const renderClinicItem = ({ item }) => (
     <TouchableOpacity style={styles.card} onPress={() => handleSelectClinic(item)}>
       <View style={styles.cardContent}>
@@ -119,8 +134,18 @@ const ClinicSelectorScreen = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.greeting}>Hola, Dr. {user?.nombre}</Text>
-        <Text style={styles.subtitle}>¿Dónde trabajarás hoy?</Text>
+        <View style={styles.headerContent}>
+          <View style={styles.headerText}>
+            <Text style={styles.greeting}>Hola, Dr. {user?.nombre}</Text>
+            <Text style={styles.subtitle}>¿Dónde trabajarás hoy?</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.logoutButton}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {invitations.length > 0 && (
@@ -156,8 +181,23 @@ const ClinicSelectorScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F5F5F5', padding: 20 },
   header: { marginTop: 40, marginBottom: 30 },
+  headerContent: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  headerText: { flex: 1 },
   greeting: { fontSize: 28, fontWeight: 'bold', color: '#333' },
   subtitle: { fontSize: 18, color: '#666', marginTop: 5 },
+  logoutButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
   section: { marginBottom: 25 },
   sectionTitle: { fontSize: 16, fontWeight: '600', color: '#888', marginBottom: 10, textTransform: 'uppercase' },
   list: { paddingBottom: 20 },
