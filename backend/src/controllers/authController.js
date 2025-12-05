@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const prisma = require('../utils/prisma');
 const { OAuth2Client } = require('google-auth-library');
+const appleSignin = require('apple-signin-auth');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -17,7 +18,7 @@ const generateToken = (id, type) => {
 // Registro de usuario (dueño de mascota)
 const registerUser = async (req, res) => {
   try {
-    const { nombre, email, password } = req.body;
+    const { nombre, email, password, googleId, appleId, fotoUrl } = req.body;
 
     // Validar campos requeridos
     if (!nombre || !email || !password) {
@@ -36,12 +37,15 @@ const registerUser = async (req, res) => {
     // Hash de la contraseña
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Crear usuario
+    // Crear usuario (con datos sociales opcionales)
     const user = await prisma.user.create({
       data: {
         nombre,
         email,
-        passwordHash
+        passwordHash,
+        googleId: googleId || null,
+        appleId: appleId || null,
+        fotoUrl: fotoUrl || null
       }
     });
 
@@ -112,11 +116,11 @@ const loginUser = async (req, res) => {
 // Registro de veterinario
 const registerVet = async (req, res) => {
   try {
-    const { nombre, email, password, cedulaProfesional, telefono } = req.body;
+    const { nombre, email, password, cedulaProfesional, telefono, googleId, appleId, fotoUrl } = req.body;
 
-    // Validar campos requeridos
-    if (!nombre || !email || !password || !cedulaProfesional) {
-      return res.status(400).json({ error: 'All fields are required (nombre, email, password, cedulaProfesional)' });
+    // Validar campos requeridos (cedulaProfesional ahora es opcional)
+    if (!nombre || !email || !password) {
+      return res.status(400).json({ error: 'Nombre, email and password are required' });
     }
 
     // Verificar si el email ya existe
@@ -131,14 +135,15 @@ const registerVet = async (req, res) => {
     // Hash de la contraseña
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Crear veterinario
+    // Crear veterinario (cedulaProfesional es opcional)
     const vet = await prisma.vet.create({
       data: {
         nombre,
         email,
         passwordHash,
-        cedulaProfesional,
-        telefono
+        cedulaProfesional: cedulaProfesional || null,
+        telefono: telefono || null,
+        fotoUrl: fotoUrl || null
       }
     });
 
@@ -254,23 +259,34 @@ const googleLogin = async (req, res) => {
       return res.status(400).json({ error: 'Email not found in Google account' });
     }
 
-    // Buscar si el usuario ya existe
+    // Buscar si el usuario ya existe en User o Vet
     let user = await prisma.user.findUnique({
       where: { email }
     });
 
-    // Si no existe, crearlo
+    let vet = null;
     if (!user) {
-      user = await prisma.user.create({
-        data: {
-          nombre: name || email.split('@')[0],
+      vet = await prisma.vet.findUnique({
+        where: { email }
+      });
+    }
+
+    // Si no existe en ninguna tabla, devolver flag de nuevo usuario
+    if (!user && !vet) {
+      return res.status(200).json({
+        isNewUser: true,
+        socialData: {
           email,
-          passwordHash: '', // No tiene password porque usa Google
+          nombre: name || email.split('@')[0],
+          fotoUrl: picture || null,
           googleId,
-          fotoUrl: picture || null
+          provider: 'google'
         }
       });
-    } else {
+    }
+
+    // Si existe como User
+    if (user) {
       // Si existe pero no tiene googleId, actualizarlo
       if (!user.googleId) {
         user = await prisma.user.update({
@@ -281,22 +297,41 @@ const googleLogin = async (req, res) => {
           }
         });
       }
+
+      // Generar token JWT
+      const token = generateToken(user.id, 'user');
+
+      return res.json({
+        message: 'Google login successful',
+        token,
+        user: {
+          id: user.id,
+          nombre: user.nombre,
+          email: user.email,
+          fotoUrl: user.fotoUrl,
+        },
+        userType: 'user'
+      });
     }
 
-    // Generar token JWT
-    const token = generateToken(user.id, 'user');
+    // Si existe como Vet
+    if (vet) {
+      // Generar token JWT
+      const token = generateToken(vet.id, 'vet');
 
-    res.json({
-      message: 'Google login successful',
-      token,
-      user: {
-        id: user.id,
-        nombre: user.nombre,
-        email: user.email,
-        fotoUrl: user.fotoUrl,
-        type: 'user'
-      }
-    });
+      return res.json({
+        message: 'Google login successful',
+        token,
+        user: {
+          id: vet.id,
+          nombre: vet.nombre,
+          email: vet.email,
+          fotoUrl: vet.fotoUrl,
+          cedulaProfesional: vet.cedulaProfesional,
+        },
+        userType: 'vet'
+      });
+    }
   } catch (error) {
     console.error('Google login error:', error);
     res.status(500).json({ error: 'Google authentication failed' });
@@ -533,11 +568,15 @@ const updateProfile = async (req, res) => {
   try {
     const userId = req.user.id;
     const userType = req.user.type;
-    const { nombre, telefono } = req.body;
+    const { nombre, telefono, cedulaProfesional } = req.body;
 
     const updateData = {};
     if (nombre) updateData.nombre = nombre;
-    if (telefono) updateData.telefono = telefono;
+    if (telefono !== undefined) updateData.telefono = telefono;
+    // Solo permitir actualizar cédula si es veterinario
+    if (userType === 'vet' && cedulaProfesional !== undefined) {
+      updateData.cedulaProfesional = cedulaProfesional;
+    }
 
     let updatedUser;
     if (userType === 'user') {
@@ -750,12 +789,140 @@ const deleteAccount = async (req, res) => {
   }
 };
 
+/**
+ * Apple Login
+ * POST /api/auth/apple
+ */
+const appleLogin = async (req, res) => {
+  try {
+    const { identityToken, fullName } = req.body;
+
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Identity token is required' });
+    }
+
+    // Verificar el token de Apple
+    const appleIdTokenClaims = await appleSignin.verifyIdToken(identityToken, {
+      audience: process.env.APPLE_CLIENT_ID || 'com.yourapp.bundleid', // Reemplazar con tu Bundle ID
+      ignoreExpiration: false,
+    });
+
+    const { sub: appleId, email } = appleIdTokenClaims;
+
+    // Apple no siempre proporciona email (si el usuario eligió ocultarlo)
+    if (!email && !appleId) {
+      return res.status(400).json({ error: 'Unable to retrieve user information from Apple' });
+    }
+
+    // Buscar usuario por appleId o email en ambas tablas
+    let user = null;
+    let vet = null;
+
+    if (appleId) {
+      user = await prisma.user.findFirst({
+        where: { appleId }
+      });
+
+      if (!user) {
+        // Note: Vet table doesn't have appleId yet, but we'll check by email
+      }
+    }
+
+    if (!user && email) {
+      user = await prisma.user.findUnique({
+        where: { email }
+      });
+
+      if (!user) {
+        vet = await prisma.vet.findUnique({
+          where: { email }
+        });
+      }
+    }
+
+    // Si no existe en ninguna tabla, devolver flag de nuevo usuario
+    if (!user && !vet) {
+      const userName = fullName
+        ? `${fullName.givenName || ''} ${fullName.familyName || ''}`.trim()
+        : email
+          ? email.split('@')[0]
+          : `Usuario Apple ${appleId.substring(0, 8)}`;
+
+      return res.status(200).json({
+        isNewUser: true,
+        socialData: {
+          email: email || `${appleId}@privaterelay.appleid.com`,
+          nombre: userName,
+          fotoUrl: null,
+          appleId,
+          provider: 'apple'
+        }
+      });
+    }
+
+    // Si existe como User
+    if (user) {
+      // Si existe pero no tiene appleId, actualizarlo
+      if (!user.appleId && appleId) {
+        user = await prisma.user.update({
+          where: { id: user.id },
+          data: { appleId }
+        });
+      }
+
+      // Generar token JWT
+      const token = generateToken(user.id, 'user');
+
+      return res.json({
+        message: 'Apple login successful',
+        token,
+        user: {
+          id: user.id,
+          nombre: user.nombre,
+          email: user.email,
+          fotoUrl: user.fotoUrl,
+          coverPhotoUrl: user.coverPhotoUrl,
+        },
+        userType: 'user'
+      });
+    }
+
+    // Si existe como Vet
+    if (vet) {
+      // Generar token JWT
+      const token = generateToken(vet.id, 'vet');
+
+      return res.json({
+        message: 'Apple login successful',
+        token,
+        user: {
+          id: vet.id,
+          nombre: vet.nombre,
+          email: vet.email,
+          fotoUrl: vet.fotoUrl,
+          coverPhotoUrl: vet.coverPhotoUrl,
+          cedulaProfesional: vet.cedulaProfesional,
+        },
+        userType: 'vet'
+      });
+    }
+
+  } catch (error) {
+    console.error('Apple login error:', error);
+    res.status(500).json({
+      error: 'Apple login failed',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   registerUser,
   loginUser,
   registerVet,
   loginVet,
   googleLogin,
+  appleLogin,
   login,
   updateProfilePhoto,
   updateCoverPhoto,

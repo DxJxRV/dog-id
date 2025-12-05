@@ -1,5 +1,6 @@
 const { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const fs = require('fs');
 const path = require('path');
 
 // Debug logs para diagnosticar problemas de S3
@@ -76,6 +77,35 @@ const uploadPrivateImage = async (fileBuffer, originalName, folder) => {
   });
 
   await s3Client.send(command);
+
+  // Retornar solo el key (no la URL)
+  return key;
+};
+
+/**
+ * Sube un archivo (audio, PDF, etc.) al bucket privado
+ * @param {string} filePath - Ruta del archivo en el sistema de archivos
+ * @param {string} key - Key destino en S3 (incluye carpeta y nombre)
+ * @returns {Promise<string>} - Key del archivo (no URL)
+ */
+const uploadPrivateFile = async (filePath, key) => {
+  console.log('☁️ [S3] Uploading private file...');
+  console.log('   📁 Local path:', filePath);
+  console.log('   🔑 S3 Key:', key);
+  console.log('   🪣 Bucket:', PRIVATE_BUCKET);
+
+  // Leer el archivo del sistema de archivos
+  const fileBuffer = fs.readFileSync(filePath);
+
+  const command = new PutObjectCommand({
+    Bucket: PRIVATE_BUCKET,
+    Key: key,
+    Body: fileBuffer,
+    ContentType: getContentType(filePath),
+  });
+
+  await s3Client.send(command);
+  console.log('   ✅ File uploaded successfully');
 
   // Retornar solo el key (no la URL)
   return key;
@@ -161,6 +191,11 @@ const getContentType = (filename) => {
     '.png': 'image/png',
     '.webp': 'image/webp',
     '.gif': 'image/gif',
+    '.m4a': 'audio/m4a',
+    '.mp3': 'audio/mpeg',
+    '.wav': 'audio/wav',
+    '.aac': 'audio/aac',
+    '.pdf': 'application/pdf',
   };
   return types[ext] || 'application/octet-stream';
 };
@@ -168,6 +203,7 @@ const getContentType = (filename) => {
 module.exports = {
   uploadPublicImage,
   uploadPrivateImage,
+  uploadPrivateFile,
   generatePresignedUrl,
   deletePublicImage,
   deletePrivateImage,

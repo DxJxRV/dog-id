@@ -12,7 +12,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mimascotaplus.app"
+      "bundleIdentifier": "com.mimascotaplus.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -44,11 +45,17 @@
           "photosPermission": "The app accesses your photos to let you share them with your pets."
         }
       ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone to record veterinary consultations."
+        }
+      ],
       "expo-secure-store",
       "expo-asset",
       "expo-font",
-      "expo-av",
-      "@react-native-google-signin/google-signin"
+      "@react-native-google-signin/google-signin",
+      "expo-audio"
     ],
     "extra": {
       "eas": {

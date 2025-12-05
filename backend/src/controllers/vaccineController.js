@@ -157,7 +157,10 @@ const getPetVaccines = async (req, res) => {
     }
 
     const vaccines = await prisma.vaccine.findMany({
-      where: { petId },
+      where: {
+        petId,
+        status: 'COMPLETED' // Filtrar solo completados, excluir drafts
+      },
       include: {
         vet: {
           select: {
@@ -231,8 +234,352 @@ const updateVaccine = async (req, res) => {
   }
 };
 
+// Obtener registros borrador (DRAFT) de una mascota
+const getDraftRecords = async (req, res) => {
+  try {
+    const { petId } = req.params;
+
+    console.log('📋 [DRAFT] Fetching draft records for pet:', petId);
+
+    // Verificar acceso a la mascota
+    let petQuery = {
+      id: petId,
+    };
+
+    if (req.user.type === 'user') {
+      petQuery.OR = [
+        { userId: req.user.id },
+        { coOwners: { some: { userId: req.user.id } } }
+      ];
+    } else if (req.user.type === 'vet') {
+      petQuery.OR = [
+        { linkedVets: { some: { vetId: req.user.id } } },
+        { createdByVetId: req.user.id }
+      ];
+    }
+
+    const pet = await prisma.pet.findFirst({
+      where: petQuery
+    });
+
+    if (!pet) {
+      return res.status(404).json({ error: 'Pet not found or access denied' });
+    }
+
+    // Obtener vacunas borrador
+    const draftVaccines = await prisma.vaccine.findMany({
+      where: {
+        petId,
+        status: 'DRAFT'
+      },
+      include: {
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        },
+        smartConsultation: {
+          select: {
+            id: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Obtener procedimientos borrador
+    const draftProcedures = await prisma.procedure.findMany({
+      where: {
+        petId,
+        status: 'DRAFT'
+      },
+      include: {
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        },
+        smartConsultation: {
+          select: {
+            id: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    console.log('✅ [DRAFT] Found', draftVaccines.length, 'draft vaccines and', draftProcedures.length, 'draft procedures');
+
+    res.json({
+      draftVaccines,
+      draftProcedures
+    });
+  } catch (error) {
+    console.error('❌ [DRAFT] Fetch error:', error);
+    res.status(500).json({ error: 'Failed to fetch draft records' });
+  }
+};
+
+// Completar un borrador de vacuna (convertir de DRAFT a COMPLETED)
+const completeDraftVaccine = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { lote, caducidad, fechaAplicacion } = req.body;
+
+    console.log('✅ [DRAFT] Completing draft vaccine:', id);
+
+    // Verificar que la vacuna existe y es borrador
+    const vaccine = await prisma.vaccine.findUnique({
+      where: { id },
+      include: { pet: true }
+    });
+
+    if (!vaccine) {
+      return res.status(404).json({ error: 'Vaccine not found' });
+    }
+
+    if (vaccine.status !== 'DRAFT') {
+      return res.status(400).json({ error: 'Vaccine is not a draft' });
+    }
+
+    // Verificar permisos
+    if (req.user.type === 'vet' && vaccine.vetId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Validar campos obligatorios
+    if (!lote || !caducidad || !fechaAplicacion) {
+      return res.status(400).json({ error: 'Lote, caducidad, and fechaAplicacion are required' });
+    }
+
+    let evidenciaUrl = vaccine.evidenciaUrl;
+
+    // Si se subió nueva evidencia, actualizarla
+    if (req.file) {
+      // Eliminar evidencia anterior si existía
+      if (vaccine.evidenciaUrl) {
+        try {
+          await deletePrivateImage(vaccine.evidenciaUrl);
+        } catch (deleteError) {
+          console.error('⚠️ Failed to delete old evidence:', deleteError);
+        }
+      }
+
+      // Subir nueva evidencia
+      evidenciaUrl = await uploadPrivateImage(req.file.buffer, req.file.originalname, 'medical/vaccines');
+    }
+
+    // Actualizar a COMPLETED
+    const updatedVaccine = await prisma.vaccine.update({
+      where: { id },
+      data: {
+        lote: lote.trim(),
+        caducidad: new Date(caducidad),
+        fechaAplicacion: new Date(fechaAplicacion),
+        evidenciaUrl,
+        status: 'COMPLETED',
+        ocrStatus: 'manual'
+      },
+      include: {
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        }
+      }
+    });
+
+    console.log('✅ [DRAFT] Vaccine completed successfully');
+
+    res.json({
+      message: 'Draft vaccine completed successfully',
+      vaccine: updatedVaccine
+    });
+  } catch (error) {
+    console.error('❌ [DRAFT] Complete error:', error);
+    res.status(500).json({ error: 'Failed to complete draft vaccine' });
+  }
+};
+
+// Eliminar un borrador de vacuna (descartar sugerencia de IA)
+const deleteDraftVaccine = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log('🗑️ [DRAFT] Deleting draft vaccine:', id);
+
+    // Verificar que la vacuna existe y es borrador
+    const vaccine = await prisma.vaccine.findUnique({
+      where: { id }
+    });
+
+    if (!vaccine) {
+      return res.status(404).json({ error: 'Vaccine not found' });
+    }
+
+    if (vaccine.status !== 'DRAFT') {
+      return res.status(400).json({ error: 'Can only delete draft vaccines' });
+    }
+
+    // Verificar permisos
+    if (req.user.type === 'vet' && vaccine.vetId !== req.user.id) {
+      return res.status(403).json({ error: 'Access denied' });
+    }
+
+    // Eliminar
+    await prisma.vaccine.delete({
+      where: { id }
+    });
+
+    console.log('✅ [DRAFT] Draft vaccine deleted successfully');
+
+    res.json({ message: 'Draft vaccine deleted successfully' });
+  } catch (error) {
+    console.error('❌ [DRAFT] Delete error:', error);
+    res.status(500).json({ error: 'Failed to delete draft vaccine' });
+  }
+};
+
+// Obtener TODOS los drafts del veterinario (de todas sus mascotas)
+const getAllVetDrafts = async (req, res) => {
+  try {
+    console.log('📋 [DRAFT] Fetching all drafts for vet:', req.user.id);
+
+    // Solo veterinarios pueden usar este endpoint
+    if (req.user.type !== 'vet') {
+      return res.status(403).json({ error: 'Only veterinarians can access this endpoint' });
+    }
+
+    // Obtener todas las mascotas vinculadas al veterinario
+    const pets = await prisma.pet.findMany({
+      where: {
+        OR: [
+          { linkedVets: { some: { vetId: req.user.id } } },
+          { createdByVetId: req.user.id }
+        ]
+      },
+      select: {
+        id: true,
+        nombre: true,
+        especie: true,
+        fotoUrl: true,
+        user: {
+          select: {
+            id: true,
+            nombre: true
+          }
+        }
+      }
+    });
+
+    const petIds = pets.map(pet => pet.id);
+
+    // Obtener vacunas borrador de todas las mascotas
+    const draftVaccines = await prisma.vaccine.findMany({
+      where: {
+        petId: { in: petIds },
+        status: 'DRAFT'
+      },
+      include: {
+        pet: {
+          select: {
+            id: true,
+            nombre: true,
+            especie: true,
+            fotoUrl: true,
+            user: {
+              select: {
+                id: true,
+                nombre: true
+              }
+            }
+          }
+        },
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        },
+        smartConsultation: {
+          select: {
+            id: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Obtener procedimientos borrador de todas las mascotas
+    const draftProcedures = await prisma.procedure.findMany({
+      where: {
+        petId: { in: petIds },
+        status: 'DRAFT'
+      },
+      include: {
+        pet: {
+          select: {
+            id: true,
+            nombre: true,
+            especie: true,
+            fotoUrl: true,
+            user: {
+              select: {
+                id: true,
+                nombre: true
+              }
+            }
+          }
+        },
+        vet: {
+          select: {
+            id: true,
+            nombre: true,
+            cedulaProfesional: true
+          }
+        },
+        smartConsultation: {
+          select: {
+            id: true,
+            createdAt: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    const totalDrafts = draftVaccines.length + draftProcedures.length;
+
+    console.log('✅ [DRAFT] Found', draftVaccines.length, 'draft vaccines and', draftProcedures.length, 'draft procedures (Total:', totalDrafts, ')');
+
+    res.json({
+      draftVaccines,
+      draftProcedures,
+      totalDrafts,
+      petsWithDrafts: pets.length
+    });
+  } catch (error) {
+    console.error('❌ [DRAFT] Fetch all vet drafts error:', error);
+    res.status(500).json({ error: 'Failed to fetch draft records' });
+  }
+};
+
 module.exports = {
   createVaccine,
   getPetVaccines,
-  updateVaccine
+  updateVaccine,
+  getDraftRecords,
+  completeDraftVaccine,
+  deleteDraftVaccine,
+  getAllVetDrafts
 };

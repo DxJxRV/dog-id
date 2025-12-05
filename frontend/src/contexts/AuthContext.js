@@ -8,6 +8,7 @@ const AuthContext = createContext({});
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [userType, setUserType] = useState(null); // 'user' or 'vet'
+  const [currentClinic, setCurrentClinic] = useState(null); // For Vet context
   const [loading, setLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
@@ -21,10 +22,12 @@ export const AuthProvider = ({ children }) => {
       const token = await SecureStore.getItemAsync(STORAGE_KEYS.TOKEN);
       const userData = await SecureStore.getItemAsync(STORAGE_KEYS.USER_DATA);
       const storedUserType = await SecureStore.getItemAsync(STORAGE_KEYS.USER_TYPE);
+      const storedClinic = await SecureStore.getItemAsync('current_clinic'); // Retrieve stored clinic
 
       if (token && userData) {
         setUser(JSON.parse(userData));
         setUserType(storedUserType);
+        if (storedClinic) setCurrentClinic(JSON.parse(storedClinic));
         setIsAuthenticated(true);
       }
     } catch (error) {
@@ -33,6 +36,17 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
     }
   };
+
+  const selectClinic = async (clinic) => {
+    try {
+      await SecureStore.setItemAsync('current_clinic', JSON.stringify(clinic));
+      setCurrentClinic(clinic);
+    } catch (error) {
+      console.error('Error selecting clinic:', error);
+    }
+  };
+
+  // ... rest of saveAuthData (no changes needed there unless we want to clear clinic on login, which might be safer)
 
   const saveAuthData = async (token, userData, type) => {
     try {
@@ -94,9 +108,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerUser = async (nombre, email, password) => {
+  const registerUser = async (nombre, email, password, googleId = null, appleId = null, fotoUrl = null) => {
     try {
-      const response = await authAPI.registerUser({ nombre, email, password });
+      const response = await authAPI.registerUser({
+        nombre,
+        email,
+        password,
+        googleId,
+        appleId,
+        fotoUrl,
+      });
       const { token, user: userData } = response.data;
       await saveAuthData(token, userData, 'user');
       return { success: true };
@@ -122,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerVet = async (nombre, email, password, cedulaProfesional, telefono) => {
+  const registerVet = async (nombre, email, password, cedulaProfesional = null, telefono = null, googleId = null, appleId = null, fotoUrl = null) => {
     try {
       const response = await authAPI.registerVet({
         nombre,
@@ -130,6 +151,9 @@ export const AuthProvider = ({ children }) => {
         password,
         cedulaProfesional,
         telefono,
+        googleId,
+        appleId,
+        fotoUrl,
       });
       const { token, vet: vetData } = response.data;
       await saveAuthData(token, vetData, 'vet');
@@ -142,12 +166,23 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (accessToken) => {
+  const loginWithGoogle = async (idToken) => {
     try {
-      const response = await authAPI.googleLogin({ accessToken });
-      const { token, user: userData } = response.data;
-      await saveAuthData(token, userData, 'user');
-      return { success: true };
+      const response = await authAPI.googleLogin({ idToken });
+      const { isNewUser, socialData, token, user: userData, userType: type } = response.data;
+
+      // If new user, return social data for role selection
+      if (isNewUser) {
+        return {
+          success: true,
+          isNewUser: true,
+          socialData,
+        };
+      }
+
+      // Existing user, save auth data
+      await saveAuthData(token, userData, type);
+      return { success: true, isNewUser: false };
     } catch (error) {
       return {
         success: false,
@@ -156,7 +191,34 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginWithApple = async (identityToken, fullName) => {
+    try {
+      const response = await authAPI.appleLogin({ identityToken, fullName });
+      const { isNewUser, socialData, token, user: userData, userType: type } = response.data;
+
+      // If new user, return social data for role selection
+      if (isNewUser) {
+        return {
+          success: true,
+          isNewUser: true,
+          socialData,
+        };
+      }
+
+      // Existing user, save auth data
+      await saveAuthData(token, userData, type);
+      return { success: true, isNewUser: false };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Apple login failed',
+      };
+    }
+  };
+
   const logout = async () => {
+    await SecureStore.deleteItemAsync('current_clinic');
+    setCurrentClinic(null);
     await clearAuthData();
   };
 
@@ -175,6 +237,7 @@ export const AuthProvider = ({ children }) => {
       value={{
         user,
         userType,
+        currentClinic, // Expose
         isAuthenticated,
         loading,
         login,
@@ -183,8 +246,10 @@ export const AuthProvider = ({ children }) => {
         loginVet,
         registerVet,
         loginWithGoogle,
+        loginWithApple,
         logout,
         updateUser,
+        selectClinic, // Expose
       }}
     >
       {children}

@@ -14,12 +14,13 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { petsAPI } from '../../services/api';
+import { petsAPI, draftsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
 import { useAuth } from '../../contexts/AuthContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { getImageUrl } from '../../utils/imageHelper';
+import AddPetModal from '../../components/AddPetModal';
 
 const { width } = Dimensions.get('window');
 const cardWidth = (width - 20) / 2; // 8px padding on each side + 4px gap
@@ -32,11 +33,25 @@ const PetsListScreen = ({ navigation }) => {
   const [hasArchivedPets, setHasArchivedPets] = useState(false);
   const [error, setError] = useState(null);
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [showAddPetModal, setShowAddPetModal] = useState(false);
   const [selectedPet, setSelectedPet] = useState(null);
   const [archiving, setArchiving] = useState(false);
   const [unlinking, setUnlinking] = useState(false);
+  const [draftsCount, setDraftsCount] = useState(0);
 
   const isVet = userType === 'vet';
+
+  const fetchDraftsCount = async () => {
+    if (!isVet) return;
+
+    try {
+      const response = await draftsAPI.getAllVetDrafts();
+      setDraftsCount(response.data.totalDrafts || 0);
+    } catch (err) {
+      console.error('Error fetching drafts count:', err);
+      // No mostrar error al usuario, solo registrar
+    }
+  };
 
   const fetchPets = async () => {
     try {
@@ -48,6 +63,11 @@ const PetsListScreen = ({ navigation }) => {
       // Check if user has any archived pets
       if (response.data.hasArchivedPets !== undefined) {
         setHasArchivedPets(response.data.hasArchivedPets);
+      }
+
+      // Fetch drafts count for vets
+      if (isVet) {
+        await fetchDraftsCount();
       }
     } catch (err) {
       if (isNetworkError(err)) {
@@ -170,6 +190,40 @@ const PetsListScreen = ({ navigation }) => {
     });
   };
 
+  const renderDraftsCard = () => {
+    if (!isVet || draftsCount === 0) return null;
+
+    return (
+      <TouchableOpacity
+        onPress={() => navigation.navigate('AllDrafts')}
+        style={styles.draftsCardContainer}
+      >
+        <LinearGradient
+          colors={['#FFB900', '#FF9500']}
+          style={styles.draftsCardGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <View style={styles.draftsCardContent}>
+            <View style={styles.draftsIconContainer}>
+              <Ionicons name="alert-circle" size={48} color="#FFF" />
+            </View>
+            <View style={styles.draftsTextContainer}>
+              <Text style={styles.draftsTitle}>Registros Pendientes</Text>
+              <Text style={styles.draftsCount}>
+                {draftsCount} {draftsCount === 1 ? 'registro' : 'registros'} por completar
+              </Text>
+              <Text style={styles.draftsSubtitle}>
+                Toca aquí para completarlos
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color="rgba(255,255,255,0.9)" />
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
+
   const renderPetCard = ({ item }) => {
     const isArchivedByOwner = item.isArchivedByOwner || false;
 
@@ -245,6 +299,7 @@ const PetsListScreen = ({ navigation }) => {
         contentContainerStyle={styles.listContent}
         numColumns={2}
         columnWrapperStyle={styles.columnWrapper}
+        ListHeaderComponent={renderDraftsCard}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>No tienes mascotas</Text>
@@ -265,6 +320,38 @@ const PetsListScreen = ({ navigation }) => {
           <Ionicons name="archive-outline" size={24} color="#fff" />
         </TouchableOpacity>
       )}
+
+      {/* FAB para agregar mascota */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowAddPetModal(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="add" size={30} color="#fff" />
+      </TouchableOpacity>
+
+      {/* Modal de agregar mascota */}
+      <AddPetModal
+        visible={showAddPetModal}
+        onClose={() => setShowAddPetModal(false)}
+        onNavigateToAddPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('AddPet');
+        }}
+        onNavigateToLinkPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('LinkPet');
+        }}
+        onNavigateToQuickPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('QuickPet');
+        }}
+        onNavigateToClaimPet={() => {
+          setShowAddPetModal(false);
+          navigation.navigate('ClaimPet');
+        }}
+        isVet={isVet}
+      />
 
       {/* Modal de opciones */}
       <Modal
@@ -432,7 +519,7 @@ const styles = StyleSheet.create({
   },
   archivedButton: {
     position: 'absolute',
-    right: 20,
+    left: 20, // Changed from right to left to avoid overlap with FAB
     bottom: 20,
     width: 60,
     height: 60,
@@ -448,6 +535,23 @@ const styles = StyleSheet.create({
   },
   archivedCard: {
     opacity: 0.5,
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 20, // Ajustado para que no choque con el botón de archivados si ambos están visibles, aunque el de archivados podría moverse
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#007AFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 8,
+    zIndex: 100,
   },
   topGradient: {
     position: 'absolute',
@@ -500,6 +604,56 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: '#E5E5EA',
     marginVertical: 8,
+  },
+  // Estilos para la card de drafts pendientes
+  draftsCardContainer: {
+    width: width - 16,
+    marginHorizontal: 8,
+    marginBottom: 16,
+    marginTop: 8,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#FFB900',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  draftsCardGradient: {
+    padding: 20,
+  },
+  draftsCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  draftsIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  draftsTextContainer: {
+    flex: 1,
+  },
+  draftsTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  draftsCount: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
+    marginBottom: 4,
+  },
+  draftsSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
   },
 });
 

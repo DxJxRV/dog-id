@@ -10,22 +10,94 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ==================== ENUMS ====================
+enum PetStatus {
+  ACTIVE
+  DECEASED
+  LOST
+  ARCHIVED
+}
+
+enum ConsentType {
+  ANESTESIA
+  CIRUGIA
+  HOSPITALIZACION
+  ESTETICA
+  VACUNACION
+  EUTANASIA
+  OTRO
+}
+
+enum DeathType {
+  NATURAL
+  EUTANASIA
+  ACCIDENTE
+  ENFERMEDAD
+  DESCONOCIDO
+}
+
+enum BodyDisposal {
+  CREMACION
+  ENTIERRO
+  DONACION_CIENCIA
+  RECOGIDA_MUNICIPAL
+  OTRO
+}
+
+enum RecordStatus {
+  COMPLETED
+  DRAFT
+}
+
+enum ClinicRole {
+  OWNER
+  ADMIN
+  VET
+  ASSISTANT
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  IN_PROCESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  PENDING_APPROVAL
+}
+
+enum ClinicMemberStatus {
+  ACTIVE
+  INVITED
+  INACTIVE
+}
+
+enum PrescriptionStatus {
+  DRAFT
+  FINALIZED
+}
+
+// ==================== MODELOS DE USUARIOS ====================
+
 model User {
   id            String   @id @default(uuid())
   nombre        String
   email         String   @unique
   passwordHash  String   @map("password_hash")
   googleId      String?  @unique @map("google_id")
+  appleId       String?  @unique @map("apple_id")
   fotoUrl       String?  @map("foto_url")
   coverPhotoUrl String?  @map("cover_photo_url")
   telefono      String?
   friendCode    String?  @unique @map("friend_code")
   createdAt     DateTime @default(now()) @map("created_at")
 
-  pets              Pet[]
-  coOwnedPets       CoOwnerPetLink[]
-  sentFriendships   Friendship[] @relation("SentFriendships")
+  pets                Pet[]
+  coOwnedPets         CoOwnerPetLink[]
+  sentFriendships     Friendship[] @relation("SentFriendships")
   receivedFriendships Friendship[] @relation("ReceivedFriendships")
+  favorites           Favorite[]
+  medicationLogs      MedicationLog[]
 
   @@map("users")
 }
@@ -35,7 +107,7 @@ model Vet {
   nombre              String
   email               String   @unique
   passwordHash        String   @map("password_hash")
-  cedulaProfesional   String   @map("cedula_profesional")
+  cedulaProfesional   String?  @map("cedula_profesional")
   telefono            String?
   fotoUrl             String?  @map("foto_url")
   coverPhotoUrl       String?  @map("cover_photo_url")
@@ -45,71 +117,266 @@ model Vet {
   procedures          Procedure[]
   linkedPets          VetPetLink[]
   createdPets         Pet[]
+  deathCertificates   DeathCertificate[]
+  smartConsultations  SmartConsultation[]
+  prescriptions       Prescription[]
+
+  // Relaciones SaaS Multi-Clínica
+  clinicMemberships   ClinicMember[]
+  appointments        Appointment[]
+  favoritedBy         Favorite[]
 
   @@map("vets")
 }
 
+// ==================== MODELOS DE CLÍNICAS ====================
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  address     String?
+  phone       String?
+  logoUrl     String?  @map("logo_url")
+  settings    Json?    // Horarios, configuración
+  latitude    Float?   // Ubicación
+  longitude   Float?   // Ubicación
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  members       ClinicMember[]
+  appointments  Appointment[]
+  favoritedBy   Favorite[]
+
+  @@map("clinics")
+}
+
+model ClinicMember {
+  id        String             @id @default(uuid())
+  clinicId  String             @map("clinic_id")
+  vetId     String             @map("vet_id")
+  role      ClinicRole         @default(VET)
+  status    ClinicMemberStatus @default(ACTIVE)
+  isActive  Boolean            @default(true) @map("is_active")
+  isAvailable Boolean          @default(true) @map("is_available")
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  clinic    Clinic     @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  vet       Vet        @relation(fields: [vetId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, vetId])
+  @@map("clinic_members")
+}
+
+// ==================== MODELOS DE CITAS Y FAVORITOS ====================
+
+model Appointment {
+  id                  String            @id @default(uuid())
+  clinicId            String            @map("clinic_id")
+  vetId               String?           @map("vet_id")
+  petId               String            @map("pet_id")
+  startDateTime       DateTime          @map("start_date_time")
+  endDateTime         DateTime          @map("end_date_time")
+  status              AppointmentStatus @default(PENDING)
+  reason              String?           @db.Text
+  notes               String?           @db.Text
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  clinic              Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  vet                 Vet?              @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  pet                 Pet               @relation(fields: [petId], references: [id], onDelete: Cascade)
+  smartConsultation   SmartConsultation?  // Mantenemos 1:1 por ahora
+  prescription        Prescription?       // Una receta por cita
+
+  @@map("appointments")
+}
+
+model Favorite {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  vetId     String?  @map("vet_id")
+  clinicId  String?  @map("clinic_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  vet       Vet?     @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  clinic    Clinic?  @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, vetId, clinicId])
+  @@map("favorites")
+}
+
+// ==================== MODELOS DE MASCOTAS Y REGISTROS ====================
+
 model Pet {
-  id                      String    @id @default(uuid())
-  userId                  String?   @map("user_id")
+  id                      String      @id @default(uuid())
+  userId                  String?     @map("user_id")
   nombre                  String
   especie                 String
   raza                    String?
-  fechaNacimiento         DateTime? @map("fecha_nacimiento")
-  fotoUrl                 String?   @map("foto_url")
-  coverPhotoUrl           String?   @map("cover_photo_url")
-  linkCode                String?   @unique @map("link_code")
-  archivedByOwner         Boolean   @default(false) @map("archived_by_owner")
-  transferCode            String?   @unique @map("transfer_code")
-  transferCodeExpiresAt   DateTime? @map("transfer_code_expires_at")
-  createdByVetId          String?   @map("created_by_vet_id")
-  pendingTransfer         Boolean   @default(false) @map("pending_transfer")
-  createdAt               DateTime  @default(now()) @map("created_at")
+  fechaNacimiento         DateTime?   @map("fecha_nacimiento")
+  fotoUrl                 String?     @map("foto_url")
+  coverPhotoUrl           String?     @map("cover_photo_url")
+  linkCode                String?     @unique @map("link_code")
+  archivedByOwner         Boolean     @default(false) @map("archived_by_owner")
+  transferCode            String?     @unique @map("transfer_code")
+  transferCodeExpiresAt   DateTime?   @map("transfer_code_expires_at")
+  createdByVetId          String?     @map("created_by_vet_id")
+  pendingTransfer         Boolean     @default(false) @map("pending_transfer")
+  status                  PetStatus   @default(ACTIVE)
+  createdAt               DateTime    @default(now()) @map("created_at")
 
-  user             User?     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdByVet     Vet?      @relation(fields: [createdByVetId], references: [id], onDelete: SetNull)
-  vaccines         Vaccine[]
-  procedures       Procedure[]
-  linkedVets       VetPetLink[]
-  coOwners         CoOwnerPetLink[]
+  user               User?                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdByVet       Vet?                 @relation(fields: [createdByVetId], references: [id], onDelete: SetNull)
+  vaccines           Vaccine[]
+  procedures         Procedure[]
+  linkedVets         VetPetLink[]
+  coOwners           CoOwnerPetLink[]
+  deathCertificate   DeathCertificate?
+  smartConsultations SmartConsultation[]
+  appointments       Appointment[]
+  prescriptions      Prescription[]
 
   @@map("pets")
 }
 
 model Vaccine {
-  id             String    @id @default(uuid())
-  petId          String    @map("pet_id")
-  vetId          String?   @map("vet_id")
-  nombreVacuna   String    @map("nombre_vacuna")
-  lote           String?
-  caducidad      DateTime?
-  fechaAplicacion DateTime? @map("fecha_aplicacion")
-  evidenciaUrl   String?   @map("evidencia_url")
-  ocrRawText     String?   @map("ocr_raw_text") @db.Text
-  ocrStatus      String    @default("pending") @map("ocr_status") // success, fail, manual, pending
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id                    String        @id @default(uuid())
+  petId                 String        @map("pet_id")
+  vetId                 String?       @map("vet_id")
+  nombreVacuna          String        @map("nombre_vacuna")
+  lote                  String?
+  caducidad             DateTime?
+  fechaAplicacion       DateTime?     @map("fecha_aplicacion")
+  evidenciaUrl          String?       @map("evidencia_url")
+  ocrRawText            String?       @map("ocr_raw_text") @db.Text
+  ocrStatus             String        @default("pending") @map("ocr_status")
+  status                RecordStatus  @default(COMPLETED)
+  smartConsultationId   String?       @map("smart_consultation_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
 
-  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  pet                   Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                   Vet?          @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  smartConsultation     SmartConsultation? @relation(fields: [smartConsultationId], references: [id], onDelete: SetNull)
+  consentRecord         ConsentRecord?
 
   @@map("vaccines")
 }
 
 model Procedure {
-  id             String    @id @default(uuid())
-  petId          String    @map("pet_id")
-  vetId          String?   @map("vet_id")
-  tipo           String    // desparasitacion, limpieza_dental, cirugia, chequeo_general, radiografia, otro
-  descripcion    String    @db.Text
-  fecha          DateTime  @default(now())
-  evidenciaUrl   String?   @map("evidencia_url")
-  createdAt      DateTime  @default(now()) @map("created_at")
+  id                    String        @id @default(uuid())
+  petId                 String        @map("pet_id")
+  vetId                 String?       @map("vet_id")
+  tipo                  String
+  descripcion           String        @db.Text
+  fecha                 DateTime      @default(now())
+  evidenciaUrl          String?       @map("evidencia_url")
+  status                RecordStatus  @default(COMPLETED)
+  smartConsultationId   String?       @map("smart_consultation_id")
+  createdAt             DateTime      @default(now()) @map("created_at")
 
-  pet            Pet       @relation(fields: [petId], references: [id], onDelete: Cascade)
-  vet            Vet?      @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  pet                   Pet            @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                   Vet?           @relation(fields: [vetId], references: [id], onDelete: SetNull)
+  smartConsultation     SmartConsultation? @relation(fields: [smartConsultationId], references: [id], onDelete: SetNull)
+  medicalData           MedicalData?
+  consentRecord         ConsentRecord?
 
   @@map("procedures")
 }
+
+// ==================== MODELOS ECE ====================
+
+model MedicalData {
+  id                      String   @id @default(uuid())
+  procedureId             String   @unique @map("procedure_id")
+  peso                    Float?
+  temperatura             Float?
+  frecuenciaCardiaca      Int?     @map("frecuencia_cardiaca")
+  frecuenciaRespiratoria  Int?     @map("frecuencia_respiratoria")
+  pulso                   String?
+  mucosas                 String?
+  tllc                    String?
+  hidratacion             String?
+  condicionCorporal       Int?     @map("condicion_corporal")
+  ayuno                   Boolean  @default(false)
+  notas                   String?  @db.Text
+  createdAt               DateTime @default(now()) @map("created_at")
+
+  procedure               Procedure @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+
+  @@map("medical_data")
+}
+
+model ConsentRecord {
+  id                    String       @id @default(uuid())
+  procedureId           String?      @unique @map("procedure_id")
+  vaccineId             String?      @unique @map("vaccine_id")
+  consentType           ConsentType  @map("consent_type")
+  pdfUrl                String       @map("pdf_url")
+  signatureUrl          String?      @map("signature_url")
+  signerName            String       @map("signer_name")
+  signerRelation        String?      @map("signer_relation")
+  legalTextVersion      String       @map("legal_text_version")
+  emergencyContactName  String?      @map("emergency_contact_name")
+  emergencyContactPhone String?      @map("emergency_contact_phone")
+  ipAddress             String?      @map("ip_address")
+  signedAt              DateTime     @default(now()) @map("signed_at")
+  createdAt             DateTime     @default(now()) @map("created_at")
+
+  procedure             Procedure?   @relation(fields: [procedureId], references: [id], onDelete: Cascade)
+  vaccine               Vaccine?     @relation(fields: [vaccineId], references: [id], onDelete: Cascade)
+
+  @@map("consent_records")
+}
+
+model DeathCertificate {
+  id                  String        @id @default(uuid())
+  petId               String        @unique @map("pet_id")
+  vetId               String        @map("vet_id")
+  deathDate           DateTime      @map("death_date")
+  deathType           DeathType     @map("death_type")
+  causeOfDeath        String        @map("cause_of_death") @db.Text
+  bodyDisposal        BodyDisposal  @map("body_disposal")
+  disposalLocation    String?       @map("disposal_location")
+  witnessName         String?       @map("witness_name")
+  witnessRelation     String?       @map("witness_relation")
+  pdfUrl              String        @map("pdf_url")
+  notes               String?       @db.Text
+  createdAt           DateTime      @default(now()) @map("created_at")
+
+  pet                 Pet           @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet                 Vet           @relation(fields: [vetId], references: [id], onDelete: Restrict)
+
+  @@map("death_certificates")
+}
+
+model SmartConsultation {
+  id                String   @id @default(uuid())
+  petId             String   @map("pet_id")
+  vetId             String   @map("vet_id")
+  appointmentId     String?  @unique @map("appointment_id")  // Mantenemos @unique para relación 1:1
+
+  audioUrl          String   @map("audio_url")
+  duration          Int
+  rawText           String   @db.Text
+  transcriptionJson Json     @map("transcription_json")
+  medicalHighlights Json?    @map("medical_highlights")
+  extractedVitals   Json?    @map("extracted_vitals")
+  summary           String?  @db.Text
+  tags              Json?
+
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  pet               Pet      @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet               Vet      @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  appointment       Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  suggestedVaccines Vaccine[]
+  suggestedProcedures Procedure[]
+
+  @@map("smart_consultations")
+}
+
+// ==================== MODELOS DE RELACIONES ====================
 
 model VetPetLink {
   id        String   @id @default(uuid())
@@ -143,7 +410,7 @@ model Friendship {
   id                  String    @id @default(uuid())
   requesterId         String    @map("requester_id")
   addresseeId         String    @map("addressee_id")
-  status              String    @default("pending") // pending, accepted, rejected
+  status              String    @default("pending")
   acceptedAt          DateTime? @map("accepted_at")
   requesterViewedAt   DateTime? @map("requester_viewed_at")
   addresseeViewedAt   DateTime? @map("addressee_viewed_at")
@@ -155,4 +422,79 @@ model Friendship {
 
   @@unique([requesterId, addresseeId])
   @@map("friendships")
+}
+
+// ==================== MODELOS DE RECETAS Y CONSULTAS EN VIVO ====================
+
+model Prescription {
+  id                String              @id @default(uuid())
+  appointmentId     String              @unique @map("appointment_id")  // Única receta por cita
+  petId             String              @map("pet_id")
+  vetId             String              @map("vet_id")
+  status            PrescriptionStatus  @default(DRAFT)
+  diagnosis         String?             @db.Text
+  notes             String?             @db.Text
+  pdfUrl            String?             @map("pdf_url")
+  publicToken       String?             @unique @map("public_token")  // Magic link token
+  tokenExpiresAt    DateTime?           @map("token_expires_at")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @default(now()) @updatedAt @map("updated_at")
+  finalizedAt       DateTime?           @map("finalized_at")
+
+  appointment       Appointment         @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  pet               Pet                 @relation(fields: [petId], references: [id], onDelete: Cascade)
+  vet               Vet                 @relation(fields: [vetId], references: [id], onDelete: Cascade)
+  items             PrescriptionItem[]
+  sharedDocuments   SharedDocument[]
+
+  @@map("prescriptions")
+}
+
+model PrescriptionItem {
+  id              String       @id @default(uuid())
+  prescriptionId  String       @map("prescription_id")
+  medication      String       // Nombre del medicamento
+  dosage          String       // Dosis (ej: "1 tableta")
+  frequency       String       // Frecuencia (ej: "cada 8 horas")
+  duration        String?      // Duración (ej: "7 días")
+  instructions    String?      @db.Text
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  prescription    Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+  medicationLogs  MedicationLog[]
+
+  @@map("prescription_items")
+}
+
+model SharedDocument {
+  id              String       @id @default(uuid())
+  prescriptionId  String?      @map("prescription_id")
+  publicToken     String       @unique @map("public_token")
+  documentUrl     String       @map("document_url")
+  documentType    String       @map("document_type")  // 'prescription', 'consent', etc.
+  expiresAt       DateTime?    @map("expires_at")
+  viewCount       Int          @default(0) @map("view_count")
+  lastViewedAt    DateTime?    @map("last_viewed_at")
+  createdAt       DateTime     @default(now()) @map("created_at")
+
+  prescription    Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("shared_documents")
+}
+
+model MedicationLog {
+  id                  String           @id @default(uuid())
+  prescriptionItemId  String           @map("prescription_item_id")
+  userId              String           @map("user_id")
+  scheduledTime       String           @map("scheduled_time")  // "09:00", "14:00", etc.
+  takenAt             DateTime         @default(now()) @map("taken_at")  // Timestamp real
+  date                DateTime         @map("date")  // Fecha del día (sin hora)
+  createdAt           DateTime         @default(now()) @map("created_at")
+
+  prescriptionItem    PrescriptionItem @relation(fields: [prescriptionItemId], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([prescriptionItemId, date])
+  @@index([userId, date])
+  @@map("medication_logs")
 }

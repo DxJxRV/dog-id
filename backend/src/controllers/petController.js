@@ -236,6 +236,9 @@ const getPetById = async (req, res) => {
         }
       },
       vaccines: {
+        where: {
+          status: 'COMPLETED' // Filtrar solo vacunas completadas, excluir drafts
+        },
         include: {
           vet: {
             select: {
@@ -243,17 +246,38 @@ const getPetById = async (req, res) => {
               nombre: true,
               cedulaProfesional: true
             }
+          },
+          consentRecord: {
+            select: {
+              id: true,
+              consentType: true,
+              pdfUrl: true,
+              signerName: true,
+              signedAt: true
+            }
           }
         },
         orderBy: { createdAt: 'desc' }
       },
       procedures: {
+        where: {
+          status: 'COMPLETED' // Filtrar solo procedimientos completados, excluir drafts
+        },
         include: {
           vet: {
             select: {
               id: true,
               nombre: true,
               cedulaProfesional: true
+            }
+          },
+          consentRecord: {
+            select: {
+              id: true,
+              consentType: true,
+              pdfUrl: true,
+              signerName: true,
+              signedAt: true
             }
           }
         },
@@ -294,43 +318,8 @@ const getPetById = async (req, res) => {
       return res.status(404).json({ error: 'Pet not found' });
     }
 
-    // ===== GENERAR PRESIGNED URLs PARA EVIDENCIAS =====
-    console.log('🐾 [PET DETAIL] Generando URLs presigned para vacunas y procedimientos...');
-
-    // Generar presigned URLs para vacunas
-    if (pet.vaccines && pet.vaccines.length > 0) {
-      console.log('💉 [PET DETAIL] Procesando', pet.vaccines.length, 'vacunas');
-      pet.vaccines = await Promise.all(
-        pet.vaccines.map(async (vaccine, index) => {
-          console.log(`   📌 Vacuna ${index + 1}/${pet.vaccines.length} - ID: ${vaccine.id}`);
-          const presignedUrl = vaccine.evidenciaUrl ? await generatePresignedUrl(vaccine.evidenciaUrl) : null;
-          return {
-            ...vaccine,
-            evidenciaUrl: presignedUrl
-          };
-        })
-      );
-      console.log('✅ [PET DETAIL] URLs de vacunas generadas');
-    }
-
-    // Generar presigned URLs para procedimientos
-    if (pet.procedures && pet.procedures.length > 0) {
-      console.log('🏥 [PET DETAIL] Procesando', pet.procedures.length, 'procedimientos');
-      pet.procedures = await Promise.all(
-        pet.procedures.map(async (procedure, index) => {
-          console.log(`   📌 Procedimiento ${index + 1}/${pet.procedures.length} - ID: ${procedure.id}`);
-          const presignedUrl = procedure.evidenciaUrl ? await generatePresignedUrl(procedure.evidenciaUrl) : null;
-          return {
-            ...procedure,
-            evidenciaUrl: presignedUrl
-          };
-        })
-      );
-      console.log('✅ [PET DETAIL] URLs de procedimientos generadas');
-    }
-
-    console.log('✅ [PET DETAIL] Todas las URLs presigned generadas correctamente');
-    // ===== FIN GENERACIÓN PRESIGNED URLs =====
+    // NO generamos presigned URLs aquí para optimizar performance
+    // Las URLs se generarán solo cuando se acceda al detalle específico de vacuna/procedimiento
 
     // Preparar la respuesta según el tipo de usuario
     let petResponse = { ...pet };
@@ -677,6 +666,19 @@ const createQuickPet = async (req, res) => {
       return res.status(403).json({ error: 'Only vets can create quick pets' });
     }
 
+    // Verificar que el veterinario existe en la base de datos
+    console.log('🔍 [CREATE QUICK PET] Verificando veterinario:', vetId);
+    const vet = await prisma.vet.findUnique({
+      where: { id: vetId }
+    });
+
+    if (!vet) {
+      console.log('❌ [CREATE QUICK PET] Veterinario no encontrado:', vetId);
+      return res.status(404).json({ error: 'Veterinarian not found' });
+    }
+
+    console.log('✅ [CREATE QUICK PET] Veterinario encontrado:', vet.nombre);
+
     const { nombre, especie, raza, fechaNacimiento } = req.body;
 
     // Validar solo el campo requerido
@@ -881,6 +883,54 @@ const claimPet = async (req, res) => {
   }
 };
 
+// Buscar mascotas por nombre (para autocompletar en citas)
+const searchPets = async (req, res) => {
+  try {
+    const { q } = req.query;
+    const { id: vetId, type: userType } = req.user;
+
+    // Solo veterinarios pueden usar esta función para agendar citas
+    if (userType !== 'vet') {
+      return res.status(403).json({ error: 'Only vets can search pets for appointments' });
+    }
+
+    if (!q || q.length < 2) {
+      return res.json({ pets: [] });
+    }
+
+    // Buscar mascotas vinculadas o creadas por el vet que coincidan con el nombre
+    const pets = await prisma.pet.findMany({
+      where: {
+        nombre: {
+          contains: q
+        },
+        OR: [
+          { linkedVets: { some: { vetId } } },
+          { createdByVetId: vetId }
+        ]
+      },
+      take: 10, // Limitar resultados
+      select: {
+        id: true,
+        nombre: true,
+        especie: true,
+        raza: true,
+        fotoUrl: true,
+        user: {
+          select: {
+            nombre: true // Nombre del dueño
+          }
+        }
+      }
+    });
+
+    res.json({ pets });
+  } catch (error) {
+    console.error('Search pets error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
 module.exports = {
   createPet,
   getUserPets,
@@ -891,5 +941,6 @@ module.exports = {
   getArchivedPets,
   createQuickPet,
   getTransferCode,
-  claimPet
+  claimPet,
+  searchPets
 };

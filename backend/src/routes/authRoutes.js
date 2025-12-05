@@ -30,6 +30,7 @@ router.post('/login', authController.login);
 router.post('/user/register', authController.registerUser);
 router.post('/user/login', authController.loginUser);
 router.post('/user/google', authController.googleLogin);
+router.post('/user/apple', authController.appleLogin);
 
 // Rutas de veterinario
 router.post('/vet/register', authController.registerVet);

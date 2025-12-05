@@ -30,4 +30,8 @@ router.get('/:petId/procedures', authenticateUserOrVet, validateUUIDParam('petId
 router.put('/procedures/:id', authenticateUserOrVet, validateUUIDParam('id'), procedureController.updateProcedure);
 router.delete('/procedures/:id', authenticateUserOrVet, validateUUIDParam('id'), procedureController.deleteProcedure);
 
+// Rutas de borradores (DRAFT)
+router.put('/procedures/:id/complete', authenticateUserOrVet, validateUUIDParam('id'), upload.single('evidencia'), procedureController.completeDraftProcedure);
+router.delete('/procedures/:id/draft', authenticateUserOrVet, validateUUIDParam('id'), procedureController.deleteDraftProcedure);
+
 module.exports = router;

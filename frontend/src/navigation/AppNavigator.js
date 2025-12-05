@@ -4,6 +4,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../contexts/AuthContext';
 import { Loading } from '../components';
 import { getImageUrl } from '../utils/imageHelper';
@@ -11,7 +12,10 @@ import { friendshipsAPI } from '../services/api';
 
 // Auth Screens
 import LoginScreen from '../screens/Auth/LoginScreen';
+import LoginEmailScreen from '../screens/Auth/LoginEmailScreen';
 import RegisterScreen from '../screens/Auth/RegisterScreen';
+import RegisterEmailScreen from '../screens/Auth/RegisterEmailScreen';
+import CompleteSocialRegistrationScreen from '../screens/Auth/CompleteSocialRegistrationScreen';
 
 // Pet Screens
 import PetsListScreen from '../screens/Pets/PetsListScreen';
@@ -24,10 +28,30 @@ import ClaimPetScreen from '../screens/Pets/ClaimPetScreen';
 import ArchivedPetsScreen from '../screens/Pets/ArchivedPetsScreen';
 import AddVaccineScreen from '../screens/Pets/AddVaccineScreen';
 import AddProcedureScreen from '../screens/Pets/AddProcedureScreen';
+import AllDraftsScreen from '../screens/Pets/AllDraftsScreen';
 
 // Vaccine & Procedure Detail Screens
 import VaccineDetailScreen from '../screens/Vaccines/VaccineDetailScreen';
 import ProcedureDetailScreen from '../screens/Procedures/ProcedureDetailScreen';
+
+// ECE Screens
+import ConsentScreen from '../screens/Consent/ConsentScreen';
+import PdfViewerScreen from '../screens/Pdf/PdfViewerScreen';
+import DeathCertificateFormScreen from '../screens/DeathCertificate/DeathCertificateFormScreen';
+
+// Smart Consultation Screens
+import RecordConsultationScreen from '../screens/SmartConsultation/RecordConsultationScreen';
+import LiveConsultationScreen from '../screens/SmartConsultation/LiveConsultationScreen';
+import ConsultationsListScreen from '../screens/SmartConsultation/ConsultationsListScreen';
+import ConsultationDetailScreen from '../screens/SmartConsultation/ConsultationDetailScreen';
+import CompletedConsultationScreen from '../screens/SmartConsultation/CompletedConsultationScreen';
+
+// Home Screen
+import HomeScreen from '../screens/Home/HomeScreen';
+
+// Prescriptions Screens
+import PrescriptionsListScreen from '../screens/Prescriptions/PrescriptionsListScreen';
+import TreatmentDetailScreen from '../screens/Treatments/TreatmentDetailScreen';
 
 // Friends Screens
 import FriendsMainScreen from '../screens/Friends/FriendsMainScreen';
@@ -39,8 +63,21 @@ import PetProfileScreen from '../screens/Friends/PetProfileScreen';
 // Profile Screens
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 
+// Clinic & Appointments
+import ClinicSetupScreen from '../screens/Clinics/ClinicSetupScreen';
+import AppointmentSchedulerScreen from '../screens/Appointments/AppointmentSchedulerScreen';
+import CreateAppointmentScreen from '../screens/Appointments/CreateAppointmentScreen';
+import RequestAppointmentScreen from '../screens/Booking/RequestAppointmentScreen';
+import BookingHubScreen from '../screens/Booking/BookingHubScreen';
+import ServiceProfileScreen from '../screens/Booking/ServiceProfileScreen';
+import ClinicDashboardScreen from '../screens/Clinics/ClinicDashboardScreen';
+import ClinicSelectorScreen from '../screens/Auth/ClinicSelectorScreen';
+import NotificationsScreen from '../screens/Notifications/NotificationsScreen';
+import AddPetModal from '../components/AddPetModal';
+
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
+const RootStack = createStackNavigator();
 
 const UserAvatar = ({ size = 28, focused }) => {
   const { user } = useAuth();
@@ -106,6 +143,34 @@ const ProfileStack = () => (
   </Stack.Navigator>
 );
 
+const AppointmentsStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="AppointmentScheduler"
+      component={AppointmentSchedulerScreen}
+      options={{
+        title: 'Agenda',
+        headerStyle: { backgroundColor: '#007AFF' },
+        headerTitleStyle: { color: '#fff' },
+        headerTintColor: '#fff',
+      }}
+    />
+    <Stack.Screen
+      name="ClinicSetup"
+      component={ClinicSetupScreen}
+      options={{ title: 'Configurar Clínica' }}
+    />
+  </Stack.Navigator>
+);
+
 const AddButton = ({ onPress }) => (
   <TouchableOpacity
     style={styles.addButtonContainer}
@@ -121,7 +186,10 @@ const AddButton = ({ onPress }) => (
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Screen name="LoginEmail" component={LoginEmailScreen} />
     <Stack.Screen name="Register" component={RegisterScreen} />
+    <Stack.Screen name="RegisterEmail" component={RegisterEmailScreen} />
+    <Stack.Screen name="CompleteSocialRegistration" component={CompleteSocialRegistrationScreen} />
   </Stack.Navigator>
 );
 
@@ -198,6 +266,11 @@ const PetsStack = () => (
       options={{ headerShown: false }}
     />
     <Stack.Screen
+      name="AllDrafts"
+      component={AllDraftsScreen}
+      options={{ title: 'Registros Pendientes' }}
+    />
+    <Stack.Screen
       name="AddVaccine"
       component={AddVaccineScreen}
       options={{ title: 'Agregar Vacuna' }}
@@ -216,6 +289,41 @@ const PetsStack = () => (
       name="ProcedureDetail"
       component={ProcedureDetailScreen}
       options={{ title: 'Detalle de Procedimiento' }}
+    />
+    <Stack.Screen
+      name="RequestAppointment"
+      component={RequestAppointmentScreen}
+      options={{ title: 'Solicitar Cita' }}
+    />
+    <Stack.Screen
+      name="ConsentScreen"
+      component={ConsentScreen}
+      options={{ title: 'Consentimiento Informado' }}
+    />
+    <Stack.Screen
+      name="PdfViewer"
+      component={PdfViewerScreen}
+      options={({ route }) => ({ title: route.params?.title || 'Documento PDF' })}
+    />
+    <Stack.Screen
+      name="DeathCertificateForm"
+      component={DeathCertificateFormScreen}
+      options={{ title: 'Certificar Defunción' }}
+    />
+    <Stack.Screen
+      name="RecordConsultation"
+      component={RecordConsultationScreen}
+      options={{ title: 'Grabar Bitácora' }}
+    />
+    <Stack.Screen
+      name="ConsultationsList"
+      component={ConsultationsListScreen}
+      options={{ title: 'Bitácora Inteligente' }}
+    />
+    <Stack.Screen
+      name="ConsultationDetail"
+      component={ConsultationDetailScreen}
+      options={{ title: 'Detalle de Bitácora' }}
     />
   </Stack.Navigator>
 );
@@ -269,346 +377,234 @@ const FriendsStack = () => (
   </Stack.Navigator>
 );
 
-const AddPetModal = ({ visible, onClose, onNavigateToAddPet, onNavigateToLinkPet, onNavigateToQuickPet, onNavigateToClaimPet, isVet }) => {
-  if (isVet) {
-    // Para veterinarios, mostrar menú con opciones
-    return (
-      <Modal
-        visible={visible}
-        transparent
-        animationType="fade"
-        onRequestClose={onClose}
-      >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.addModal}>
-              <Text style={styles.addModalTitle}>Agregar Mascota</Text>
 
-              <TouchableOpacity
-                style={styles.addModalOption}
-                onPress={() => {
-                  onClose();
-                  onNavigateToQuickPet();
-                }}
-              >
-                <View style={styles.addModalIconContainer}>
-                  <Ionicons name="flash" size={32} color="#007AFF" />
-                </View>
-                <View style={styles.addModalTextContainer}>
-                  <Text style={styles.addModalOptionTitle}>Crear Mascota Rápida</Text>
-                  <Text style={styles.addModalOptionSubtitle}>
-                    Crea una mascota y compártela con su dueño
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
-              </TouchableOpacity>
 
-              <View style={styles.addModalDivider} />
+const BookingStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="BookingHub"
+      component={BookingHubScreen}
+      options={{ title: 'Citas' }}
+    />
+    <Stack.Screen
+      name="ServiceProfile"
+      component={ServiceProfileScreen}
+      options={{ title: 'Perfil' }}
+    />
+  </Stack.Navigator>
+);
 
-              <TouchableOpacity
-                style={styles.addModalOption}
-                onPress={() => {
-                  onClose();
-                  onNavigateToLinkPet();
-                }}
-              >
-                <View style={styles.addModalIconContainer}>
-                  <Ionicons name="link" size={32} color="#007AFF" />
-                </View>
-                <View style={styles.addModalTextContainer}>
-                  <Text style={styles.addModalOptionTitle}>Vincular Mascota</Text>
-                  <Text style={styles.addModalOptionSubtitle}>
-                    Vincula una mascota existente a tu perfil
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
-              </TouchableOpacity>
+const ClinicStack = () => (
+  <Stack.Navigator
+    screenOptions={{
+      headerStyle: { backgroundColor: '#fff' },
+      headerTitleStyle: { fontSize: 17, fontWeight: '600', color: '#000' },
+      headerTintColor: '#007AFF',
+      headerShadowVisible: false,
+      headerBackTitleVisible: false,
+    }}
+  >
+    <Stack.Screen
+      name="ClinicDashboard"
+      component={ClinicDashboardScreen}
+      options={{ title: 'Mi Clínica' }}
+    />
+  </Stack.Navigator>
+);
 
-              <TouchableOpacity
-                style={styles.addModalCancelButton}
-                onPress={onClose}
-              >
-                <Text style={styles.addModalCancelText}>Cancelar</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-    );
-  }
+// --- Role-Based Tabs ---
 
+const OwnerTabs = () => {
+  const insets = useSafeAreaInsets();
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#999',
+        tabBarStyle: {
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          paddingTop: 10,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5EA',
+        },
+      }}
     >
-      <TouchableOpacity
-        style={styles.modalOverlay}
-        activeOpacity={1}
-        onPress={onClose}
-      >
-        <TouchableOpacity activeOpacity={1} onPress={(e) => e.stopPropagation()}>
-          <View style={styles.addModal}>
-            <Text style={styles.addModalTitle}>Agregar Mascota</Text>
-
-            <TouchableOpacity
-              style={styles.addModalOption}
-              onPress={() => {
-                onClose();
-                onNavigateToAddPet();
-              }}
-            >
-              <View style={styles.addModalIconContainer}>
-                <Ionicons name="add-circle" size={32} color="#007AFF" />
-              </View>
-              <View style={styles.addModalTextContainer}>
-                <Text style={styles.addModalOptionTitle}>Registrar Mascota</Text>
-                <Text style={styles.addModalOptionSubtitle}>
-                  Agrega una nueva mascota a tu perfil
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
-            </TouchableOpacity>
-
-            <View style={styles.addModalDivider} />
-
-            <TouchableOpacity
-              style={styles.addModalOption}
-              onPress={() => {
-                onClose();
-                onNavigateToClaimPet();
-              }}
-            >
-              <View style={styles.addModalIconContainer}>
-                <Ionicons name="gift" size={32} color="#007AFF" />
-              </View>
-              <View style={styles.addModalTextContainer}>
-                <Text style={styles.addModalOptionTitle}>Reclamar Mascota</Text>
-                <Text style={styles.addModalOptionSubtitle}>
-                  Reclama una mascota creada por tu veterinario
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
-            </TouchableOpacity>
-
-            <View style={styles.addModalDivider} />
-
-            <TouchableOpacity
-              style={styles.addModalOption}
-              onPress={() => {
-                onClose();
-                onNavigateToLinkPet();
-              }}
-            >
-              <View style={styles.addModalIconContainer}>
-                <Ionicons name="link" size={32} color="#007AFF" />
-              </View>
-              <View style={styles.addModalTextContainer}>
-                <Text style={styles.addModalOptionTitle}>Ser Co-dueño</Text>
-                <Text style={styles.addModalOptionSubtitle}>
-                  Escanea un código QR o ingresa un código
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={24} color="#C7C7CC" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.addModalCancelButton}
-              onPress={onClose}
-            >
-              <Text style={styles.addModalCancelText}>Cancelar</Text>
-            </TouchableOpacity>
-          </View>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Modal>
+      <Tab.Screen
+        name="Feed"
+        component={HomeScreen}
+        options={{
+          tabBarLabel: 'Inicio',
+          tabBarIcon: ({ color, size }) => <Ionicons name="home-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Pets"
+        component={PetsStack}
+        options={{
+          tabBarLabel: 'Mascotas',
+          tabBarIcon: ({ color, size }) => <Ionicons name="paw-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Booking"
+        component={BookingStack}
+        options={{
+          tabBarLabel: 'Citas',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused }) => <UserAvatar size={24} focused={focused} />,
+        }}
+      />
+    </Tab.Navigator>
   );
 };
 
-const MainTabs = ({ navigationRef }) => {
+const VetTabs = () => {
+  const insets = useSafeAreaInsets();
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: '#007AFF',
+        tabBarInactiveTintColor: '#999',
+        tabBarStyle: {
+          height: 60 + insets.bottom,
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 10,
+          paddingTop: 10,
+          backgroundColor: '#fff',
+          borderTopWidth: 1,
+          borderTopColor: '#E5E5EA',
+        },
+      }}
+    >
+      <Tab.Screen
+        name="Appointments"
+        component={AppointmentsStack}
+        options={{
+          tabBarLabel: 'Agenda',
+          tabBarIcon: ({ color, size }) => <Ionicons name="calendar-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Patients"
+        component={PetsStack}
+        options={{
+          tabBarLabel: 'Pacientes',
+          tabBarIcon: ({ color, size }) => <Ionicons name="paw-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Clinic"
+        component={ClinicStack}
+        options={{
+          tabBarLabel: 'Clínica',
+          tabBarIcon: ({ color, size }) => <Ionicons name="medkit-outline" size={size} color={color} />,
+        }}
+      />
+      <Tab.Screen
+        name="Profile"
+        component={ProfileStack}
+        options={{
+          tabBarLabel: 'Perfil',
+          tabBarIcon: ({ focused }) => <UserAvatar size={24} focused={focused} />,
+        }}
+      />
+    </Tab.Navigator>
+  );
+};
+
+const MainTabs = () => {
   const { userType } = useAuth();
-  const isVet = userType === 'vet';
-  const [showAddButton, setShowAddButton] = useState(true);
-  const [showAddPetModal, setShowAddPetModal] = useState(false);
-  const [pendingRequestsCount, setPendingRequestsCount] = useState(0);
+  return userType === 'vet' ? <VetTabs /> : <OwnerTabs />;
+};
 
-  const fetchPendingCount = async () => {
-    // Los veterinarios no tienen funcionalidad de amigos
-    if (isVet) return;
-
-    try {
-      const [pendingResponse, newPetsResponse] = await Promise.all([
-        friendshipsAPI.getPending(),
-        friendshipsAPI.getNewPetsCount()
-      ]);
-      const pendingCount = pendingResponse.data.requests?.length || 0;
-      const newPetsCount = newPetsResponse.data.newPetsCount || 0;
-      setPendingRequestsCount(pendingCount + newPetsCount);
-    } catch (err) {
-      // Silently fail - this is just for badge display
-    }
-  };
-
-  useEffect(() => {
-    // Solo cargar el contador si NO es veterinario
-    if (!isVet) {
-      fetchPendingCount();
-      // Set up an interval to refresh the count every 30 seconds
-      const interval = setInterval(fetchPendingCount, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [isVet]);
+const AuthenticatedNavigator = ({ navigationRef }) => {
+  const { userType, currentClinic } = useAuth();
+  
+  // Determine initial route
+  // If Vet and no clinic selected, go to Selector
+  // If User or Vet with clinic, go to Main
+  const initialRouteName = (userType === 'vet' && !currentClinic) ? 'ClinicSelector' : 'Main';
 
   return (
-    <>
-      <Tab.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: '#007AFF',
-          tabBarInactiveTintColor: '#999',
-          tabBarStyle: {
-            height: 60,
-            paddingBottom: 8,
-            paddingTop: 8,
-          },
-          headerStyle: {
-            backgroundColor: '#fff',
-          },
-          headerTitleStyle: {
-            fontSize: 17,
-            fontWeight: '600',
-            color: '#000',
-          },
+    <RootStack.Navigator initialRouteName={initialRouteName} screenOptions={{ headerShown: false }}>
+      <RootStack.Screen name="Main">
+        {props => <MainTabs {...props} navigationRef={navigationRef} />}
+      </RootStack.Screen>
+      <RootStack.Screen name="ClinicSelector" component={ClinicSelectorScreen} />
+      <RootStack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificaciones', headerShown: true }} />
+      <RootStack.Screen
+        name="PrescriptionsList"
+        component={PrescriptionsListScreen}
+        options={{
+          title: 'Recetas Médicas',
+          headerShown: true,
           headerTintColor: '#007AFF',
-          headerShadowVisible: false,
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
         }}
-        screenListeners={{
-          state: (e) => {
-            const state = e.data.state;
-            const currentRoute = state.routes[state.index];
-            // Mostrar el botón + siempre
-            setShowAddButton(true);
-          },
-        }}
-      >
-        <Tab.Screen
-          name="Pets"
-          component={PetsStack}
-          options={{
-            tabBarLabel: () => null,
-            tabBarIcon: ({ focused, color, size }) => (
-              <Ionicons
-                name={focused ? 'paw' : 'paw-outline'}
-                size={size}
-                color={color}
-              />
-            ),
-          }}
-        />
-        {/* Solo mostrar tab de amigos para usuarios normales, no para veterinarios */}
-        {!isVet && (
-          <Tab.Screen
-            name="Friends"
-            component={FriendsStack}
-            listeners={{
-              focus: () => {
-                fetchPendingCount();
-              },
-              blur: () => {
-                fetchPendingCount();
-              },
-            }}
-            options={{
-              tabBarLabel: () => null,
-              tabBarBadge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
-              tabBarBadgeStyle: {
-                backgroundColor: '#FF3B30',
-                color: '#fff',
-                fontSize: 12,
-                fontWeight: '700',
-                minWidth: 20,
-                height: 20,
-                borderRadius: 10,
-                lineHeight: 20,
-              },
-              tabBarIcon: ({ focused, color, size }) => (
-                <Ionicons
-                  name={focused ? 'people' : 'people-outline'}
-                  size={size}
-                  color={color}
-                />
-              ),
-            }}
-          />
-        )}
-        <Tab.Screen
-          name="Add"
-          component={View}
-          listeners={({ navigation }) => ({
-            tabPress: (e) => {
-              e.preventDefault();
-              setShowAddPetModal(true);
-            },
-          })}
-          options={{
-            tabBarLabel: '',
-            tabBarIcon: () => null,
-            tabBarButton: (props) => (
-              <AddButton
-                {...props}
-                onPress={() => {
-                  setShowAddPetModal(true);
-                }}
-              />
-            ),
-          }}
-        />
-        <Tab.Screen
-          name="Profile"
-          component={ProfileStack}
-          options={{
-            tabBarLabel: () => null,
-            tabBarIcon: ({ focused }) => (
-              <UserAvatar
-                size={32}
-                focused={focused}
-              />
-            ),
-          }}
-        />
-      </Tab.Navigator>
-      <AddPetModal
-        visible={showAddPetModal}
-        onClose={() => setShowAddPetModal(false)}
-        onNavigateToAddPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'AddPet' });
-          }
-        }}
-        onNavigateToLinkPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'LinkPet' });
-          }
-        }}
-        onNavigateToQuickPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'QuickPet' });
-          }
-        }}
-        onNavigateToClaimPet={() => {
-          if (navigationRef?.current) {
-            navigationRef.current.navigate('Pets', { screen: 'ClaimPet' });
-          }
-        }}
-        isVet={isVet}
       />
-    </>
+      <RootStack.Screen
+        name="TreatmentDetail"
+        component={TreatmentDetailScreen}
+        options={{
+          title: 'Detalle de Tratamiento',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false,
+          headerBackTitleVisible: false
+        }}
+      />
+
+      {/* Consultation Screens - Outside tabs for proper navigation */}
+      <RootStack.Screen
+        name="CompletedConsultation"
+        component={CompletedConsultationScreen}
+        options={{
+          title: 'Consulta Completada',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
+        }}
+      />
+      <RootStack.Screen
+        name="LiveConsultation"
+        component={LiveConsultationScreen}
+        options={{
+          title: 'Consulta en Vivo',
+          headerShown: true,
+          headerTintColor: '#007AFF',
+          headerStyle: { backgroundColor: '#fff' },
+          headerShadowVisible: false
+        }}
+      />
+
+      <RootStack.Group screenOptions={{ presentation: 'transparentModal', headerShown: false, animation: 'fade' }}>
+        <RootStack.Screen
+          name="CreateAppointment"
+          component={CreateAppointmentScreen}
+        />
+      </RootStack.Group>
+    </RootStack.Navigator>
   );
 };
 
@@ -622,7 +618,7 @@ const AppNavigator = () => {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? <MainTabs navigationRef={navigationRef} /> : <AuthStack />}
+      {isAuthenticated ? <AuthenticatedNavigator navigationRef={navigationRef} /> : <AuthStack />}
     </NavigationContainer>
   );
 };
@@ -667,7 +663,6 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingTop: 20,
-    paddingBottom: 30,
     paddingHorizontal: 20,
   },
   addModalTitle: {
