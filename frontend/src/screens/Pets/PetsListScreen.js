@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { petsAPI, draftsAPI } from '../../services/api';
 import { Loading, ErrorNetwork } from '../../components';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { isNetworkError } from '../../utils/networkUtils';
 import { showToast } from '../../utils/toast';
 import { getImageUrl } from '../../utils/imageHelper';
@@ -27,6 +28,7 @@ const cardWidth = (width - 20) / 2; // 8px padding on each side + 4px gap
 
 const PetsListScreen = ({ navigation }) => {
   const { userType, user } = useAuth();
+  const { activePlan } = useSubscription();
   const [pets, setPets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -96,6 +98,29 @@ const PetsListScreen = ({ navigation }) => {
     setRefreshing(true);
     fetchPets();
   }, []);
+
+  // 🔒 CANDADO DE PACIENTES: Verificar límite de 30 mascotas para plan FREE
+  const handleOpenAddPetModal = () => {
+    // Solo aplicar límite a usuarios (owners), no a vets
+    if (!isVet && activePlan === 'FREE' && pets.length >= 30) {
+      Alert.alert(
+        'Límite de pacientes alcanzado',
+        `Tu plan ${activePlan} permite máximo 30 mascotas. Actualiza tu plan para agregar más.`,
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Ver Planes',
+            onPress: () => navigation.navigate('Paywall', {
+              feature: 'Pacientes adicionales'
+            })
+          }
+        ]
+      );
+      return;
+    }
+
+    setShowAddPetModal(true);
+  };
 
   const handleOpenOptions = (pet, event) => {
     event.stopPropagation();
@@ -324,7 +349,7 @@ const PetsListScreen = ({ navigation }) => {
       {/* FAB para agregar mascota */}
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => setShowAddPetModal(true)}
+        onPress={handleOpenAddPetModal}
         activeOpacity={0.8}
       >
         <Ionicons name="add" size={30} color="#fff" />

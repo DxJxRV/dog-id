@@ -7,11 +7,36 @@ const { uploadPublicImage, deletePublicImage, generatePresignedUrl } = require('
 const createPet = async (req, res) => {
   try {
     const userId = req.user.id;
+    const userType = req.user.type;
     const { nombre, especie, raza, fechaNacimiento } = req.body;
 
     // Validar campos requeridos
     if (!nombre || !especie) {
       return res.status(400).json({ error: 'Nombre and especie are required' });
+    }
+
+    // 🔒 CANDADO DE PACIENTES: Verificar límite de 30 mascotas para usuarios FREE
+    // Solo aplicar a usuarios (owners), no a veterinarios
+    if (userType === 'user') {
+      const petsCount = await prisma.pet.count({
+        where: {
+          userId: userId,
+          status: { not: 'ARCHIVED' } // Solo contar mascotas activas
+        }
+      });
+
+      // Por ahora, asumir que todos los usuarios son FREE
+      // En el futuro, agregar campo subscriptionPlan al modelo User
+      const MAX_PETS_FREE = 30;
+
+      if (petsCount >= MAX_PETS_FREE) {
+        return res.status(403).json({
+          error: 'Pet limit reached',
+          message: `Tu plan FREE permite máximo ${MAX_PETS_FREE} mascotas`,
+          currentCount: petsCount,
+          maxCount: MAX_PETS_FREE
+        });
+      }
     }
 
     // Procesar foto si existe y subirla a S3

@@ -288,6 +288,48 @@ const inviteMember = async (req, res) => {
       return res.status(403).json({ error: 'Insufficient permissions' });
     }
 
+    // 🔒 CANDADO DE STAFF: Verificar límites del plan
+    const clinic = await prisma.clinic.findUnique({
+      where: { id: clinicId },
+      include: {
+        _count: {
+          select: {
+            members: {
+              where: {
+                status: { in: ['ACTIVE', 'INVITED'] }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!clinic) {
+      return res.status(404).json({ error: 'Clinic not found' });
+    }
+
+    const currentMemberCount = clinic._count.members;
+    const subscriptionPlan = clinic.subscriptionPlan || 'FREE';
+
+    // Límites por plan
+    const limits = {
+      FREE: 1,
+      PLUS: 3,
+      HOSPITAL: 999 // Ilimitado
+    };
+
+    const maxMembers = limits[subscriptionPlan] || limits.FREE;
+
+    if (currentMemberCount >= maxMembers) {
+      return res.status(403).json({
+        error: 'Team member limit reached',
+        message: `Tu plan ${subscriptionPlan} permite máximo ${maxMembers} miembro${maxMembers > 1 ? 's' : ''}`,
+        plan: subscriptionPlan,
+        currentCount: currentMemberCount,
+        maxCount: maxMembers
+      });
+    }
+
     const vet = await prisma.vet.findUnique({ where: { email } });
     if (!vet) {
       return res.status(404).json({ error: 'Veterinarian not found with that email' });

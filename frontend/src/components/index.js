@@ -10,6 +10,7 @@ export { default as Timeline } from './Timeline';
 export { default as CustomSplashScreen } from './CustomSplashScreen';
 export { default as PendingDraftsList } from './PendingDraftsList';
 export { default as InteractiveAudioPlayer } from './InteractiveAudioPlayer';
+export { default as FeatureLock } from './FeatureLock';
 
 // ECE Components
 export { default as PetStatusBadge } from './PetStatusBadge';

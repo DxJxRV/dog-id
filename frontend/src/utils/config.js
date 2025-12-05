@@ -1,7 +1,7 @@
 
 // API Configuration
-// export const API_URL = 'http://192.168.100.171:3005';
-export const API_URL = 'https://mimascotaplus.com/api';
+export const API_URL = 'http://192.168.100.171:3005';
+// export const API_URL = 'https://mimascotaplus.com/api';
 
 // Endpoints
 export const ENDPOINTS = {
@@ -34,3 +34,6 @@ export const STORAGE_KEYS = {
 
 // Google OAuth
 export const GOOGLE_CLIENT_ID = '474914302160-n9ei7n4kgjeq94mr6l067t4hnj0jrcr9.apps.googleusercontent.com';
+
+// RevenueCat
+export const REVENUECAT_API_KEY = 'test_prZWGKVJUxwHrMamCVzxeYMsTMh';

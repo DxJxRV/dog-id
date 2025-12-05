@@ -24,6 +24,18 @@ import { getImageUrl } from '../../utils/imageHelper';
 import { showToast } from '../../utils/toast';
 import { isNetworkError } from '../../utils/networkUtils';
 
+// Google Sign In - con manejo de errores si no está disponible
+let GoogleSignin = {
+  revokeAccess: async () => {},
+  signOut: async () => {},
+};
+try {
+  const GooglePackage = require('@react-native-google-signin/google-signin');
+  GoogleSignin = GooglePackage.GoogleSignin;
+} catch (err) {
+  console.log('Google Signin no disponible en ProfileScreen');
+}
+
 const ProfileScreen = () => {
   const navigation = useNavigation();
   const { user, userType, logout, updateUser } = useAuth();
@@ -266,7 +278,19 @@ const ProfileScreen = () => {
   const confirmDeleteAccount = async () => {
     try {
       setLoading(true);
+
+      // Eliminar cuenta del backend
       await authAPI.deleteAccount();
+
+      // Revocar permisos de Google si estaba logueado con Google
+      try {
+        await GoogleSignin.revokeAccess();
+        await GoogleSignin.signOut();
+        console.log('✅ [ProfileScreen] Permisos de Google revocados');
+      } catch (googleError) {
+        console.log('⚠️ [ProfileScreen] No se pudo revocar Google (probablemente no estaba logueado con Google)');
+      }
+
       showToast.success('Cuenta eliminada correctamente');
       logout();
     } catch (error) {

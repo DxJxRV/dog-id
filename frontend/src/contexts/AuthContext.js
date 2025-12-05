@@ -2,6 +2,7 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { authAPI } from '../services/api';
 import { STORAGE_KEYS } from '../utils/config';
+import { identifyRevenueCatUser, logoutRevenueCatUser } from '../utils/revenueCatHelper';
 
 const AuthContext = createContext({});
 
@@ -56,6 +57,11 @@ export const AuthProvider = ({ children }) => {
       setUser(userData);
       setUserType(type);
       setIsAuthenticated(true);
+
+      // Identificar usuario en RevenueCat
+      if (userData?.id) {
+        await identifyRevenueCatUser(userData.id);
+      }
     } catch (error) {
       console.error('Error saving auth data:', error);
       throw error;
@@ -219,6 +225,10 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     await SecureStore.deleteItemAsync('current_clinic');
     setCurrentClinic(null);
+
+    // Cerrar sesión en RevenueCat
+    await logoutRevenueCatUser();
+
     await clearAuthData();
   };
 

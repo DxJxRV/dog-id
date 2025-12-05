@@ -21,6 +21,7 @@ import { Loading, Input, Button } from '../../components';
 import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSubscription } from '../../contexts/SubscriptionContext';
 import { getImageUrl } from '../../utils/imageHelper';
 import ClinicSwitcherModal from '../../components/ClinicSwitcherModal';
 import * as ImagePicker from 'expo-image-picker';
@@ -37,6 +38,7 @@ try {
 const ClinicDashboardScreen = () => {
   const navigation = useNavigation();
   const { user, currentClinic, selectClinic } = useAuth();
+  const { activePlan } = useSubscription();
   const [activeTab, setActiveTab] = useState(0); // 0: Dashboard, 1: Equipo, 2: Config
   const [requests, setRequests] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -207,10 +209,36 @@ const ClinicDashboardScreen = () => {
   const handleToggleAvailability = async (vetId, currentStatus) => {
       try {
           await clinicAPI.toggleAvailability(clinicData.id, { vetId, isAvailable: !currentStatus });
-          loadData(); 
+          loadData();
       } catch(error) {
           Alert.alert('Error', 'No se pudo cambiar la disponibilidad');
       }
+  };
+
+  // 🔒 CANDADO DE STAFF: Verificar límite antes de invitar
+  const handleOpenInviteModal = () => {
+      const limits = { FREE: 1, PLUS: 3, HOSPITAL: 999 };
+      const maxMembers = limits[activePlan] || limits.FREE;
+      const currentMemberCount = staff.length;
+
+      if (currentMemberCount >= maxMembers) {
+          Alert.alert(
+              'Límite de equipo alcanzado',
+              `Tu plan ${activePlan} permite máximo ${maxMembers} miembro${maxMembers > 1 ? 's' : ''}. Actualiza tu plan para agregar más miembros.`,
+              [
+                  { text: 'Cancelar', style: 'cancel' },
+                  {
+                      text: 'Ver Planes',
+                      onPress: () => navigation.navigate('Paywall', {
+                          feature: 'Miembros de equipo adicionales'
+                      })
+                  }
+              ]
+          );
+          return;
+      }
+
+      setShowInviteModal(true);
   };
 
   const handleSendInvitation = async () => {
@@ -270,6 +298,24 @@ const ClinicDashboardScreen = () => {
   };
 
   const handleUploadLogo = async () => {
+    // 🔒 CANDADO DE BRANDING: Solo planes de pago pueden personalizar logo
+    if (activePlan === 'FREE') {
+      Alert.alert(
+        'Función PRO',
+        'La personalización del logo está disponible en planes Vet Plus y Plan Hospital',
+        [
+          { text: 'Cancelar', style: 'cancel' },
+          {
+            text: 'Ver Planes',
+            onPress: () => navigation.navigate('Paywall', {
+              feature: 'Personalización de logo'
+            })
+          }
+        ]
+      );
+      return;
+    }
+
     try {
       // Request permission
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -511,7 +557,7 @@ const ClinicDashboardScreen = () => {
               >
                   <View style={{flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15}}>
                       <Text style={styles.sectionTitle}>Mi Equipo</Text>
-                      <TouchableOpacity onPress={() => setShowInviteModal(true)}>
+                      <TouchableOpacity onPress={handleOpenInviteModal}>
                           <Text style={{color: '#007AFF', fontWeight: '600'}}>Invitar +</Text>
                       </TouchableOpacity>
                   </View>

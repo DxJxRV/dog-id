@@ -20,9 +20,9 @@ const registerUser = async (req, res) => {
   try {
     const { nombre, email, password, googleId, appleId, fotoUrl } = req.body;
 
-    // Validar campos requeridos
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ error: 'All fields are required' });
+    // Validar campos requeridos (password solo es requerido si no hay social login)
+    if (!nombre || !email || (!password && !googleId && !appleId)) {
+      return res.status(400).json({ error: 'Nombre and email are required, and password is required if not using social login' });
     }
 
     // Verificar si el email ya existe
@@ -34,8 +34,15 @@ const registerUser = async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash de la contraseña
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash de la contraseña (si existe, sino generar una aleatoria imposible de adivinar)
+    let passwordHash;
+    if (password && password.trim()) {
+      passwordHash = await bcrypt.hash(password, 10);
+    } else {
+      // Para social login sin password, generar un hash imposible de usar
+      const randomPassword = require('crypto').randomBytes(32).toString('hex');
+      passwordHash = await bcrypt.hash(randomPassword, 10);
+    }
 
     // Crear usuario (con datos sociales opcionales)
     const user = await prisma.user.create({
@@ -118,9 +125,9 @@ const registerVet = async (req, res) => {
   try {
     const { nombre, email, password, cedulaProfesional, telefono, googleId, appleId, fotoUrl } = req.body;
 
-    // Validar campos requeridos (cedulaProfesional ahora es opcional)
-    if (!nombre || !email || !password) {
-      return res.status(400).json({ error: 'Nombre, email and password are required' });
+    // Validar campos requeridos (cedulaProfesional es opcional, password solo es requerido si no hay social login)
+    if (!nombre || !email || (!password && !googleId && !appleId)) {
+      return res.status(400).json({ error: 'Nombre and email are required, and password is required if not using social login' });
     }
 
     // Verificar si el email ya existe
@@ -132,8 +139,15 @@ const registerVet = async (req, res) => {
       return res.status(400).json({ error: 'Email already registered' });
     }
 
-    // Hash de la contraseña
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash de la contraseña (si existe, sino generar una aleatoria imposible de adivinar)
+    let passwordHash;
+    if (password && password.trim()) {
+      passwordHash = await bcrypt.hash(password, 10);
+    } else {
+      // Para social login sin password, generar un hash imposible de usar
+      const randomPassword = require('crypto').randomBytes(32).toString('hex');
+      passwordHash = await bcrypt.hash(randomPassword, 10);
+    }
 
     // Crear veterinario (cedulaProfesional es opcional)
     const vet = await prisma.vet.create({
@@ -141,6 +155,8 @@ const registerVet = async (req, res) => {
         nombre,
         email,
         passwordHash,
+        googleId: googleId || null,
+        appleId: appleId || null,
         cedulaProfesional: cedulaProfesional || null,
         telefono: telefono || null,
         fotoUrl: fotoUrl || null

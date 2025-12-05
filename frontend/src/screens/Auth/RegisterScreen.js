@@ -36,11 +36,18 @@ const RegisterScreen = ({ navigation }) => {
   const [appleAuthAvailable, setAppleAuthAvailable] = useState(false);
 
   useEffect(() => {
+    console.log('🔧 [RegisterScreen] Configurando Google Sign In...');
+    console.log('🔧 [RegisterScreen] appOwnership:', Constants.appOwnership);
+    console.log('🔧 [RegisterScreen] GOOGLE_CLIENT_ID:', GOOGLE_CLIENT_ID);
+
     if (Constants.appOwnership !== 'expo') {
       GoogleSignin.configure({
         webClientId: GOOGLE_CLIENT_ID,
         offlineAccess: false,
       });
+      console.log('✅ [RegisterScreen] Google Sign In configurado');
+    } else {
+      console.log('⚠️ [RegisterScreen] Ejecutando en Expo Go, Google Sign In no disponible');
     }
     checkAppleAuthAvailable();
   }, []);
@@ -62,24 +69,52 @@ const RegisterScreen = ({ navigation }) => {
 
     setGoogleLoading(true);
     try {
+      console.log('🔵 [RegisterScreen] Iniciando Google Sign In...');
       await GoogleSignin.hasPlayServices();
+      console.log('🔵 [RegisterScreen] Play Services disponibles');
+
+      // Forzar selector de cuentas
+      try {
+        await GoogleSignin.signOut();
+        console.log('🔵 [RegisterScreen] Sign out previo completado (para forzar selector)');
+      } catch (signOutError) {
+        console.log('🔵 [RegisterScreen] No había sesión previa para cerrar');
+      }
+
       const userInfo = await GoogleSignin.signIn();
-      const idToken = userInfo.idToken;
+      console.log('🔵 [RegisterScreen] userInfo completo:', JSON.stringify(userInfo, null, 2));
+      console.log('🔵 [RegisterScreen] userInfo.idToken:', userInfo?.idToken);
+      console.log('🔵 [RegisterScreen] userInfo.user:', userInfo?.user);
+
+      // Try different possible locations for idToken
+      const idToken = userInfo?.idToken || userInfo?.user?.idToken || userInfo?.data?.idToken;
+      console.log('🔵 [RegisterScreen] idToken extraído:', idToken);
 
       if (idToken) {
+        console.log('🔵 [RegisterScreen] Token encontrado, llamando loginWithGoogle...');
         const result = await loginWithGoogle(idToken);
+        console.log('🔵 [RegisterScreen] Resultado loginWithGoogle:', result);
+
         if (result.success && result.isNewUser) {
           // New user, navigate to role selection screen
+          console.log('🔵 [RegisterScreen] Nuevo usuario, navegando a CompleteSocialRegistration');
           navigation.navigate('CompleteSocialRegistration', {
             socialData: result.socialData,
           });
         } else if (!result.success) {
+          console.log('🔴 [RegisterScreen] Error en loginWithGoogle:', result.error);
           showToast.error(result.error || 'Error al registrarse con Google');
         }
       } else {
+        console.log('🔴 [RegisterScreen] No se encontró idToken en ninguna ubicación');
+        console.log('🔴 [RegisterScreen] Estructura completa de userInfo:', Object.keys(userInfo || {}));
         showToast.error('No se recibió el token de Google');
       }
     } catch (error) {
+      console.log('🔴 [RegisterScreen] Error capturado:', error);
+      console.log('🔴 [RegisterScreen] Error code:', error.code);
+      console.log('🔴 [RegisterScreen] Error message:', error.message);
+
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
         console.log('Sign in cancelled');
       } else if (error.code === statusCodes.IN_PROGRESS) {

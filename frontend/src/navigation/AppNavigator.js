@@ -63,6 +63,9 @@ import PetProfileScreen from '../screens/Friends/PetProfileScreen';
 // Profile Screens
 import ProfileScreen from '../screens/Profile/ProfileScreen';
 
+// Subscription Screens
+import PaywallScreen from '../screens/Subscription/PaywallScreen';
+
 // Clinic & Appointments
 import ClinicSetupScreen from '../screens/Clinics/ClinicSetupScreen';
 import AppointmentSchedulerScreen from '../screens/Appointments/AppointmentSchedulerScreen';
@@ -595,6 +598,16 @@ const AuthenticatedNavigator = ({ navigationRef }) => {
           headerTintColor: '#007AFF',
           headerStyle: { backgroundColor: '#fff' },
           headerShadowVisible: false
+        }}
+      />
+
+      {/* Subscription Paywall */}
+      <RootStack.Screen
+        name="Paywall"
+        component={PaywallScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal'
         }}
       />
 

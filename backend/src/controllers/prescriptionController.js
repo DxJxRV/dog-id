@@ -555,9 +555,35 @@ const generatePrescriptionPDF = async (prescription, pet, vet, clinic = null, si
       console.log('   Clinic object received?:', !!clinic);
       console.log('   Clinic:', JSON.stringify(clinic, null, 2));
 
+      // 🔒 CANDADO DE BRANDING: Logo según plan de suscripción
+      const subscriptionPlan = clinic?.subscriptionPlan || 'FREE';
+      const useAppBranding = subscriptionPlan === 'FREE';
+
+      console.log('   🎨 Branding decision:');
+      console.log('      Subscription plan:', subscriptionPlan);
+      console.log('      Use app branding?:', useAppBranding);
+
       // Logo en esquina superior izquierda (fijo)
-      if (clinic?.logoUrl) {
-        console.log('   ✓ clinic.logoUrl exists:', clinic.logoUrl);
+      if (useAppBranding) {
+        // Plan FREE: Usar logo de la app
+        console.log('   🔓 FREE plan - Using app logo');
+        try {
+          const appLogoPath = path.join(__dirname, '../assets/logo.png');
+          if (fs.existsSync(appLogoPath)) {
+            logoBuffer = fs.readFileSync(appLogoPath);
+            doc.image(logoBuffer, 50, 45, {
+              width: 50,
+              fit: [50, 50]
+            });
+            logoLoaded = true;
+            console.log('   ✅ App logo loaded for FREE plan');
+          }
+        } catch (error) {
+          console.error('   ❌ App logo loading failed:', error.message);
+        }
+      } else if (clinic?.logoUrl) {
+        // Plan de pago: Usar logo personalizado de la clínica
+        console.log('   💎 Paid plan - Using clinic custom logo:', clinic.logoUrl);
 
         try {
           const { getImageUrl } = require('../utils/imageHelper');

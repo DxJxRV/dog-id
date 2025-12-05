@@ -15,7 +15,8 @@
       "Bash(kill:*)",
       "Bash(node:*)",
       "Bash(npm start)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

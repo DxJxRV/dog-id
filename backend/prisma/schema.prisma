@@ -107,6 +107,8 @@ model Vet {
   nombre              String
   email               String   @unique
   passwordHash        String   @map("password_hash")
+  googleId            String?  @unique @map("google_id")
+  appleId             String?  @unique @map("apple_id")
   cedulaProfesional   String?  @map("cedula_profesional")
   telefono            String?
   fotoUrl             String?  @map("foto_url")
@@ -132,16 +134,17 @@ model Vet {
 // ==================== MODELOS DE CLÍNICAS ====================
 
 model Clinic {
-  id          String   @id @default(uuid())
-  name        String
-  address     String?
-  phone       String?
-  logoUrl     String?  @map("logo_url")
-  settings    Json?    // Horarios, configuración
-  latitude    Float?   // Ubicación
-  longitude   Float?   // Ubicación
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(uuid())
+  name              String
+  address           String?
+  phone             String?
+  logoUrl           String?  @map("logo_url")
+  subscriptionPlan  String   @default("FREE") @map("subscription_plan")  // FREE, PLUS, HOSPITAL
+  settings          Json?    // Horarios, configuración
+  latitude          Float?   // Ubicación
+  longitude         Float?   // Ubicación
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   members       ClinicMember[]
   appointments  Appointment[]

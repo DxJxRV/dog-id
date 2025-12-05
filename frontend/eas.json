@@ -8,6 +8,13 @@
       "developmentClient": true,
       "distribution": "internal"
     },
+    "development-store": {
+      "developmentClient": true,
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      }
+    },
     "preview": {
       "distribution": "internal",
       "android": {
