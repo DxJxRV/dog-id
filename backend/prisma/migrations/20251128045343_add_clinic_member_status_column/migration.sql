@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE `clinic_members` ADD COLUMN `status` ENUM('ACTIVE', 'INVITED', 'INACTIVE') NOT NULL DEFAULT 'ACTIVE';
