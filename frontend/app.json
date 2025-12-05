@@ -12,7 +12,8 @@
     ],
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.mimascotaplus.app"
+      "bundleIdentifier": "com.mimascotaplus.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {

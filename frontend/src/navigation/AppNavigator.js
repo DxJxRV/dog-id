@@ -12,7 +12,10 @@ import { friendshipsAPI } from '../services/api';
 
 // Auth Screens
 import LoginScreen from '../screens/Auth/LoginScreen';
+import LoginEmailScreen from '../screens/Auth/LoginEmailScreen';
 import RegisterScreen from '../screens/Auth/RegisterScreen';
+import RegisterEmailScreen from '../screens/Auth/RegisterEmailScreen';
+import CompleteSocialRegistrationScreen from '../screens/Auth/CompleteSocialRegistrationScreen';
 
 // Pet Screens
 import PetsListScreen from '../screens/Pets/PetsListScreen';
@@ -183,7 +186,10 @@ const AddButton = ({ onPress }) => (
 const AuthStack = () => (
   <Stack.Navigator screenOptions={{ headerShown: false }}>
     <Stack.Screen name="Login" component={LoginScreen} />
+    <Stack.Screen name="LoginEmail" component={LoginEmailScreen} />
     <Stack.Screen name="Register" component={RegisterScreen} />
+    <Stack.Screen name="RegisterEmail" component={RegisterEmailScreen} />
+    <Stack.Screen name="CompleteSocialRegistration" component={CompleteSocialRegistrationScreen} />
   </Stack.Navigator>
 );
 
@@ -283,6 +289,11 @@ const PetsStack = () => (
       name="ProcedureDetail"
       component={ProcedureDetailScreen}
       options={{ title: 'Detalle de Procedimiento' }}
+    />
+    <Stack.Screen
+      name="RequestAppointment"
+      component={RequestAppointmentScreen}
+      options={{ title: 'Solicitar Cita' }}
     />
     <Stack.Screen
       name="ConsentScreen"
@@ -387,11 +398,6 @@ const BookingStack = () => (
       name="ServiceProfile"
       component={ServiceProfileScreen}
       options={{ title: 'Perfil' }}
-    />
-    <Stack.Screen
-      name="RequestAppointment"
-      component={RequestAppointmentScreen}
-      options={{ title: 'Solicitar Cita' }}
     />
   </Stack.Navigator>
 );

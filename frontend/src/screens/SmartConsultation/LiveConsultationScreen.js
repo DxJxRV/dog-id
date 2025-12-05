@@ -18,8 +18,9 @@ import {
 import { Audio } from 'expo-av';
 import { Ionicons } from '@expo/vector-icons';
 import { showToast } from '../../utils/toast';
-import { prescriptionAPI } from '../../services/api';
+import { prescriptionAPI, authAPI } from '../../services/api';
 import { isNetworkError } from '../../utils/networkUtils';
+import { useAuth } from '../../contexts/AuthContext';
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { API_URL, STORAGE_KEYS } from '../../utils/config';
@@ -27,6 +28,7 @@ import SignaturePad from '../../components/SignaturePad';
 
 const LiveConsultationScreen = ({ route, navigation }) => {
   const { appointmentId, petName, petId, editMode = false, prescriptionId } = route.params;
+  const { user, updateUser } = useAuth();
 
   // Estados principales
   const [prescription, setPrescription] = useState(null);
@@ -59,6 +61,12 @@ const LiveConsultationScreen = ({ route, navigation }) => {
   // Modal de firma
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [vetSignature, setVetSignature] = useState(null);
+
+  // Modal de cédula profesional (Value Lock)
+  const [showCedulaModal, setShowCedulaModal] = useState(false);
+  const [cedulaInput, setCedulaInput] = useState('');
+  const [isStudent, setIsStudent] = useState(false);
+  const [savingCedula, setSavingCedula] = useState(false);
 
   // Referencias
   const recordingRef = useRef(null);
@@ -358,8 +366,47 @@ const LiveConsultationScreen = ({ route, navigation }) => {
       return;
     }
 
+    // VALUE LOCK: Verificar si el veterinario tiene cédula profesional
+    if (!user?.cedulaProfesional) {
+      setShowCedulaModal(true);
+      return;
+    }
+
     // Abrir modal de firma
     setShowSignatureModal(true);
+  };
+
+  // Guardar cédula profesional
+  const handleSaveCedula = async () => {
+    if (!isStudent && !cedulaInput.trim()) {
+      showToast.error('Por favor ingresa tu cédula profesional o marca "Soy Estudiante"');
+      return;
+    }
+
+    setSavingCedula(true);
+    try {
+      const cedulaValue = isStudent ? 'EN_TRAMITE' : cedulaInput.trim();
+
+      const response = await authAPI.updateProfile({
+        cedulaProfesional: cedulaValue,
+      });
+
+      // Actualizar usuario en contexto
+      await updateUser({ ...user, cedulaProfesional: cedulaValue });
+
+      showToast.success('Datos actualizados correctamente');
+      setShowCedulaModal(false);
+      setCedulaInput('');
+      setIsStudent(false);
+
+      // Ahora sí, abrir el modal de firma
+      setShowSignatureModal(true);
+    } catch (error) {
+      console.error('Error saving cedula:', error);
+      showToast.error('Error al guardar los datos');
+    } finally {
+      setSavingCedula(false);
+    }
   };
 
   // Solo captura la firma del SignaturePad, NO cierra el modal
@@ -875,6 +922,106 @@ const LiveConsultationScreen = ({ route, navigation }) => {
               </View>
             </TouchableOpacity>
           </TouchableOpacity>
+        </View>
+      </Modal>
+
+      {/* Modal de Cédula Profesional (Value Lock) */}
+      <Modal
+        visible={showCedulaModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowCedulaModal(false)}
+      >
+        <View style={styles.cedulaModalOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.cedulaModalKeyboardView}
+          >
+            <View style={styles.cedulaModalContainer}>
+              {/* Header */}
+              <View style={styles.cedulaModalHeader}>
+                <Ionicons name="shield-checkmark" size={48} color="#007AFF" />
+                <Text style={styles.cedulaModalTitle}>Datos Profesionales Requeridos</Text>
+                <Text style={styles.cedulaModalSubtitle}>
+                  Para que tu receta sea válida, necesitamos tu Cédula Profesional
+                </Text>
+              </View>
+
+              {/* Form */}
+              <View style={styles.cedulaModalForm}>
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Cédula Profesional</Text>
+                  <TextInput
+                    style={styles.cedulaInput}
+                    value={cedulaInput}
+                    onChangeText={setCedulaInput}
+                    placeholder="Ej: 12345678"
+                    keyboardType="default"
+                    editable={!isStudent}
+                  />
+                </View>
+
+                {/* Checkbox Estudiante */}
+                <TouchableOpacity
+                  style={styles.checkboxContainer}
+                  onPress={() => {
+                    setIsStudent(!isStudent);
+                    if (!isStudent) {
+                      setCedulaInput(''); // Clear input when checking student
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={[styles.checkbox, isStudent && styles.checkboxChecked]}>
+                    {isStudent && <Ionicons name="checkmark" size={18} color="#FFF" />}
+                  </View>
+                  <Text style={styles.checkboxLabel}>Soy Estudiante / Pasante</Text>
+                </TouchableOpacity>
+
+                {isStudent && (
+                  <View style={styles.studentNote}>
+                    <Ionicons name="information-circle-outline" size={20} color="#FF9500" />
+                    <Text style={styles.studentNoteText}>
+                      Se registrará tu cédula como "EN TRÁMITE"
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Buttons */}
+              <View style={styles.cedulaModalButtons}>
+                <TouchableOpacity
+                  style={styles.cedulaCancelButton}
+                  onPress={() => {
+                    setShowCedulaModal(false);
+                    setCedulaInput('');
+                    setIsStudent(false);
+                  }}
+                  disabled={savingCedula}
+                >
+                  <Text style={styles.cedulaCancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.cedulaSaveButton,
+                    savingCedula && styles.cedulaSaveButtonDisabled,
+                  ]}
+                  onPress={handleSaveCedula}
+                  disabled={savingCedula}
+                >
+                  {savingCedula ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <>
+                      <Ionicons name="checkmark-circle" size={20} color="#FFF" />
+                      <Text style={styles.cedulaSaveButtonText}>Guardar y Continuar</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
         </View>
       </Modal>
 
@@ -1397,6 +1544,139 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#FFFFFF',
+  },
+  // Cédula Modal Styles
+  cedulaModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cedulaModalKeyboardView: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cedulaModalContainer: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#FFF',
+    borderRadius: 20,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  cedulaModalHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  cedulaModalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#000',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  cedulaModalSubtitle: {
+    fontSize: 15,
+    color: '#666',
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 22,
+  },
+  cedulaModalForm: {
+    marginBottom: 24,
+  },
+  inputContainer: {
+    marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#000',
+    marginBottom: 8,
+  },
+  cedulaInput: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: '#007AFF',
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxChecked: {
+    backgroundColor: '#007AFF',
+  },
+  checkboxLabel: {
+    fontSize: 15,
+    color: '#000',
+  },
+  studentNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFF3E0',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8,
+  },
+  studentNoteText: {
+    flex: 1,
+    fontSize: 14,
+    color: '#FF9500',
+  },
+  cedulaModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  cedulaCancelButton: {
+    flex: 1,
+    backgroundColor: '#F2F2F7',
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  cedulaCancelButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#8E8E93',
+  },
+  cedulaSaveButton: {
+    flex: 1,
+    backgroundColor: '#007AFF',
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cedulaSaveButtonDisabled: {
+    opacity: 0.6,
+  },
+  cedulaSaveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFF',
   },
 });
 

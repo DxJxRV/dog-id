@@ -18,28 +18,28 @@ const ClinicSelectorScreen = ({ navigation }) => {
         clinicAPI.getMyClinics(),
         clinicAPI.getMyInvitations()
       ]);
-      
-      const fetchedClinics = clinicsRes.data.clinics;
+
+      let fetchedClinics = clinicsRes.data.clinics;
       const fetchedInvitations = invitationsRes.data.invitations;
+
+      // Auto-create default clinic if no clinics exist and no invitations
+      if (fetchedClinics.length === 0 && fetchedInvitations.length === 0) {
+        try {
+          const defaultClinicRes = await clinicAPI.createDefault();
+          const defaultClinic = defaultClinicRes.data.clinic;
+          fetchedClinics = [defaultClinic];
+          console.log('Default clinic created:', defaultClinic.name);
+        } catch (error) {
+          console.error('Error creating default clinic:', error);
+          // Continue without auto-creating if it fails
+        }
+      }
 
       setClinics(fetchedClinics);
       setInvitations(fetchedInvitations);
 
       // Auto-redirect logic: If 1 clinic and 0 invites, go direct
       if (fetchedClinics.length === 1 && fetchedInvitations.length === 0) {
-          // Prevent loop if coming back from profile change, maybe? 
-          // But for initial login flow, this is desired.
-          // If user explicitly navigated here to change clinic, we might want to avoid auto-select?
-          // But since AuthContext persists currentClinic, if they are here, it means either:
-          // 1. Login (no currentClinic) -> Auto select is good.
-          // 2. Explicit change (navigation.navigate) -> They might be redirected back immediately?
-          // No, `AppNavigator` only forces this screen if `!currentClinic`.
-          // If they navigate here manually, `currentClinic` might still be set?
-          // If Profile clears `currentClinic` before navigating here, then this logic will trigger and send them back.
-          // That's a UX loop issue for single-clinic users trying to "change" (to nothing?).
-          // But single-clinic users don't need to change.
-          // If they have invites, they stay here.
-          
           selectClinic(fetchedClinics[0]);
           navigation.replace('Main');
       }

@@ -2,6 +2,70 @@ const prisma = require('../utils/prisma');
 const { uploadPublicImage, deletePublicImage } = require('../services/s3Service');
 
 /**
+ * Crear una clínica por defecto para el veterinario
+ * Se usa cuando el veterinario se registra o cuando no tiene clínicas
+ */
+const createDefaultClinic = async (req, res) => {
+  try {
+    const vetId = req.user.id;
+
+    // Verificar si ya tiene clínicas
+    const existingMemberships = await prisma.clinicMember.findMany({
+      where: { vetId: vetId }
+    });
+
+    if (existingMemberships.length > 0) {
+      return res.status(400).json({ error: 'Veterinarian already has clinics' });
+    }
+
+    // Obtener datos del veterinario
+    const vet = await prisma.vet.findUnique({
+      where: { id: vetId }
+    });
+
+    if (!vet) {
+      return res.status(404).json({ error: 'Veterinarian not found' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const clinic = await tx.clinic.create({
+        data: {
+          name: `Consultorio de ${vet.nombre}`,
+          address: null,
+          phone: vet.telefono || null,
+          settings: {},
+        },
+      });
+
+      await tx.clinicMember.create({
+        data: {
+          clinicId: clinic.id,
+          vetId: vetId,
+          role: 'OWNER',
+          status: 'ACTIVE',
+          isActive: true,
+          isAvailable: true
+        }
+      });
+
+      return clinic;
+    });
+
+    res.status(201).json({
+      message: 'Default clinic created successfully',
+      clinic: {
+        ...result,
+        myRole: 'OWNER',
+        isAvailable: true,
+      }
+    });
+  } catch (error) {
+    console.error('Error creating default clinic:', error);
+    res.status(500).json({ error: 'Failed to create default clinic' });
+  }
+};
+
+/**
  * Crear una nueva clínica
  */
 const createClinic = async (req, res) => {
@@ -418,6 +482,7 @@ const uploadLogo = async (req, res) => {
 };
 
 module.exports = {
+  createDefaultClinic,
   createClinic,
   getMyClinics,
   updateClinic,

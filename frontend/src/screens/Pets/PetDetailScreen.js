@@ -530,18 +530,13 @@ const PetDetailScreen = ({ route, navigation }) => {
               navigation.navigate('AddVaccine', { petId, suggestedName: vaccineName });
             }}
             onScheduleAppointment={(vaccineName) => {
-              // Owner: sugerir agendar cita
-              Alert.alert(
-                'Agendar Vacuna',
-                `¿Deseas agendar una cita para aplicar la vacuna "${vaccineName}"?`,
-                [
-                  { text: 'Cancelar', style: 'cancel' },
-                  {
-                    text: 'Agendar',
-                    onPress: () => navigation.navigate('ScheduleAppointment', { petId, reason: `Vacuna: ${vaccineName}` }),
-                  },
-                ]
-              );
+              // Owner: ir directo a solicitar cita con selector de veterinario
+              navigation.navigate('RequestAppointment', {
+                petId,
+                reason: `Vacuna: ${vaccineName}`,
+                vaccineName,
+                fromVaccination: true
+              });
             }}
           />
         ) : (

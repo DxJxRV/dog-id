@@ -24,6 +24,7 @@ const upload = multer({
 });
 
 // Rutas base de clínica
+router.post('/clinics/default', authenticateVet, clinicController.createDefaultClinic);
 router.post('/clinics', authenticateVet, clinicController.createClinic);
 router.get('/clinics/my', authenticateVet, clinicController.getMyClinics);
 

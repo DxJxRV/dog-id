@@ -154,12 +154,15 @@ const ServiceProfileScreen = () => {
 
       {/* Bottom Action Bar */}
       <View style={styles.bottomBar}>
-        <Button 
+        <Button
           title="Solicitar Cita"
-          onPress={() => navigation.navigate('RequestAppointment', { 
-            vetId: isVet ? service.id : null,
-            clinicId: !isVet ? service.id : null,
-            vetName: service.title 
+          onPress={() => navigation.navigate('Pets', {
+            screen: 'RequestAppointment',
+            params: {
+              vetId: isVet ? service.id : null,
+              clinicId: !isVet ? service.id : null,
+              vetName: service.title
+            }
           })}
           style={styles.bookButton}
         />

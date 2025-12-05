@@ -85,6 +85,7 @@ model User {
   email         String   @unique
   passwordHash  String   @map("password_hash")
   googleId      String?  @unique @map("google_id")
+  appleId       String?  @unique @map("apple_id")
   fotoUrl       String?  @map("foto_url")
   coverPhotoUrl String?  @map("cover_photo_url")
   telefono      String?
@@ -106,7 +107,7 @@ model Vet {
   nombre              String
   email               String   @unique
   passwordHash        String   @map("password_hash")
-  cedulaProfesional   String   @map("cedula_profesional")
+  cedulaProfesional   String?  @map("cedula_profesional")
   telefono            String?
   fotoUrl             String?  @map("foto_url")
   coverPhotoUrl       String?  @map("cover_photo_url")

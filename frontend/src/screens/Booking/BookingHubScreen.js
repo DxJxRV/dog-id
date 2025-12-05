@@ -15,7 +15,7 @@ import {
   TouchableWithoutFeedback
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation, useFocusEffect, useRoute } from '@react-navigation/native';
 import { searchAPI, userAPI } from '../../services/api';
 import { getImageUrl } from '../../utils/imageHelper';
 import { format, parseISO } from 'date-fns';
@@ -26,7 +26,9 @@ const { height } = Dimensions.get('window');
 
 const BookingHubScreen = () => {
   const navigation = useNavigation();
-  
+  const route = useRoute();
+  const pendingBooking = route.params?.pendingBooking || null;
+
   // Main Tabs State
   const [activeTab, setActiveTab] = useState('book'); // 'book' | 'appointments'
 
@@ -157,9 +159,19 @@ const BookingHubScreen = () => {
             </View>
           )}
           
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.cardActionRow}
-            onPress={() => navigation.navigate('RequestAppointment', { vetId: item.id, vetName: item.name })}
+            onPress={() => navigation.navigate('Pets', {
+              screen: 'RequestAppointment',
+              params: {
+                vetId: item.id,
+                vetName: item.name,
+                ...(pendingBooking && {
+                  petId: pendingBooking.petId,
+                  reason: pendingBooking.reason
+                })
+              }
+            })}
           >
             <Text style={styles.cardActionText}>Agendar</Text>
             <Ionicons name="arrow-forward" size={12} color="#FFF" />
@@ -295,6 +307,20 @@ const BookingHubScreen = () => {
           <View style={styles.contentContainer}>
             <Text style={styles.headerTitle}>Hola,</Text>
             <Text style={styles.headerSubtitle}>¿Qué servicio buscas hoy?</Text>
+
+            {/* Banner de Vacuna Pendiente */}
+            {pendingBooking && (
+              <View style={styles.pendingBookingBanner}>
+                <View style={styles.bannerIconContainer}>
+                  <Ionicons name="shield-checkmark" size={24} color="#007AFF" />
+                </View>
+                <View style={styles.bannerTextContainer}>
+                  <Text style={styles.bannerTitle}>Agendando Vacuna</Text>
+                  <Text style={styles.bannerSubtitle}>{pendingBooking.vaccineName}</Text>
+                  <Text style={styles.bannerHint}>Selecciona un veterinario abajo</Text>
+                </View>
+              </View>
+            )}
 
             {/* Search Trigger */}
             <TouchableOpacity style={styles.searchBar} onPress={() => setShowSearchModal(true)}>
@@ -459,6 +485,46 @@ const styles = StyleSheet.create({
   contentContainer: { padding: 20 },
   headerTitle: { fontSize: 28, fontWeight: '800', color: '#333' },
   headerSubtitle: { fontSize: 16, color: '#666', marginBottom: 20 },
+
+  // Pending Booking Banner
+  pendingBookingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#E8F4FD',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderLeftWidth: 4,
+    borderLeftColor: '#007AFF',
+  },
+  bannerIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  bannerTextContainer: {
+    flex: 1,
+  },
+  bannerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#007AFF',
+    marginBottom: 2,
+  },
+  bannerSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  bannerHint: {
+    fontSize: 12,
+    color: '#666',
+  },
 
   // Search Trigger
   searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', padding: 14, borderRadius: 16, marginBottom: 25, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },

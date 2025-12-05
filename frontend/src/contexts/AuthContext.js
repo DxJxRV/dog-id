@@ -108,9 +108,16 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerUser = async (nombre, email, password) => {
+  const registerUser = async (nombre, email, password, googleId = null, appleId = null, fotoUrl = null) => {
     try {
-      const response = await authAPI.registerUser({ nombre, email, password });
+      const response = await authAPI.registerUser({
+        nombre,
+        email,
+        password,
+        googleId,
+        appleId,
+        fotoUrl,
+      });
       const { token, user: userData } = response.data;
       await saveAuthData(token, userData, 'user');
       return { success: true };
@@ -136,7 +143,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const registerVet = async (nombre, email, password, cedulaProfesional, telefono) => {
+  const registerVet = async (nombre, email, password, cedulaProfesional = null, telefono = null, googleId = null, appleId = null, fotoUrl = null) => {
     try {
       const response = await authAPI.registerVet({
         nombre,
@@ -144,6 +151,9 @@ export const AuthProvider = ({ children }) => {
         password,
         cedulaProfesional,
         telefono,
+        googleId,
+        appleId,
+        fotoUrl,
       });
       const { token, vet: vetData } = response.data;
       await saveAuthData(token, vetData, 'vet');
@@ -156,16 +166,52 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const loginWithGoogle = async (accessToken) => {
+  const loginWithGoogle = async (idToken) => {
     try {
-      const response = await authAPI.googleLogin({ accessToken });
-      const { token, user: userData } = response.data;
-      await saveAuthData(token, userData, 'user');
-      return { success: true };
+      const response = await authAPI.googleLogin({ idToken });
+      const { isNewUser, socialData, token, user: userData, userType: type } = response.data;
+
+      // If new user, return social data for role selection
+      if (isNewUser) {
+        return {
+          success: true,
+          isNewUser: true,
+          socialData,
+        };
+      }
+
+      // Existing user, save auth data
+      await saveAuthData(token, userData, type);
+      return { success: true, isNewUser: false };
     } catch (error) {
       return {
         success: false,
         error: error.response?.data?.error || 'Google login failed',
+      };
+    }
+  };
+
+  const loginWithApple = async (identityToken, fullName) => {
+    try {
+      const response = await authAPI.appleLogin({ identityToken, fullName });
+      const { isNewUser, socialData, token, user: userData, userType: type } = response.data;
+
+      // If new user, return social data for role selection
+      if (isNewUser) {
+        return {
+          success: true,
+          isNewUser: true,
+          socialData,
+        };
+      }
+
+      // Existing user, save auth data
+      await saveAuthData(token, userData, type);
+      return { success: true, isNewUser: false };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || 'Apple login failed',
       };
     }
   };
@@ -200,6 +246,7 @@ export const AuthProvider = ({ children }) => {
         loginVet,
         registerVet,
         loginWithGoogle,
+        loginWithApple,
         logout,
         updateUser,
         selectClinic, // Expose

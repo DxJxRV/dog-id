@@ -45,6 +45,7 @@ export const authAPI = {
   registerUser: (data) => api.post('/auth/user/register', data),
   loginUser: (data) => api.post('/auth/user/login', data),
   googleLogin: (data) => api.post('/auth/user/google', data),
+  appleLogin: (data) => api.post('/auth/user/apple', data),
   registerVet: (data) => api.post('/auth/vet/register', data),
   loginVet: (data) => api.post('/auth/vet/login', data),
   updateProfilePhoto: (formData) => {
@@ -104,6 +105,7 @@ export const userAPI = {
   toggleFavorite: (data) => api.post('/users/favorites', data),
   checkFavorite: (params) => api.get('/users/favorites/check', { params }),
   getNotifications: () => api.get('/user/notifications'),
+  getMyVets: () => api.get('/users/booking-home'), // Reutilizar endpoint que devuelve vets
 };
 
 // Vaccines API
@@ -184,6 +186,7 @@ export const deathCertificateAPI = {
 
 // Clinic API (SaaS)
 export const clinicAPI = {
+  createDefault: () => api.post('/clinics/default'),
   create: (data) => api.post('/clinics', data),
   getMyClinics: () => api.get('/clinics/my'),
   addMember: (data) => api.post('/clinics/members', data),
